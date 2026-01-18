@@ -1,0 +1,123 @@
+"""Ad schemas."""
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class MarketingEffectiveness(BaseModel):
+    """Marketing effectiveness scores."""
+
+    hook_strength: int = Field(..., ge=1, le=10, description="Attention grabbing score")
+    message_clarity: int = Field(..., ge=1, le=10, description="Value proposition clarity")
+    visual_impact: int = Field(..., ge=1, le=10, description="Production quality and design")
+    cta_effectiveness: int = Field(..., ge=1, le=10, description="Call-to-action effectiveness")
+    overall_score: int = Field(..., ge=1, le=10, description="Overall marketing score")
+
+
+class VideoAnalysis(BaseModel):
+    """Video-specific analysis (for video ads only)."""
+
+    pacing: str = Field(..., description="Scene changes, rhythm, energy")
+    audio_strategy: str = Field(..., description="Music, voiceover, SFX")
+    story_arc: str = Field(..., description="Narrative structure and flow")
+    caption_usage: str = Field(..., description="Text overlay effectiveness")
+    optimal_length: str = Field(..., description="Duration appropriateness")
+
+
+class AdAnalysis(BaseModel):
+    """Complete ad analysis result."""
+
+    summary: str = Field(..., description="2-3 sentence overview")
+    insights: list[str] = Field(default_factory=list, description="Key insights")
+    uvps: list[str] = Field(default_factory=list, description="Unique value propositions")
+    ctas: list[str] = Field(default_factory=list, description="Calls to action used")
+    visual_themes: list[str] = Field(default_factory=list, description="Visual style themes")
+    target_audience: str = Field(..., description="Target audience description")
+    emotional_appeal: str = Field(..., description="Primary emotion triggered")
+    marketing_effectiveness: MarketingEffectiveness
+    strategic_insights: str = Field(..., description="Marketing strategy analysis")
+    reasoning: str = Field(..., description="Detailed explanation of scores")
+    video_analysis: VideoAnalysis | None = Field(None, description="Video-specific analysis")
+
+
+class AdBase(BaseModel):
+    """Base schema for ad."""
+
+    ad_library_id: str = Field(..., description="Meta Ad Library ID")
+    ad_snapshot_url: str | None = None
+    creative_type: str = Field(..., pattern="^(image|video)$")
+    creative_storage_path: str = Field(..., description="Supabase storage path")
+    creative_url: str | None = Field(None, description="Original Meta CDN URL")
+    ad_copy: str | None = None
+    ad_headline: str | None = None
+    ad_description: str | None = None
+    cta_text: str | None = None
+    likes: int = Field(default=0, ge=0)
+    comments: int = Field(default=0, ge=0)
+    shares: int = Field(default=0, ge=0)
+    impressions: int | None = Field(None, ge=0)
+    publication_date: datetime | None = None
+
+
+class AdCreate(AdBase):
+    """Schema for creating an ad."""
+
+    competitor_id: UUID
+
+
+class AdResponse(AdBase):
+    """Schema for ad response."""
+
+    id: UUID
+    competitor_id: UUID
+    analysis: AdAnalysis | None = None
+    retrieved_date: datetime
+    analyzed_date: datetime | None = None
+    analyzed: bool
+    download_status: str
+    analysis_status: str
+    total_engagement: int = Field(..., description="Sum of likes, comments, shares")
+    overall_score: float | None = Field(None, description="Overall marketing score")
+
+    model_config = {"from_attributes": True}
+
+
+class AdListResponse(BaseModel):
+    """Schema for listing ads."""
+
+    items: list[AdResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class AdStats(BaseModel):
+    """Ad statistics."""
+
+    total_ads: int
+    analyzed_ads: int
+    pending_analysis: int
+    failed_analysis: int
+    by_type: dict[str, int] = Field(description="Count by creative type")
+    avg_engagement: float
+    avg_score: float | None
+    top_performer_id: UUID | None
+
+
+class AdRetrieveRequest(BaseModel):
+    """Request to retrieve ads for a competitor."""
+
+    competitor_id: UUID
+    max_ads: int | None = Field(None, ge=1, le=100)
+    since_days: int | None = Field(None, ge=1, le=365)
+
+
+class AdRetrieveResponse(BaseModel):
+    """Response after retrieving ads."""
+
+    retrieved: int
+    skipped: int
+    failed: int
+    competitor_id: UUID

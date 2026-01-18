@@ -3,8 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import DateTime, Integer, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -17,7 +16,7 @@ class AnalysisRun(Base):
     __tablename__ = "analysis_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -40,8 +39,8 @@ class AnalysisRun(Base):
 
     # Error handling
     error_message: Mapped[str | None] = mapped_column(Text)
-    parameters: Mapped[dict | None] = mapped_column(JSONB)
-    logs: Mapped[dict | None] = mapped_column(JSONB)
+    parameters: Mapped[dict | None] = mapped_column(JSON)
+    logs: Mapped[dict | None] = mapped_column(JSON)
 
     @property
     def duration_seconds(self) -> float | None:

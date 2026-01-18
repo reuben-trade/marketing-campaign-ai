@@ -88,7 +88,7 @@ class RecommendationEngine:
             "total_ads": len(ads),
             "avg_engagement": round(avg_engagement, 2),
             "visual_themes": ", ".join([t for t, _ in theme_counts.most_common(5)]),
-            "messaging_patterns": ", ".join([e for e in Counter(emotional_appeals).most_common(3)]),
+            "messaging_patterns": ", ".join([e for e, _ in Counter(emotional_appeals).most_common(3)]),
             "top_ctas": ", ".join([c for c, _ in cta_counts.most_common(5)]),
         }
 

@@ -3,8 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy import DateTime, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -17,7 +16,7 @@ class BusinessStrategy(Base):
     __tablename__ = "business_strategy"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -25,15 +24,15 @@ class BusinessStrategy(Base):
     business_description: Mapped[str | None] = mapped_column(Text)
     industry: Mapped[str | None] = mapped_column(String(255))
 
-    # JSONB fields for complex nested data
-    target_audience: Mapped[dict | None] = mapped_column(JSONB)
+    # JSON fields for complex nested data
+    target_audience: Mapped[dict | None] = mapped_column(JSON)
     # Structure: {
     #   "demographics": str,
     #   "psychographics": str,
     #   "pain_points": list[str]
     # }
 
-    brand_voice: Mapped[dict | None] = mapped_column(JSONB)
+    brand_voice: Mapped[dict | None] = mapped_column(JSON)
     # Structure: {
     #   "tone": str,
     #   "personality_traits": list[str],
@@ -49,9 +48,9 @@ class BusinessStrategy(Base):
     business_life_stage: Mapped[str | None] = mapped_column(String(50))
     # e.g., "startup", "growth", "mature"
 
-    unique_selling_points: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
-    competitive_advantages: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
-    marketing_objectives: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    unique_selling_points: Mapped[list[str] | None] = mapped_column(JSON)
+    competitive_advantages: Mapped[list[str] | None] = mapped_column(JSON)
+    marketing_objectives: Mapped[list[str] | None] = mapped_column(JSON)
 
     raw_pdf_url: Mapped[str | None] = mapped_column(Text)
 

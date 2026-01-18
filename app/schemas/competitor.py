@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 class CompetitorBase(BaseModel):
@@ -45,6 +45,16 @@ class CompetitorResponse(CompetitorBase):
     active: bool
     metadata_: dict | None = Field(None, alias="metadata")
     ad_count: int | None = Field(None, description="Number of ads from this competitor")
+
+    @field_validator("metadata_", mode="before")
+    @classmethod
+    def convert_metadata_to_dict(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        # Handle SQLAlchemy/other ORM objects that aren't plain dicts
+        return dict(v) if hasattr(v, "__iter__") else None
 
     model_config = {"from_attributes": True, "populate_by_name": True}
 

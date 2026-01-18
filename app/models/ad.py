@@ -3,8 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -17,12 +16,12 @@ class Ad(Base):
     __tablename__ = "ads"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         primary_key=True,
         default=uuid.uuid4,
     )
     competitor_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         ForeignKey("competitors.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -54,7 +53,7 @@ class Ad(Base):
     impressions: Mapped[int | None] = mapped_column(Integer)
 
     # Analysis results
-    analysis: Mapped[dict | None] = mapped_column(JSONB)
+    analysis: Mapped[dict | None] = mapped_column(JSON)
     # Structure: {
     #   "summary": str,
     #   "insights": list[str],

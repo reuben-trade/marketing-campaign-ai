@@ -166,7 +166,7 @@ def sample_competitor():
     """Sample competitor data."""
     return {
         "company_name": "Competitor Inc",
-        "ad_library_url": "https://www.facebook.com/ads/library/?view_all_page_id=123456789",
+        "page_id": "123456789",
         "industry": "Technology",
         "follower_count": 50000,
         "is_market_leader": True,

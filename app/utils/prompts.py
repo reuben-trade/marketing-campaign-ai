@@ -381,6 +381,8 @@ For each competitor, provide:
 - Why they're a relevant competitor
 - Their likely market position
 - Estimated size/follower count range
+- Facebook Page ID (numeric ID if you know it - this is critical for accessing their ads)
+- Facebook page URL (e.g., facebook.com/CompanyName)
 
 Return your findings in this JSON structure:
 {{
@@ -390,11 +392,15 @@ Return your findings in this JSON structure:
       "relevance_reason": "Why they're a competitor",
       "market_position": "leader/challenger/niche",
       "estimated_follower_range": "10K-50K",
-      "search_terms": ["term 1", "term 2"]
+      "facebook_page_id": "123456789",
+      "facebook_page_url": "https://www.facebook.com/CompanyName"
     }}
   ],
   "research_notes": "Additional context about the competitive landscape"
 }}
 
-IMPORTANT: Return ONLY valid JSON.
+IMPORTANT:
+- Return ONLY valid JSON.
+- The facebook_page_id should be a numeric string (e.g., "123456789") if known, or null if unknown.
+- The facebook_page_url should be the company's Facebook page URL if known.
 """

@@ -170,6 +170,35 @@ class SupabaseStorage:
         except Exception:
             return False
 
+    async def upload_bytes(
+        self,
+        content: bytes,
+        storage_path: str,
+        bucket: str,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """
+        Upload bytes content to Supabase Storage.
+
+        Args:
+            content: File content as bytes
+            storage_path: Path where to store the file
+            bucket: Bucket name
+            content_type: MIME type of the content
+
+        Returns:
+            Storage path of the uploaded file
+        """
+        try:
+            self.client.storage.from_(bucket).upload(
+                path=storage_path,
+                file=content,
+                file_options={"content-type": content_type},
+            )
+            return storage_path
+        except Exception as e:
+            raise SupabaseStorageError(f"Failed to upload bytes: {e}") from e
+
 
 async def download_from_url(url: str, timeout: int = 120) -> tuple[bytes, str | None]:
     """

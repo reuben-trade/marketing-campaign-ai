@@ -74,19 +74,19 @@ def discover_competitors_task(self, max_competitors: int = 10):
         skipped = 0
 
         for comp_data in discovered:
-            ad_library_url = asyncio.run(
-                discovery.search_for_ad_library_url(
+            page_id = asyncio.run(
+                discovery.search_for_page_id(
                     comp_data["company_name"],
                     comp_data.get("search_terms"),
                 )
             )
 
-            if not ad_library_url:
+            if not page_id:
                 continue
 
             existing = (
                 session.query(Competitor)
-                .filter(Competitor.ad_library_url == ad_library_url)
+                .filter(Competitor.page_id == page_id)
                 .first()
             )
 
@@ -96,7 +96,7 @@ def discover_competitors_task(self, max_competitors: int = 10):
 
             competitor = Competitor(
                 company_name=comp_data["company_name"],
-                ad_library_url=ad_library_url,
+                page_id=page_id,
                 industry=strategy.industry,
                 market_position=comp_data.get("market_position"),
                 discovery_method="automated",

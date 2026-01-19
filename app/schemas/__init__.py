@@ -9,6 +9,15 @@ from app.schemas.ad import (
     MarketingEffectiveness,
     VideoAnalysis,
 )
+from app.schemas.ad_creative_analysis import (
+    AdCreativeAnalysisCreate,
+    AdCreativeAnalysisResponse,
+    AdCreativeAnalysisSummary,
+    ArchetypeDistribution,
+    CreativeAnalysisRequest,
+    CreativeDiversityReport,
+    OfferDistribution,
+)
 from app.schemas.business_strategy import (
     BrandVoice,
     BusinessStrategyCreate,
@@ -21,6 +30,25 @@ from app.schemas.competitor import (
     CompetitorListResponse,
     CompetitorResponse,
     CompetitorUpdate,
+)
+from app.schemas.cross_platform_ad import (
+    CrossPlatformAdCreate,
+    CrossPlatformAdResponse,
+    CrossPlatformAdSummary,
+    CrossPlatformSearchRequest,
+    CrossPlatformSearchResponse,
+    TechnicalSophisticationLeaderboard,
+    TechnicalSophisticationRanking,
+    UniversalWinnerReport,
+)
+from app.schemas.landing_page import (
+    CTAButton,
+    HeadingsContent,
+    LandingPageCreate,
+    LandingPageResponse,
+    LandingPageScrapeRequest,
+    LandingPageSummary,
+    TrackingPixelInfo,
 )
 from app.schemas.recommendation import (
     RecommendationCreate,
@@ -49,6 +77,31 @@ __all__ = [
     "AdStats",
     "MarketingEffectiveness",
     "VideoAnalysis",
+    # Ad Creative Analysis
+    "AdCreativeAnalysisCreate",
+    "AdCreativeAnalysisResponse",
+    "AdCreativeAnalysisSummary",
+    "ArchetypeDistribution",
+    "CreativeAnalysisRequest",
+    "CreativeDiversityReport",
+    "OfferDistribution",
+    # Landing Page
+    "CTAButton",
+    "HeadingsContent",
+    "LandingPageCreate",
+    "LandingPageResponse",
+    "LandingPageScrapeRequest",
+    "LandingPageSummary",
+    "TrackingPixelInfo",
+    # Cross-Platform Ad
+    "CrossPlatformAdCreate",
+    "CrossPlatformAdResponse",
+    "CrossPlatformAdSummary",
+    "CrossPlatformSearchRequest",
+    "CrossPlatformSearchResponse",
+    "TechnicalSophisticationLeaderboard",
+    "TechnicalSophisticationRanking",
+    "UniversalWinnerReport",
     # Recommendation
     "RecommendationCreate",
     "RecommendationListResponse",

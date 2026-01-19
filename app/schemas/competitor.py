@@ -10,7 +10,7 @@ class CompetitorBase(BaseModel):
     """Base schema for competitor."""
 
     company_name: str = Field(..., min_length=1, max_length=255)
-    ad_library_url: str = Field(..., description="Meta Ad Library URL for this competitor")
+    page_id: str = Field(..., description="Meta/Facebook Page ID for this competitor")
     industry: str | None = None
     follower_count: int | None = Field(None, ge=0)
     is_market_leader: bool = False
@@ -27,7 +27,7 @@ class CompetitorUpdate(BaseModel):
     """Schema for updating a competitor."""
 
     company_name: str | None = Field(None, min_length=1, max_length=255)
-    ad_library_url: str | None = None
+    page_id: str | None = None
     industry: str | None = None
     follower_count: int | None = Field(None, ge=0)
     is_market_leader: bool | None = None
@@ -76,9 +76,21 @@ class CompetitorDiscoverRequest(BaseModel):
     include_market_leaders: bool = True
 
 
+class PendingCompetitor(BaseModel):
+    """Competitor that needs manual Page ID entry."""
+
+    company_name: str
+    facebook_page_url: str | None = None
+    relevance_reason: str | None = None
+
+
 class CompetitorDiscoverResponse(BaseModel):
     """Response after discovering competitors."""
 
     discovered: list[CompetitorResponse]
     total_found: int
     already_tracked: int
+    pending_manual_review: list[PendingCompetitor] = Field(
+        default_factory=list,
+        description="Competitors found but missing Page ID - need manual entry",
+    )

@@ -82,6 +82,10 @@ class Settings(BaseSettings):
         default="strategy-documents",
         description="Bucket for storing strategy PDFs",
     )
+    supabase_screenshots_bucket: str = Field(
+        default="screenshots",
+        description="Bucket for storing landing page screenshots",
+    )
 
     @property
     def meta_api_base_url(self) -> str:

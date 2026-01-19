@@ -121,8 +121,8 @@ def retrieve_ads_for_competitor_task(
     """
     from app.models.ad import Ad
     from app.models.competitor import Competitor
+    from app.services.ad_library_scraper import AdLibraryScraper, AdLibraryScraperError
     from app.services.creative_downloader import CreativeDownloader, CreativeDownloadError
-    from app.services.meta_ad_library import MetaAdLibraryClient, MetaAdLibraryError
 
     session = get_sync_session()
 
@@ -136,21 +136,18 @@ def retrieve_ads_for_competitor_task(
         if not competitor:
             return {"error": "Competitor not found"}
 
-        since_date = competitor.last_retrieved
-
-        meta_client = MetaAdLibraryClient()
+        scraper = AdLibraryScraper()
         downloader = CreativeDownloader()
 
         try:
-            raw_ads = asyncio.run(
-                meta_client.get_ads_for_competitor(
-                    competitor.ad_library_url,
-                    since_date=since_date,
-                    limit=max_ads,
+            scraped_ads = asyncio.run(
+                scraper.scrape_ads_for_page(
+                    competitor.page_id,
+                    max_ads=max_ads,
                 )
             )
-        except MetaAdLibraryError as e:
-            logger.error(f"Failed to retrieve ads for {competitor_id}: {e}")
+        except AdLibraryScraperError as e:
+            logger.error(f"Failed to scrape ads for {competitor_id}: {e}")
             self.retry(exc=e, countdown=60 * 5)
             return {"error": str(e)}
 
@@ -158,12 +155,15 @@ def retrieve_ads_for_competitor_task(
         skipped = 0
         failed = 0
 
-        for raw_ad in raw_ads:
-            parsed = meta_client.parse_ad_data(raw_ad)
+        for ad_data in scraped_ads:
+            ad_library_id = ad_data.get("ad_library_id")
+            if not ad_library_id:
+                failed += 1
+                continue
 
             existing = (
                 session.query(Ad)
-                .filter(Ad.ad_library_id == parsed["ad_library_id"])
+                .filter(Ad.ad_library_id == ad_library_id)
                 .first()
             )
 
@@ -172,42 +172,51 @@ def retrieve_ads_for_competitor_task(
                 continue
 
             try:
-                snapshot_url = parsed.get("ad_snapshot_url")
+                snapshot_url = ad_data.get("ad_snapshot_url")
+                creative_type = ad_data.get("creative_type", "image")
+
                 if snapshot_url:
-                    storage_path, creative_type = asyncio.run(
+                    storage_path, detected_type = asyncio.run(
                         downloader.download_creative(
                             snapshot_url,
                             competitor.id,
-                            parsed["ad_library_id"],
+                            ad_library_id,
                         )
                     )
                     download_status = "completed"
+                    if detected_type:
+                        creative_type = detected_type
                 else:
-                    storage_path = f"pending/{parsed['ad_library_id']}"
-                    creative_type = "image"
+                    storage_path = f"pending/{ad_library_id}"
                     download_status = "pending"
 
                 ad = Ad(
                     competitor_id=competitor.id,
-                    ad_library_id=parsed["ad_library_id"],
+                    ad_library_id=ad_library_id,
                     ad_snapshot_url=snapshot_url,
                     creative_type=creative_type,
                     creative_storage_path=storage_path,
-                    creative_url=parsed.get("creative_url"),
-                    ad_copy=parsed.get("ad_copy"),
-                    ad_headline=parsed.get("ad_headline"),
-                    ad_description=parsed.get("ad_description"),
-                    cta_text=parsed.get("cta_text"),
-                    publication_date=parsed.get("publication_date"),
+                    ad_copy=ad_data.get("ad_copy"),
+                    ad_headline=ad_data.get("ad_headline"),
+                    ad_description=ad_data.get("ad_description"),
+                    cta_text=ad_data.get("cta_text"),
+                    publication_date=ad_data.get("publication_date"),
                     download_status=download_status,
+                    is_carousel=ad_data.get("is_carousel", False),
+                    carousel_item_count=ad_data.get("carousel_item_count"),
+                    landing_page_url=ad_data.get("landing_page_url"),
+                    is_active=ad_data.get("is_active", True),
                 )
                 session.add(ad)
                 retrieved += 1
 
             except CreativeDownloadError as e:
                 logger.warning(
-                    f"Failed to download creative for ad {parsed['ad_library_id']}: {e}"
+                    f"Failed to download creative for ad {ad_library_id}: {e}"
                 )
+                failed += 1
+            except Exception as e:
+                logger.warning(f"Failed to process ad {ad_library_id}: {e}")
                 failed += 1
 
         competitor.last_retrieved = datetime.utcnow()

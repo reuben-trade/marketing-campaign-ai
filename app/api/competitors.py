@@ -73,17 +73,17 @@ async def add_competitor(
 ) -> CompetitorResponse:
     """Manually add a competitor."""
     existing = await db.execute(
-        select(Competitor).where(Competitor.ad_library_url == competitor.ad_library_url)
+        select(Competitor).where(Competitor.page_id == competitor.page_id)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Competitor with this Ad Library URL already exists",
+            detail="Competitor with this Page ID already exists",
         )
 
     db_competitor = Competitor(
         company_name=competitor.company_name,
-        ad_library_url=competitor.ad_library_url,
+        page_id=competitor.page_id,
         industry=competitor.industry,
         follower_count=competitor.follower_count,
         is_market_leader=competitor.is_market_leader,
@@ -99,7 +99,7 @@ async def add_competitor(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Competitor with this Ad Library URL already exists",
+            detail="Competitor with this Page ID already exists",
         )
 
     return CompetitorResponse.model_validate(db_competitor)
@@ -224,18 +224,37 @@ async def discover_competitors(
 
     added_competitors = []
     already_tracked = 0
+    pending_manual_review = []
 
     for comp_data in discovered:
-        ad_library_url = await discovery.search_for_ad_library_url(
-            comp_data["company_name"],
-            comp_data.get("search_terms"),
-        )
+        # Try to get page_id from AI response
+        page_id = comp_data.get("facebook_page_id")
 
-        if not ad_library_url:
+        # If no direct page_id, try to extract from URL pattern
+        if not page_id and comp_data.get("facebook_page_url"):
+            page_id = discovery.extract_page_id_from_url(comp_data["facebook_page_url"])
+
+        # If still no page_id, use browser scraping to extract from Facebook page
+        if not page_id and comp_data.get("facebook_page_url"):
+            try:
+                logger.info(f"Using browser to extract Page ID for {comp_data['company_name']}")
+                page_id = await discovery.lookup_page_id_from_facebook_url(
+                    comp_data["facebook_page_url"]
+                )
+            except Exception as e:
+                logger.warning(f"Browser extraction failed for {comp_data['company_name']}: {e}")
+
+        # If still no page_id, add to pending review list
+        if not page_id:
+            pending_manual_review.append({
+                "company_name": comp_data["company_name"],
+                "facebook_page_url": comp_data.get("facebook_page_url"),
+                "relevance_reason": comp_data.get("relevance_reason"),
+            })
             continue
 
         existing = await db.execute(
-            select(Competitor).where(Competitor.ad_library_url == ad_library_url)
+            select(Competitor).where(Competitor.page_id == page_id)
         )
         if existing.scalar_one_or_none():
             already_tracked += 1
@@ -243,13 +262,14 @@ async def discover_competitors(
 
         db_competitor = Competitor(
             company_name=comp_data["company_name"],
-            ad_library_url=ad_library_url,
+            page_id=page_id,
             industry=strategy.industry,
             market_position=comp_data.get("market_position"),
             discovery_method="automated",
             metadata_={
                 "relevance_reason": comp_data.get("relevance_reason"),
                 "estimated_follower_range": comp_data.get("estimated_follower_range"),
+                "facebook_page_url": comp_data.get("facebook_page_url"),
             },
         )
         db.add(db_competitor)
@@ -264,4 +284,5 @@ async def discover_competitors(
         discovered=[CompetitorResponse.model_validate(c) for c in added_competitors],
         total_found=len(discovered),
         already_tracked=already_tracked,
+        pending_manual_review=pending_manual_review,
     )

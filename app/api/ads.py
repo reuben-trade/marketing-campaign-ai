@@ -19,9 +19,9 @@ from app.schemas.ad import (
     AdRetrieveResponse,
     AdStats,
 )
+from app.services.ad_library_scraper import AdLibraryScraper, AdLibraryScraperError
 from app.services.creative_downloader import CreativeDownloader, CreativeDownloadError
 from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
-from app.services.meta_ad_library import MetaAdLibraryClient, MetaAdLibraryError
 from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
 
 logger = logging.getLogger(__name__)
@@ -235,25 +235,19 @@ async def retrieve_ads(
             detail="Competitor not found",
         )
 
-    since_date = None
-    if request.since_days:
-        since_date = datetime.utcnow() - timedelta(days=request.since_days)
-    elif competitor.last_retrieved:
-        since_date = competitor.last_retrieved
-
     max_ads = request.max_ads or settings.max_ads_per_competitor
 
+    # Use browser scraper instead of Graph API
     try:
-        meta_client = MetaAdLibraryClient()
-        raw_ads = await meta_client.get_ads_for_competitor(
-            competitor.ad_library_url,
-            since_date=since_date,
-            limit=max_ads,
+        scraper = AdLibraryScraper()
+        scraped_ads = await scraper.scrape_ads_for_page(
+            competitor.page_id,
+            max_ads=max_ads,
         )
-    except MetaAdLibraryError as e:
+    except AdLibraryScraperError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to retrieve ads from Meta: {e}",
+            detail=f"Failed to scrape ads from Ad Library: {e}",
         )
 
     retrieved = 0
@@ -262,49 +256,70 @@ async def retrieve_ads(
 
     downloader = CreativeDownloader()
 
-    for raw_ad in raw_ads:
-        parsed = meta_client.parse_ad_data(raw_ad)
+    for ad_data in scraped_ads:
+        ad_library_id = ad_data.get("ad_library_id")
+        if not ad_library_id:
+            failed += 1
+            continue
 
+        # Check if we already have this ad
         existing = await db.execute(
-            select(Ad).where(Ad.ad_library_id == parsed["ad_library_id"])
+            select(Ad).where(Ad.ad_library_id == ad_library_id)
         )
         if existing.scalar_one_or_none():
             skipped += 1
             continue
 
+        # Filter by date if since_days was specified
+        if request.since_days and ad_data.get("publication_date"):
+            since_date = datetime.utcnow() - timedelta(days=request.since_days)
+            if ad_data["publication_date"] < since_date:
+                skipped += 1
+                continue
+
         try:
-            snapshot_url = parsed.get("ad_snapshot_url")
+            snapshot_url = ad_data.get("ad_snapshot_url")
+            creative_type = ad_data.get("creative_type", "image")
+
             if snapshot_url:
-                storage_path, creative_type = await downloader.download_creative(
+                storage_path, detected_type = await downloader.download_creative(
                     snapshot_url,
                     competitor.id,
-                    parsed["ad_library_id"],
+                    ad_library_id,
                 )
                 download_status = "completed"
+                # Use detected type if available
+                if detected_type:
+                    creative_type = detected_type
             else:
-                storage_path = f"pending/{parsed['ad_library_id']}"
-                creative_type = "image"
+                storage_path = f"pending/{ad_library_id}"
                 download_status = "pending"
 
             db_ad = Ad(
                 competitor_id=competitor.id,
-                ad_library_id=parsed["ad_library_id"],
+                ad_library_id=ad_library_id,
                 ad_snapshot_url=snapshot_url,
                 creative_type=creative_type,
                 creative_storage_path=storage_path,
-                creative_url=parsed.get("creative_url"),
-                ad_copy=parsed.get("ad_copy"),
-                ad_headline=parsed.get("ad_headline"),
-                ad_description=parsed.get("ad_description"),
-                cta_text=parsed.get("cta_text"),
-                publication_date=parsed.get("publication_date"),
+                ad_copy=ad_data.get("ad_copy"),
+                ad_headline=ad_data.get("ad_headline"),
+                ad_description=ad_data.get("ad_description"),
+                cta_text=ad_data.get("cta_text"),
+                publication_date=ad_data.get("publication_date"),
                 download_status=download_status,
+                is_carousel=ad_data.get("is_carousel", False),
+                carousel_item_count=ad_data.get("carousel_item_count"),
+                landing_page_url=ad_data.get("landing_page_url"),
+                is_active=ad_data.get("is_active", True),
             )
             db.add(db_ad)
             retrieved += 1
 
         except CreativeDownloadError as e:
-            logger.warning(f"Failed to download creative for ad {parsed['ad_library_id']}: {e}")
+            logger.warning(f"Failed to download creative for ad {ad_library_id}: {e}")
+            failed += 1
+        except Exception as e:
+            logger.warning(f"Failed to process ad {ad_library_id}: {e}")
             failed += 1
 
     competitor.last_retrieved = datetime.utcnow()

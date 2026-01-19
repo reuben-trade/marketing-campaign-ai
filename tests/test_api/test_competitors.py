@@ -12,7 +12,7 @@ async def test_add_competitor(client: AsyncClient, sample_competitor):
     assert response.status_code == 200
     data = response.json()
     assert data["company_name"] == sample_competitor["company_name"]
-    assert data["ad_library_url"] == sample_competitor["ad_library_url"]
+    assert data["page_id"] == sample_competitor["page_id"]
     assert "id" in data
 
 
@@ -85,7 +85,7 @@ async def test_list_competitors(client: AsyncClient, sample_competitor):
         json={
             **sample_competitor,
             "company_name": "Another Competitor",
-            "ad_library_url": "https://www.facebook.com/ads/library/?view_all_page_id=987654321",
+            "page_id": "987654321",
         },
     )
 
@@ -106,7 +106,7 @@ async def test_list_competitors_pagination(client: AsyncClient, sample_competito
             json={
                 **sample_competitor,
                 "company_name": f"Competitor {i}",
-                "ad_library_url": f"https://www.facebook.com/ads/library/?view_all_page_id={i}",
+                "page_id": f"{100000000 + i}",
             },
         )
 

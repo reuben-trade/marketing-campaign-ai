@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from typing import Any
 
 from anthropic import AsyncAnthropic
@@ -98,48 +99,69 @@ class CompetitorDiscovery:
             logger.error(f"Competitor discovery failed: {e}")
             raise CompetitorDiscoveryError(f"Discovery failed: {e}") from e
 
-    async def validate_competitor_url(self, ad_library_url: str) -> bool:
+    def extract_page_id_from_url(self, url: str) -> str | None:
         """
-        Validate that a Meta Ad Library URL is valid and accessible.
+        Extract Facebook Page ID from various URL formats.
+
+        Supports:
+        - https://www.facebook.com/ads/library/?view_all_page_id=123456789
+        - Direct numeric IDs
 
         Args:
-            ad_library_url: URL to validate
+            url: Facebook URL or page ID
 
         Returns:
-            True if valid, False otherwise
+            Page ID if extractable, None otherwise
         """
-        import httpx
+        if not url:
+            return None
 
+        # Already a numeric ID
+        if url.isdigit():
+            return url
+
+        # Try to extract from Ad Library URL
+        patterns = [
+            r"view_all_page_id=(\d+)",
+            r"[?&]id=(\d+)",
+            r"page_id=(\d+)",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+
+        return None
+
+    async def lookup_page_id_from_facebook_url(self, facebook_url: str) -> str | None:
+        """
+        Use browser scraping to extract Page ID from a Facebook page URL.
+
+        Args:
+            facebook_url: Facebook page URL (e.g., https://facebook.com/CompanyName)
+
+        Returns:
+            Page ID if found, None otherwise
+        """
+        from app.services.ad_library_scraper import AdLibraryScraper
+
+        # First try to extract from URL directly
+        page_id = self.extract_page_id_from_url(facebook_url)
+        if page_id:
+            return page_id
+
+        # Use browser scraping to extract from page
         try:
-            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                response = await client.head(ad_library_url)
-                return response.status_code == 200
+            scraper = AdLibraryScraper()
+            page_id = await scraper.extract_page_id_from_profile(facebook_url)
+            if page_id:
+                logger.info(f"Found Page ID {page_id} for {facebook_url}")
+                return page_id
         except Exception as e:
-            logger.warning(f"Failed to validate URL {ad_library_url}: {e}")
-            return False
+            logger.warning(f"Failed to extract Page ID from {facebook_url}: {e}")
 
-    async def search_for_ad_library_url(
-        self,
-        company_name: str,
-        search_terms: list[str] | None = None,
-    ) -> str | None:
-        """
-        Search for a company's Meta Ad Library URL.
-
-        Note: This is a placeholder - actual implementation would require
-        web search API integration (Google Search API, Bing, etc.)
-
-        Args:
-            company_name: Name of the company
-            search_terms: Additional search terms
-
-        Returns:
-            Ad Library URL if found, None otherwise
-        """
-        base_url = "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q="
-        search_query = company_name.replace(" ", "%20")
-
-        return f"{base_url}{search_query}"
+        return None
 
     def build_ad_library_url(self, page_id: str) -> str:
         """

@@ -7,7 +7,7 @@ from uuid import UUID
 import httpx
 
 from app.config import get_settings
-from app.services.meta_ad_library import MetaAdLibraryClient
+from app.services.ad_library_scraper import AdLibraryScraper
 from app.utils.supabase_storage import SupabaseStorage, download_from_url
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class CreativeDownloader:
         """Initialize the creative downloader."""
         settings = get_settings()
         self.storage = SupabaseStorage()
-        self.meta_client = MetaAdLibraryClient()
+        self.scraper = AdLibraryScraper()
         self.max_retries = 3
         self.retry_delay = 2
 
@@ -47,7 +47,7 @@ class CreativeDownloader:
         Returns:
             Tuple of (storage_path, creative_type)
         """
-        creative_url, creative_type = await self.meta_client.get_creative_url_from_snapshot(
+        creative_url, creative_type = await self.scraper.get_creative_url_from_snapshot(
             ad_snapshot_url
         )
 

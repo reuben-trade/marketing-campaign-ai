@@ -21,7 +21,7 @@ class Competitor(Base):
         default=uuid.uuid4,
     )
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    ad_library_url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    page_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     industry: Mapped[str | None] = mapped_column(String(255))
     follower_count: Mapped[int | None] = mapped_column(Integer)
     is_market_leader: Mapped[bool] = mapped_column(Boolean, default=False)

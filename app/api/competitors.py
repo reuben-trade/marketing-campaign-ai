@@ -213,7 +213,6 @@ async def discover_competitors(
             business_name=strategy.business_name,
             industry=request.industry or strategy.industry,
             business_description=strategy.business_description,
-            market_position=strategy.market_position,
             max_competitors=request.max_competitors,
         )
     except CompetitorDiscoveryError as e:

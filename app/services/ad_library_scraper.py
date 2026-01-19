@@ -163,8 +163,6 @@ class AdLibraryScraper:
                 if body_match:
                     try:
                         body_text = body_match.group(1).encode('utf-8').decode('unicode_escape')
-                        # Remove any surrogate characters that can't be encoded to UTF-8
-                        body_text = body_text.encode('utf-8', errors='surrogatepass').decode('utf-8', errors='replace')
                     except (UnicodeDecodeError, UnicodeEncodeError):
                         # Fallback: just use the raw text with simple replacements
                         body_text = body_match.group(1).replace("\\n", "\n").replace("\\u2022", "•")

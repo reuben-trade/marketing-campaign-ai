@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(..., description="OpenAI API key")
     google_api_key: str = Field(..., description="Google AI (Gemini) API key")
     anthropic_api_key: str = Field(..., description="Anthropic API key")
+    tavily_api_key: str = Field(..., description="Tavily API key")
 
     # Meta Ad Library
     meta_access_token: str = Field(..., description="Meta Graph API access token")

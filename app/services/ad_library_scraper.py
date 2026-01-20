@@ -552,8 +552,8 @@ class AdLibraryScraper:
         """
         Extract Page ID from the Page Transparency section.
 
-        Navigates to the transparency URL and extracts the Page ID using
-        multiple strategies based on the DOM structure.
+        Navigates to the transparency URL and finds spans containing the numeric
+        Page ID using Facebook's class pattern.
 
         Args:
             page: Playwright page object
@@ -567,77 +567,17 @@ class AdLibraryScraper:
 
         try:
             await page.goto(transparency_url, timeout=timeout_ms, wait_until="domcontentloaded")
-
-            # Wait for page content to settle
             await asyncio.sleep(2)
 
-            # Strategy 1: Click "See All" button if present to reveal full transparency info
-            try:
-                see_all_button = page.locator('div[role="button"]').filter(has_text=re.compile(r"^See All$", re.I))
-                if await see_all_button.count() > 0:
-                    # Use force click to bypass overlay interception, with short timeout
-                    await see_all_button.first.click(force=True, timeout=5000)
-                    await asyncio.sleep(1)
-            except Exception as e:
-                logger.debug(f"See All button not found or click failed: {e}")
+            # Find spans with Facebook's x193iq5w class that contain only a numeric ID
+            id_spans = page.locator('span[class*="x193iq5w"]')
+            count = await id_spans.count()
 
-            # Strategy 2: Find the "Page ID" label span and get adjacent numeric content
-            # The DOM structure shows: <span class="xi81zsa...">Page ID</span> followed by
-            # a sibling/cousin span containing the actual ID number
-            try:
-                # Look for a span that contains exactly "Page ID" text
-                page_id_label = page.locator('span').filter(has_text=re.compile(r"^Page ID$"))
-
-                if await page_id_label.count() > 0:
-                    # Get the parent container and extract all text, then find the number
-                    # Navigate up to find a container that has both label and value
-                    parent = page_id_label.locator('xpath=ancestor::div[1]')
-                    parent_text = await parent.inner_text()
-
-                    # Extract the numeric ID (10+ digits)
-                    match = re.search(r'(\d{10,})', parent_text)
-                    if match:
-                        logger.debug(f"Found Page ID via label parent: {match.group(1)}")
-                        return match.group(1)
-
-                    # Try going up more levels if needed
-                    grandparent = page_id_label.locator('xpath=ancestor::div[2]')
-                    grandparent_text = await grandparent.inner_text()
-                    match = re.search(r'(\d{10,})', grandparent_text)
-                    if match:
-                        logger.debug(f"Found Page ID via label grandparent: {match.group(1)}")
-                        return match.group(1)
-            except Exception as e:
-                logger.debug(f"Strategy 2 (label lookup) failed: {e}")
-
-            # Strategy 3: Use XPath to find spans near "Page ID" text
-            try:
-                # Find all spans and look for the pattern
-                page_content = await page.content()
-
-                # Look for the Page ID in the rendered content near the label
-                # Pattern: "Page ID" followed by whitespace/newlines and then digits
-                match = re.search(r'Page ID[^\d]*(\d{10,})', page_content)
-                if match:
-                    logger.debug(f"Found Page ID via content regex: {match.group(1)}")
-                    return match.group(1)
-            except Exception as e:
-                logger.debug(f"Strategy 3 (content regex) failed: {e}")
-
-            # Strategy 4: Look for the specific span class pattern from the screenshot
-            # Classes like x193iq5w contain the ID
-            try:
-                id_spans = page.locator('span[class*="x193iq5w"]')
-                count = await id_spans.count()
-
-                for i in range(count):
-                    span_text = await id_spans.nth(i).inner_text()
-                    # Check if this span contains only a long number (the Page ID)
-                    if re.match(r'^\d{10,}$', span_text.strip()):
-                        logger.debug(f"Found Page ID via class pattern: {span_text.strip()}")
-                        return span_text.strip()
-            except Exception as e:
-                logger.debug(f"Strategy 4 (class pattern) failed: {e}")
+            for i in range(count):
+                span_text = await id_spans.nth(i).inner_text()
+                if re.match(r'^\d{10,}$', span_text.strip()):
+                    logger.debug(f"Found Page ID via transparency: {span_text.strip()}")
+                    return span_text.strip()
 
             logger.warning(f"Could not extract Page ID from transparency page: {transparency_url}")
             return None

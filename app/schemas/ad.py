@@ -1,9 +1,28 @@
 """Ad schemas."""
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+
+class FormFieldsSchema(BaseModel):
+    """Schema for lead gen form fields extracted from ads."""
+
+    intro_text: str | None = Field(None, description="Introduction text for the form")
+    questions: list[dict] = Field(
+        default_factory=list,
+        description="Questions with options, e.g., [{'question': 'Are you a Home Owner?', 'options': ['Yes', 'No']}]",
+    )
+    fields: list[str] = Field(
+        default_factory=list,
+        description="Form field names, e.g., ['Full name', 'Email', 'Phone number']",
+    )
+    terms_links: list[dict] = Field(
+        default_factory=list,
+        description="Terms/privacy links, e.g., [{'text': 'Terms and Conditions', 'url': '...'}]",
+    )
+    thank_you_text: str | None = Field(None, description="Thank you message after form submission")
 
 
 class MarketingEffectiveness(BaseModel):
@@ -60,6 +79,15 @@ class AdBase(BaseModel):
     impressions: int | None = Field(None, ge=0)
     publication_date: datetime | None = None
 
+    # Detailed ad info from modal view
+    started_running_date: date | None = Field(None, description="Date the ad started running")
+    total_active_time: str | None = Field(None, description="How long ad has been active (e.g., '4 hrs', '3 days')")
+    platforms: list[str] | None = Field(None, description="Platforms where ad runs (facebook, instagram, messenger)")
+    link_headline: str | None = Field(None, description="Link preview headline")
+    link_description: str | None = Field(None, description="Link preview description")
+    additional_links: list[str] | None = Field(None, description="Additional URLs from ad assets")
+    form_fields: FormFieldsSchema | None = Field(None, description="Lead gen form fields")
+
 
 class AdCreate(AdBase):
     """Schema for creating an ad."""
@@ -112,6 +140,7 @@ class AdRetrieveRequest(BaseModel):
     competitor_id: UUID
     max_ads: int | None = Field(None, ge=1, le=100)
     since_days: int | None = Field(None, ge=1, le=365)
+    scrape_details: bool = Field(True, description="Scrape detailed modal info for each ad (slower but more accurate)")
 
 
 class AdRetrieveResponse(BaseModel):

@@ -1,11 +1,13 @@
 """Ads API endpoints."""
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import and_, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbSession
@@ -27,6 +29,15 @@ from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
 logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
+
+
+def sanitize_unicode(text: str | None) -> str | None:
+    """Remove invalid Unicode surrogates that can't be encoded to UTF-8."""
+    if text is None:
+        return None
+    # Encode with surrogatepass to handle surrogates, then decode back
+    # This replaces invalid surrogates with the replacement character
+    return text.encode("utf-8", errors="surrogatepass").decode("utf-8", errors="replace")
 
 
 @router.get("", response_model=AdListResponse)
@@ -83,6 +94,13 @@ async def list_ads(
             shares=ad.shares,
             impressions=ad.impressions,
             publication_date=ad.publication_date,
+            started_running_date=ad.started_running_date,
+            total_active_time=ad.total_active_time,
+            platforms=ad.platforms,
+            link_headline=ad.link_headline,
+            link_description=ad.link_description,
+            additional_links=ad.additional_links,
+            form_fields=ad.form_fields,
             analysis=ad.analysis,
             retrieved_date=ad.retrieved_date,
             analyzed_date=ad.analyzed_date,
@@ -203,6 +221,13 @@ async def get_ad(
         shares=ad.shares,
         impressions=ad.impressions,
         publication_date=ad.publication_date,
+        started_running_date=ad.started_running_date,
+        total_active_time=ad.total_active_time,
+        platforms=ad.platforms,
+        link_headline=ad.link_headline,
+        link_description=ad.link_description,
+        additional_links=ad.additional_links,
+        form_fields=ad.form_fields,
         analysis=ad.analysis,
         retrieved_date=ad.retrieved_date,
         analyzed_date=ad.analyzed_date,
@@ -262,6 +287,9 @@ async def retrieve_ads(
             failed += 1
             continue
 
+        # Ensure ad_library_id is a string for consistent comparison
+        ad_library_id = str(ad_library_id)
+
         # Check if we already have this ad
         existing = await db.execute(
             select(Ad).where(Ad.ad_library_id == ad_library_id)
@@ -295,25 +323,56 @@ async def retrieve_ads(
                 storage_path = f"pending/{ad_library_id}"
                 download_status = "pending"
 
+            # Scrape detailed ad info from modal view (if enabled)
+            ad_details = {}
+            if request.scrape_details:
+                try:
+                    ad_details = await scraper.scrape_ad_details(
+                        ad_library_id=ad_library_id,
+                        page_id=competitor.page_id,
+                        country="AU",
+                    )
+                    logger.info(f"Scraped details for ad {ad_library_id}")
+                    # Add delay between detail scrapes to avoid rate limiting
+                    await asyncio.sleep(1.5)
+                except Exception as e:
+                    logger.warning(f"Failed to scrape details for ad {ad_library_id}: {e}")
+
             db_ad = Ad(
                 competitor_id=competitor.id,
                 ad_library_id=ad_library_id,
                 ad_snapshot_url=snapshot_url,
                 creative_type=creative_type,
                 creative_storage_path=storage_path,
-                ad_copy=ad_data.get("ad_copy"),
-                ad_headline=ad_data.get("ad_headline"),
-                ad_description=ad_data.get("ad_description"),
-                cta_text=ad_data.get("cta_text"),
+                # Use detailed ad_copy if available, otherwise fallback to basic scrape
+                ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
+                ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),
+                ad_description=sanitize_unicode(ad_details.get("link_description") or ad_data.get("ad_description")),
+                cta_text=sanitize_unicode(ad_details.get("cta_text") or ad_data.get("cta_text")),
                 publication_date=ad_data.get("publication_date"),
                 download_status=download_status,
                 is_carousel=ad_data.get("is_carousel", False),
                 carousel_item_count=ad_data.get("carousel_item_count"),
-                landing_page_url=ad_data.get("landing_page_url"),
+                landing_page_url=sanitize_unicode(ad_data.get("landing_page_url")),
                 is_active=ad_data.get("is_active", True),
+                # New detailed fields from modal
+                started_running_date=ad_details.get("started_running_date"),
+                total_active_time=ad_details.get("total_active_time"),
+                platforms=ad_details.get("platforms"),
+                link_headline=sanitize_unicode(ad_details.get("link_headline")),
+                link_description=sanitize_unicode(ad_details.get("link_description")),
+                additional_links=ad_details.get("additional_links"),
+                form_fields=ad_details.get("form_fields"),
             )
-            db.add(db_ad)
-            retrieved += 1
+            # Use savepoint to handle duplicates without rolling back entire transaction
+            try:
+                async with db.begin_nested():
+                    db.add(db_ad)
+                    await db.flush()
+                retrieved += 1
+            except IntegrityError:
+                skipped += 1
+                logger.debug(f"Ad {ad_library_id} already exists, skipping")
 
         except CreativeDownloadError as e:
             logger.warning(f"Failed to download creative for ad {ad_library_id}: {e}")
@@ -419,6 +478,13 @@ async def analyze_ad(
         shares=ad.shares,
         impressions=ad.impressions,
         publication_date=ad.publication_date,
+        started_running_date=ad.started_running_date,
+        total_active_time=ad.total_active_time,
+        platforms=ad.platforms,
+        link_headline=ad.link_headline,
+        link_description=ad.link_description,
+        additional_links=ad.additional_links,
+        form_fields=ad.form_fields,
         analysis=ad.analysis,
         retrieved_date=ad.retrieved_date,
         analyzed_date=ad.analyzed_date,
@@ -502,3 +568,107 @@ async def run_analysis(
         "failed": failed,
         "total_attempted": len(ads),
     }
+
+
+@router.post("/{ad_id}/scrape-details", response_model=AdResponse)
+async def scrape_ad_details(
+    db: DbSession,
+    ad_id: UUID,
+) -> AdResponse:
+    """
+    Scrape detailed information for a specific ad from Meta Ad Library.
+
+    Opens the ad details modal and extracts:
+    - Started running date and total active time
+    - Platforms
+    - Link headline and description
+    - Additional links
+    - Form fields (for lead gen ads)
+    """
+    result = await db.execute(
+        select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad_id)
+    )
+    ad = result.scalar_one_or_none()
+
+    if not ad:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ad not found",
+        )
+
+    competitor = ad.competitor
+    if not competitor or not competitor.page_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Competitor page_id not available",
+        )
+
+    try:
+        scraper = AdLibraryScraper()
+        details = await scraper.scrape_ad_details(
+            ad_library_id=ad.ad_library_id,
+            page_id=competitor.page_id,
+        )
+
+        # Update ad with scraped details
+        if details.get("started_running_date"):
+            ad.started_running_date = details["started_running_date"]
+        if details.get("total_active_time"):
+            ad.total_active_time = details["total_active_time"]
+        if details.get("platforms"):
+            ad.platforms = details["platforms"]
+        if details.get("primary_text") and not ad.ad_copy:
+            ad.ad_copy = sanitize_unicode(details["primary_text"])
+        if details.get("link_headline"):
+            ad.link_headline = sanitize_unicode(details["link_headline"])
+        if details.get("link_description"):
+            ad.link_description = sanitize_unicode(details["link_description"])
+        if details.get("cta_text") and not ad.cta_text:
+            ad.cta_text = sanitize_unicode(details["cta_text"])
+        if details.get("additional_links"):
+            ad.additional_links = details["additional_links"]
+        if details.get("form_fields"):
+            ad.form_fields = details["form_fields"]
+
+        await db.commit()
+        await db.refresh(ad)
+
+    except AdLibraryScraperError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to scrape ad details: {e}",
+        )
+
+    return AdResponse(
+        id=ad.id,
+        competitor_id=ad.competitor_id,
+        ad_library_id=ad.ad_library_id,
+        ad_snapshot_url=ad.ad_snapshot_url,
+        creative_type=ad.creative_type,
+        creative_storage_path=ad.creative_storage_path,
+        creative_url=ad.creative_url,
+        ad_copy=ad.ad_copy,
+        ad_headline=ad.ad_headline,
+        ad_description=ad.ad_description,
+        cta_text=ad.cta_text,
+        likes=ad.likes,
+        comments=ad.comments,
+        shares=ad.shares,
+        impressions=ad.impressions,
+        publication_date=ad.publication_date,
+        started_running_date=ad.started_running_date,
+        total_active_time=ad.total_active_time,
+        platforms=ad.platforms,
+        link_headline=ad.link_headline,
+        link_description=ad.link_description,
+        additional_links=ad.additional_links,
+        form_fields=ad.form_fields,
+        analysis=ad.analysis,
+        retrieved_date=ad.retrieved_date,
+        analyzed_date=ad.analyzed_date,
+        analyzed=ad.analyzed,
+        download_status=ad.download_status,
+        analysis_status=ad.analysis_status,
+        total_engagement=ad.total_engagement,
+        overall_score=ad.overall_score,
+    )

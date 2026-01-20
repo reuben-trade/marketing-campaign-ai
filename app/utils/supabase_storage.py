@@ -71,6 +71,10 @@ class SupabaseStorage:
             )
             return storage_path
         except Exception as e:
+            # Check if it's a duplicate error (409) - treat as success since file exists
+            error_str = str(e)
+            if "409" in error_str or "Duplicate" in error_str or "already exists" in error_str:
+                return storage_path
             raise SupabaseStorageError(f"Failed to upload creative: {e}") from e
 
     async def upload_strategy_document(

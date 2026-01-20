@@ -1,9 +1,10 @@
 """Ad model."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Uuid
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Uuid
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -59,6 +60,26 @@ class Ad(Base):
     ad_headline: Mapped[str | None] = mapped_column(Text)
     ad_description: Mapped[str | None] = mapped_column(Text)
     cta_text: Mapped[str | None] = mapped_column(String(255))
+
+    # Detailed ad info from modal view
+    started_running_date: Mapped[date | None] = mapped_column(Date)
+    total_active_time: Mapped[str | None] = mapped_column(String(100))
+    platforms: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    # e.g., ["facebook", "instagram", "messenger"]
+    link_headline: Mapped[str | None] = mapped_column(Text)
+    # Link preview headline (e.g., "Save Money, Enjoy Clean Water")
+    link_description: Mapped[str | None] = mapped_column(Text)
+    # Link preview description (e.g., "Fresh, filtered water for Australian homes.")
+    additional_links: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    # URLs from "Additional assets from this ad" section
+    form_fields: Mapped[dict | None] = mapped_column(JSONB)
+    # Lead gen form data: {
+    #   "intro_text": str,
+    #   "questions": [{"question": str, "options": list[str]}],
+    #   "fields": list[str],  # e.g., ["Full name", "Email", "Phone number"]
+    #   "terms_links": [{"text": str, "url": str}],
+    #   "thank_you_text": str
+    # }
 
     # Engagement metrics
     likes: Mapped[int] = mapped_column(Integer, default=0)

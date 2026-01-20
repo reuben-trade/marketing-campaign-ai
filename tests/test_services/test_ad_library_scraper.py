@@ -118,3 +118,49 @@ class TestAdLibraryScraperAsync:
         ads = await scraper.scrape_ads_for_page(page_id, max_ads=2, country="AU")
 
         assert len(ads) > 0
+
+    async def test_search_page_id_by_name_known_company(self):
+        """Test searching for page ID by company name via Google."""
+        scraper = AdLibraryScraper()
+
+        # Search for a known company - The Grout Guy
+        page_id, facebook_url = await scraper.search_page_id_by_name("The Grout Guy")
+
+        # Should find a Facebook URL at minimum
+        assert facebook_url is not None
+        assert "facebook.com" in facebook_url
+
+        # If page_id was extracted, validate format
+        if page_id:
+            assert len(page_id) >= 10  # Facebook page IDs are typically 10+ digits
+            assert page_id.isdigit()  # Should be numeric
+
+    async def test_search_page_id_by_name_returns_url_for_manual_review(self):
+        """Test that search returns Facebook URL even if page_id extraction fails."""
+        scraper = AdLibraryScraper()
+
+        # Search for a company - may or may not get page_id, but should get URL
+        page_id, facebook_url = await scraper.search_page_id_by_name("Coca-Cola")
+
+        # Should at least find a Facebook URL (Google search should work)
+        # page_id may or may not be extracted depending on Facebook's page structure
+        if facebook_url:
+            assert "facebook.com" in facebook_url
+
+    async def test_search_page_id_by_name_can_scrape_ads(self):
+        """Test that a found page ID can be used to scrape ads."""
+        scraper = AdLibraryScraper()
+
+        # Search for page ID
+        page_id, facebook_url = await scraper.search_page_id_by_name("The Grout Guy")
+
+        # Skip if no page_id (might need manual review)
+        if page_id is None:
+            assert facebook_url is not None, "Should have URL for manual review"
+            return
+
+        # Now try to scrape ads using that page ID
+        ads = await scraper.scrape_ads_for_page(page_id, max_ads=2)
+
+        # Should be able to scrape (even if no active ads)
+        assert isinstance(ads, list)

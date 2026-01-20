@@ -168,12 +168,13 @@ def enrich_competitor_task(competitor_id: str):
             return {"error": "Competitor not found"}
 
         discovery = CompetitorDiscovery()
-        enriched_data = asyncio.run(
-            discovery.enrich_competitor_data(
-                competitor.company_name,
-                competitor.industry,
-            )
-        )
+        # enriched_data = asyncio.run(
+        #     discovery.enrich_competitor_data(
+        #         competitor.company_name,
+        #         competitor.industry,
+        #     )
+        # )
+        enriched_data = None # taking too long to enrich all
 
         if enriched_data:
             competitor.metadata_ = competitor.metadata_ or {}

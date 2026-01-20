@@ -82,6 +82,7 @@ class PendingCompetitor(BaseModel):
     company_name: str
     facebook_page_url: str | None = None
     relevance_reason: str | None = None
+    description: str | None = None
 
 
 class CompetitorDiscoverResponse(BaseModel):

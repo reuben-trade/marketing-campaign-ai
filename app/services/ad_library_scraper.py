@@ -333,6 +333,234 @@ class AdLibraryScraper:
 
         return details
 
+    async def search_page_id_by_name(
+        self,
+        company_name: str,
+        timeout_ms: int = 30000,
+    ) -> tuple[str | None, str | None]:
+        """
+        Search for a company's Facebook page using Tavily and extract the Page ID.
+
+        Uses Tavily API to search for the Facebook page, then navigates to that page
+        with Playwright to extract the Page ID.
+
+        Args:
+            company_name: Name of the company to search for
+            timeout_ms: Page load timeout
+
+        Returns:
+            Tuple of (page_id, facebook_url):
+            - page_id: The extracted Page ID if found, None otherwise
+            - facebook_url: The Facebook page URL found (for manual review if page_id extraction fails)
+        """
+        from app.config import get_settings
+        from tavily import AsyncTavilyClient
+
+        settings = get_settings()
+        if not settings.tavily_api_key:
+            logger.warning("TAVILY_API_KEY not set. Cannot search for Facebook pages.")
+            return None, None
+
+        logger.info(f"Searching Tavily for Facebook page: {company_name}")
+
+        # Patterns to find page IDs in Facebook page HTML
+        # IMPORTANT: Use exact matches to avoid delegate_page_id, etc.
+        # Order matters - more specific patterns first
+        patterns = [
+            # Escaped JSON format (common in embedded scripts): \"page_id\":\"123\"
+            r'(?<![a-zA-Z_])\\?"page_id\\?":\\?"(\d+)\\?"',
+            # Standard JSON format: "page_id":"123"
+            r'(?<![a-zA-Z_])"page_id":"(\d+)"',
+            # Without quotes around value
+            r'(?<![a-zA-Z_])"page_id":(\d+)(?!\d)',
+        ]
+
+        # Step 1: Use Tavily to search for Facebook page
+        tavily = AsyncTavilyClient(api_key=settings.tavily_api_key)
+        search_query = f'site:facebook.com "{company_name}" page'
+
+        try:
+            search_result = await tavily.search(
+                query=search_query,
+                search_depth="basic",
+                max_results=5,
+                include_domains=["facebook.com"],
+            )
+
+            results = search_result.get("results", [])
+            logger.info(f"Tavily returned {len(results)} results for query: {search_query}")
+
+            # Find Facebook URL in results
+            facebook_link = None
+            skip_patterns = [
+                "/login", "/help", "/policies", "/privacy",
+                "business.facebook", "developers.facebook",
+                "/watch", "/groups", "/events", "/marketplace",
+                "/share", "/sharer", "/dialog", "/plugins"
+            ]
+
+            for i, result in enumerate(results, 1):
+                url = result.get("url", "")
+                title = result.get("title", "")[:60]
+                logger.debug(f"  Result {i}: {url} - {title}")
+
+                if "facebook.com" in url and not facebook_link:
+                    # Skip non-page URLs
+                    if any(skip in url.lower() for skip in skip_patterns):
+                        logger.debug(f"    -> SKIPPED (matches exclusion pattern)")
+                        continue
+                    logger.debug(f"    -> SELECTED")
+                    facebook_link = url
+
+            if not facebook_link:
+                logger.warning(f"No Facebook page found in Tavily results for: {company_name}")
+                return None, None
+
+            logger.info(f"Found Facebook link via Tavily: {facebook_link}")
+
+        except Exception as e:
+            logger.warning(f"Tavily search failed for {company_name}: {e}")
+            return None, None
+
+        # Step 2: Navigate to the Facebook page and extract Page ID
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+
+            try:
+                context = await browser.new_context(
+                    viewport={"width": 1920, "height": 1080},
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                )
+                page = await context.new_page()
+
+                try:
+                    await page.goto(facebook_link, timeout=timeout_ms, wait_until="networkidle")
+                    await asyncio.sleep(2)
+
+                    # Get the final URL (in case of redirects)
+                    final_url = page.url
+                    logger.info(f"Navigated to: {final_url}")
+
+                    # Method 1: Try meta tags first (fastest & most reliable)
+                    page_id = await self._get_page_id_from_meta(page)
+                    if page_id:
+                        logger.info(f"Found page ID via meta tag: {page_id}")
+                        await context.close()
+                        return page_id, final_url
+
+                    # Method 2: Try transparency section
+                    page_id = await self._get_page_id_from_transparency(
+                        page, final_url, timeout_ms
+                    )
+                    if page_id:
+                        logger.info(f"Found page ID via transparency section: {page_id}")
+                        await context.close()
+                        return page_id, final_url
+
+                    # Method 3: Fallback to regex patterns on page content
+                    content = await page.content()
+                    page_id_candidates: dict[str, int] = {}
+
+                    for pattern in patterns:
+                        for match in re.finditer(pattern, content):
+                            pid = match.group(1)
+                            if len(pid) >= 10:
+                                page_id_candidates[pid] = page_id_candidates.get(pid, 0) + 1
+
+                    if page_id_candidates:
+                        best_page_id = max(page_id_candidates, key=page_id_candidates.get)
+                        logger.info(
+                            f"Found page ID candidates: {page_id_candidates}. "
+                            f"Selected: {best_page_id} (appeared {page_id_candidates[best_page_id]} times)"
+                        )
+                        await context.close()
+                        return best_page_id, final_url
+
+                    # If we couldn't extract the page ID, return the URL for manual review
+                    logger.warning(
+                        f"Could not extract page ID from {final_url}. "
+                        "URL will be flagged for manual review."
+                    )
+                    await context.close()
+                    return None, final_url
+
+                except Exception as e:
+                    logger.warning(f"Failed to navigate to Facebook page: {e}")
+                    await context.close()
+                    return None, facebook_link
+
+            finally:
+                await browser.close()
+
+        return None, None
+
+    async def _get_page_id_from_meta(self, page: Page) -> str | None:
+        """
+        Extract Page ID from meta tags.
+
+        Facebook includes Page ID in standard meta tags for mobile app linking.
+        These are reliable because external crawlers and the FB mobile app use them.
+
+        Args:
+            page: Playwright page object
+
+        Returns:
+            Page ID string or None if not found
+        """
+        try:
+            # Primary: al:android:url meta tag used for FB mobile app
+            meta_element = page.locator('meta[property="al:android:url"]')
+            if await meta_element.count() > 0:
+                content = await meta_element.get_attribute("content")
+                if content and "fb://page/" in content:
+                    page_id = content.replace("fb://page/", "")
+                    if page_id.isdigit() and len(page_id) >= 10:
+                        return page_id
+
+            # Fallback: legacy fb:page_id meta tag
+            meta_id_element = page.locator('meta[property="fb:page_id"]')
+            if await meta_id_element.count() > 0:
+                content = await meta_id_element.get_attribute("content")
+                if content and content.isdigit() and len(content) >= 10:
+                    return content
+
+            # Also try al:ios:url as another fallback
+            ios_meta = page.locator('meta[property="al:ios:url"]')
+            if await ios_meta.count() > 0:
+                content = await ios_meta.get_attribute("content")
+                if content and "fb://page/" in content:
+                    page_id = content.replace("fb://page/", "").split("?")[0]
+                    if page_id.isdigit() and len(page_id) >= 10:
+                        return page_id
+
+        except Exception as e:
+            logger.debug(f"Meta tag extraction failed: {e}")
+
+        return None
+
+    async def _get_page_id_from_transparency(self, page: Page, profile_url: str, timeout_ms: int) -> str | None:
+        # Direct navigation is good
+        transparency_url = profile_url.rstrip("/") + "/about_profile_transparency"
+        await page.goto(transparency_url, wait_until="domcontentloaded")
+        
+        # Wait specifically for the label to appear
+        # We use a filter to find the element containing "Page ID"
+        try:
+            # This finds the container that has both the text "Page ID" and the number
+            container = page.locator('div').filter(has_text=re.compile(r"Page ID", re.I)).last
+            text_content = await container.inner_text()
+            
+            # Now extract digits from ONLY this small block of text
+            match = re.search(r'(\d{10,})', text_content)
+            if match:
+                return match.group(1)
+        except Exception:
+            return None
+
     async def extract_page_id_from_profile(
         self,
         profile_url: str,
@@ -368,77 +596,48 @@ class AdLibraryScraper:
 
                 await page.goto(profile_url, timeout=timeout_ms, wait_until="networkidle")
 
-                # Method 1: Look in page source for page_id
-                content = await page.content()
+                # Method 1: Meta tags (fastest & most reliable)
+                # Facebook includes Page ID in meta tags for mobile app linking
+                # page_id = await self._get_page_id_from_meta(page)
+                # if page_id:
+                #     logger.info(f"Found page ID via meta tag: {page_id}")
+                #     await context.close()
+                #     return page_id
 
-                # Facebook stores the page ID in various places in the HTML/JS
-                patterns = [
-                    r'"pageID":"(\d+)"',
-                    r'"page_id":"(\d+)"',
-                    r'"pageId":"(\d+)"',
-                    r'"page_id":(\d+)',
-                    r'"pageID":(\d+)',
-                    r'pageID=(\d+)',
-                    r'/pages/(\d+)',
-                    r'"id":"(\d+)".*?"__typename":"Page"',
-                    # Common patterns in Facebook's data layers
-                    r'entity_id["\s:]+(\d{10,})',
-                    r'"actorID":"(\d+)"',
-                    r'"owningProfile":\{"__typename":"Page","id":"(\d+)"',
-                    r'"profile_id":"(\d+)"',
-                    r'"target":\{"__typename":"Page","id":"(\d+)"',
-                    # userID is used for Facebook Pages in newer layouts
-                    r'"userID":"(\d+)"',
-                    r'"userId":"(\d+)"',
-                    r'"user_id":"(\d+)"',
-                ]
+                # Method 2: Page Transparency section (direct URL)
+                # Navigate directly to transparency URL to find the Page ID
+                page_id = await self._get_page_id_from_transparency(page, profile_url, timeout_ms)
+                if page_id:
+                    logger.info(f"Found page ID via transparency section: {page_id}")
+                    await context.close()
+                    return page_id
 
+                # # Method 3: Fallback - regex patterns on page content
+                # content = await page.content()
+                # patterns = [
+                #     r'(?<![a-zA-Z_])\\?"page_id\\?":\\?"(\d+)\\?"',
+                #     r'(?<![a-zA-Z_])"page_id":"(\d+)"',
+                #     r'(?<![a-zA-Z_])"page_id":(\d+)(?!\d)',
+                # ]
+
+                page_id_candidates: dict[str, int] = {}
                 for pattern in patterns:
-                    match = re.search(pattern, content)
-                    if match:
-                        page_id = match.group(1)
-                        # Validate it looks like a Facebook Page ID (typically 10-20 digits)
-                        if len(page_id) >= 10:
-                            logger.info(f"Found page ID via pattern '{pattern}': {page_id}")
-                            await context.close()
-                            return page_id
+                    for match in re.finditer(pattern, content):
+                        pid = match.group(1)
+                        if len(pid) >= 10:
+                            page_id_candidates[pid] = page_id_candidates.get(pid, 0) + 1
 
-                # Method 2: Check the "About" section URL
-                about_link = await page.query_selector('a[href*="/about"]')
-                if about_link:
-                    href = await about_link.get_attribute("href")
-                    match = re.search(r'/(\d+)/', href)
-                    if match:
-                        await context.close()
-                        return match.group(1)
-
-                # Method 3: Try to extract from the page transparency section
-                # Navigate to the transparency section which shows the Page ID
-                try:
-                    # Look for "Page transparency" or "About this Page" section
-                    transparency_link = await page.query_selector(
-                        'a[href*="transparency"], a[href*="about_profile_transparency"]'
+                if page_id_candidates:
+                    best_page_id = max(page_id_candidates, key=page_id_candidates.get)
+                    logger.info(
+                        f"Found page ID candidates: {page_id_candidates}. "
+                        f"Selected: {best_page_id} (appeared {page_id_candidates[best_page_id]} times)"
                     )
-                    if transparency_link:
-                        await transparency_link.click()
-                        await asyncio.sleep(2)
+                    await context.close()
+                    return best_page_id
 
-                        # Re-fetch content after clicking
-                        content = await page.content()
-                        for pattern in patterns:
-                            match = re.search(pattern, content)
-                            if match and len(match.group(1)) >= 10:
-                                page_id = match.group(1)
-                                logger.info(f"Found page ID via transparency section: {page_id}")
-                                await context.close()
-                                return page_id
-                except Exception as e:
-                    logger.debug(f"Transparency section extraction failed: {e}")
-
-                # Method 4: Try extracting from Ad Library redirect
-                # Going to Ad Library search might reveal the page ID
+                # Method 4: Try extracting from Ad Library search
                 try:
-                    # Extract page name from URL
                     page_name_match = re.search(r'facebook\.com/([^/?]+)', profile_url)
                     if page_name_match:
                         page_name = page_name_match.group(1)
@@ -449,7 +648,6 @@ class AdLibraryScraper:
                         await page.goto(ad_library_search_url, timeout=timeout_ms, wait_until="networkidle")
                         await asyncio.sleep(2)
 
-                        # Look for the page in search results
                         content = await page.content()
 
                         # Ad Library URLs contain view_all_page_id=XXXXX

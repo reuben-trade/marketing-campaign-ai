@@ -28,6 +28,9 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
+    connect_args={
+        "prepare_threshold": 0,  # Disable prepared statements for pgbouncer compatibility
+    },
 )
 
 async_session_maker = async_sessionmaker(

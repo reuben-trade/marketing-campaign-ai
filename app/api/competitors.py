@@ -226,29 +226,23 @@ async def discover_competitors(
     pending_manual_review = []
 
     for comp_data in discovered:
-        # Try to get page_id from AI response
-        page_id = comp_data.get("facebook_page_id")
+        company_name = comp_data.get("company_name")
 
-        # If no direct page_id, try to extract from URL pattern
-        if not page_id and comp_data.get("facebook_page_url"):
-            page_id = discovery.extract_page_id_from_url(comp_data["facebook_page_url"])
+        # Search Facebook pages by company name using Google
+        page_id = None
+        facebook_url = None
+        try:
+            logger.info(f"Searching Google for Facebook page: {company_name}")
+            page_id, facebook_url = await discovery.search_for_page_id(company_name)
+        except Exception as e:
+            logger.warning(f"Facebook page search failed for {company_name}: {e}")
 
-        # If still no page_id, use browser scraping to extract from Facebook page
-        if not page_id and comp_data.get("facebook_page_url"):
-            try:
-                logger.info(f"Using browser to extract Page ID for {comp_data['company_name']}")
-                page_id = await discovery.lookup_page_id_from_facebook_url(
-                    comp_data["facebook_page_url"]
-                )
-            except Exception as e:
-                logger.warning(f"Browser extraction failed for {comp_data['company_name']}: {e}")
-
-        # If still no page_id, add to pending review list
+        # If no page_id found, add to pending review list with URL if available
         if not page_id:
             pending_manual_review.append({
-                "company_name": comp_data["company_name"],
-                "facebook_page_url": comp_data.get("facebook_page_url"),
-                "relevance_reason": comp_data.get("relevance_reason"),
+                "company_name": company_name,
+                "relevance_reason": comp_data.get("reason"),
+                "description": comp_data.get("description"),
             })
             continue
 
@@ -260,15 +254,13 @@ async def discover_competitors(
             continue
 
         db_competitor = Competitor(
-            company_name=comp_data["company_name"],
+            company_name=company_name,
             page_id=page_id,
             industry=strategy.industry,
-            market_position=comp_data.get("market_position"),
             discovery_method="automated",
             metadata_={
-                "relevance_reason": comp_data.get("relevance_reason"),
-                "estimated_follower_range": comp_data.get("estimated_follower_range"),
-                "facebook_page_url": comp_data.get("facebook_page_url"),
+                "relevance_reason": comp_data.get("reason"),
+                "description": comp_data.get("description"),
             },
         )
         db.add(db_competitor)

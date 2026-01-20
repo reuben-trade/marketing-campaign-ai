@@ -126,7 +126,6 @@ class CompetitorDiscovery:
         system_prompt = (
             "You are a Market Research Analyst. "
             "Your goal is to extract a structured list of competitors from the provided search results. "
-            "Ignore directories (like Yelp, YellowPages) if possible, prioritize actual business websites. "
             "Return ONLY valid JSON."
         )
 
@@ -147,17 +146,19 @@ class CompetitorDiscovery:
         {{
             "competitors": [
                 {{
-                    "company_name": "Competitor Name",
-                    "website": "URL (if found in sources, else null)",
+                    "company_name": "Competitor Name (as it would appear on Facebook)",
                     "description": "Brief description based on snippets",
                     "reason": "Why is this a competitor? (e.g. 'Offers similar pricing', 'Located nearby')"
                 }}
             ]
         }}
+
+        IMPORTANT: Return only the company_name, description, and reason fields.
+        Do NOT try to find or include Facebook URLs, page IDs, or website URLs.
         """
 
         response = await self.openai_client.chat.completions.create(
-            model="gpt-4-turbo-preview", # GPT-4 is best for complex extraction
+            model="gpt-4.1-nano", # Fast and cheap, good at instruction following
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -229,30 +230,33 @@ class CompetitorDiscovery:
             logger.warning(f"Failed to enrich data for {company_name}: {e}")
             return {"company_name": company_name, "error": "Enrichment failed"}
    
-    async def lookup_page_id_from_facebook_url(self, facebook_url: str) -> str | None:
+    async def search_for_page_id(self, company_name: str) -> tuple[str | None, str | None]:
         """
-        Use browser scraping to extract Page ID from a Facebook page URL.
+        Search for a company's Facebook page using Google and extract the Page ID.
+
+        Uses Google search with site:facebook.com to find the company's Facebook page,
+        then navigates to that page to extract the Page ID.
 
         Args:
-            facebook_url: Facebook page URL (e.g., https://facebook.com/CompanyName)
+            company_name: Name of the company to search for
 
         Returns:
-            Page ID if found, None otherwise
+            Tuple of (page_id, facebook_url):
+            - page_id: The extracted Page ID if found, None otherwise
+            - facebook_url: The Facebook page URL found (for manual review if page_id extraction fails)
         """
         from app.services.ad_library_scraper import AdLibraryScraper
 
-        # Use browser scraping to extract from page
         try:
             scraper = AdLibraryScraper()
-            page_id = await scraper.extract_page_id_from_profile(facebook_url)
+            page_id, facebook_url = await scraper.search_page_id_by_name(company_name)
             if page_id:
-                logger.info(f"Found Page ID {page_id} for {facebook_url}")
-                return page_id
+                logger.info(f"Found Page ID {page_id} for company '{company_name}'")
+            return page_id, facebook_url
         except Exception as e:
-            logger.warning(f"Failed to extract Page ID from {facebook_url}: {e}")
+            logger.warning(f"Failed to search for Page ID for '{company_name}': {e}")
 
-        print("[DEBUG] NO id could be found\n")
-        return None
+        return None, None
 
     def build_ad_library_url(self, page_id: str) -> str:
         """
@@ -266,63 +270,4 @@ class CompetitorDiscovery:
         """
         return f"https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&view_all_page_id={page_id}"
 
-    async def enrich_competitor_data(
-        self,
-        company_name: str,
-        industry: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Enrich competitor data with additional information.
 
-        Args:
-            company_name: Name of the company
-            industry: Industry/sector
-
-        Returns:
-            Enriched data dictionary
-        """
-        prompt = f"""
-        Provide information about the company "{company_name}" in the {industry or 'business'} industry.
-
-        Return JSON with:
-        {{
-            "company_name": "official name",
-            "industry": "specific industry",
-            "market_position": "leader/challenger/niche",
-            "estimated_size": "small/medium/large/enterprise",
-            "key_products": ["product 1", "product 2"],
-            "target_market": "description of target market",
-            "headquarters": "location if known"
-        }}
-
-        Return ONLY valid JSON.
-        """
-
-        try:
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-4-turbo-preview",
-                messages=[
-                    {"role": "system", "content": "You are a business research expert. Respond with valid JSON only."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=500,
-            )
-
-            result_text = response.choices[0].message.content
-            if not result_text:
-                return {}
-
-            result_text = result_text.strip()
-            if result_text.startswith("```json"):
-                result_text = result_text[7:]
-            if result_text.startswith("```"):
-                result_text = result_text[3:]
-            if result_text.endswith("```"):
-                result_text = result_text[:-3]
-
-            return json.loads(result_text.strip())
-
-        except Exception as e:
-            logger.warning(f"Failed to enrich competitor data: {e}")
-            return {}

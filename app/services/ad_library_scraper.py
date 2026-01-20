@@ -1,12 +1,16 @@
 """Meta Ad Library browser scraper with scroll-and-scrape pattern."""
 
 import asyncio
+import json
 import logging
 import re
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
+from openai import AsyncOpenAI
 from playwright.async_api import Browser, Page, async_playwright
+from tavily import AsyncTavilyClient
 
 from app.config import get_settings
 
@@ -33,6 +37,8 @@ class AdLibraryScraper:
         """Initialize the Ad Library scraper."""
         settings = get_settings()
         self.base_url = "https://www.facebook.com/ads/library"
+        self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.tavily_api_key = settings.tavily_api_key
 
     def build_ad_library_url(self, page_id: str, country: str = "AU") -> str:
         """Build direct Ad Library URL from page ID."""
@@ -543,22 +549,101 @@ class AdLibraryScraper:
         return None
 
     async def _get_page_id_from_transparency(self, page: Page, profile_url: str, timeout_ms: int) -> str | None:
-        # Direct navigation is good
+        """
+        Extract Page ID from the Page Transparency section.
+
+        Navigates to the transparency URL and extracts the Page ID using
+        multiple strategies based on the DOM structure.
+
+        Args:
+            page: Playwright page object
+            profile_url: The Facebook page profile URL
+            timeout_ms: Page load timeout
+
+        Returns:
+            Page ID string or None if not found
+        """
         transparency_url = profile_url.rstrip("/") + "/about_profile_transparency"
-        await page.goto(transparency_url, wait_until="domcontentloaded")
-        
-        # Wait specifically for the label to appear
-        # We use a filter to find the element containing "Page ID"
+
         try:
-            # This finds the container that has both the text "Page ID" and the number
-            container = page.locator('div').filter(has_text=re.compile(r"Page ID", re.I)).last
-            text_content = await container.inner_text()
-            
-            # Now extract digits from ONLY this small block of text
-            match = re.search(r'(\d{10,})', text_content)
-            if match:
-                return match.group(1)
-        except Exception:
+            await page.goto(transparency_url, timeout=timeout_ms, wait_until="domcontentloaded")
+
+            # Wait for page content to settle
+            await asyncio.sleep(2)
+
+            # Strategy 1: Click "See All" button if present to reveal full transparency info
+            try:
+                see_all_button = page.locator('div[role="button"]').filter(has_text=re.compile(r"^See All$", re.I))
+                if await see_all_button.count() > 0:
+                    # Use force click to bypass overlay interception, with short timeout
+                    await see_all_button.first.click(force=True, timeout=5000)
+                    await asyncio.sleep(1)
+            except Exception as e:
+                logger.debug(f"See All button not found or click failed: {e}")
+
+            # Strategy 2: Find the "Page ID" label span and get adjacent numeric content
+            # The DOM structure shows: <span class="xi81zsa...">Page ID</span> followed by
+            # a sibling/cousin span containing the actual ID number
+            try:
+                # Look for a span that contains exactly "Page ID" text
+                page_id_label = page.locator('span').filter(has_text=re.compile(r"^Page ID$"))
+
+                if await page_id_label.count() > 0:
+                    # Get the parent container and extract all text, then find the number
+                    # Navigate up to find a container that has both label and value
+                    parent = page_id_label.locator('xpath=ancestor::div[1]')
+                    parent_text = await parent.inner_text()
+
+                    # Extract the numeric ID (10+ digits)
+                    match = re.search(r'(\d{10,})', parent_text)
+                    if match:
+                        logger.debug(f"Found Page ID via label parent: {match.group(1)}")
+                        return match.group(1)
+
+                    # Try going up more levels if needed
+                    grandparent = page_id_label.locator('xpath=ancestor::div[2]')
+                    grandparent_text = await grandparent.inner_text()
+                    match = re.search(r'(\d{10,})', grandparent_text)
+                    if match:
+                        logger.debug(f"Found Page ID via label grandparent: {match.group(1)}")
+                        return match.group(1)
+            except Exception as e:
+                logger.debug(f"Strategy 2 (label lookup) failed: {e}")
+
+            # Strategy 3: Use XPath to find spans near "Page ID" text
+            try:
+                # Find all spans and look for the pattern
+                page_content = await page.content()
+
+                # Look for the Page ID in the rendered content near the label
+                # Pattern: "Page ID" followed by whitespace/newlines and then digits
+                match = re.search(r'Page ID[^\d]*(\d{10,})', page_content)
+                if match:
+                    logger.debug(f"Found Page ID via content regex: {match.group(1)}")
+                    return match.group(1)
+            except Exception as e:
+                logger.debug(f"Strategy 3 (content regex) failed: {e}")
+
+            # Strategy 4: Look for the specific span class pattern from the screenshot
+            # Classes like x193iq5w contain the ID
+            try:
+                id_spans = page.locator('span[class*="x193iq5w"]')
+                count = await id_spans.count()
+
+                for i in range(count):
+                    span_text = await id_spans.nth(i).inner_text()
+                    # Check if this span contains only a long number (the Page ID)
+                    if re.match(r'^\d{10,}$', span_text.strip()):
+                        logger.debug(f"Found Page ID via class pattern: {span_text.strip()}")
+                        return span_text.strip()
+            except Exception as e:
+                logger.debug(f"Strategy 4 (class pattern) failed: {e}")
+
+            logger.warning(f"Could not extract Page ID from transparency page: {transparency_url}")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to load transparency page: {e}")
             return None
 
     async def extract_page_id_from_profile(
@@ -769,3 +854,393 @@ class AdLibraryScraper:
                 await browser.close()
 
         return None, "unknown"
+
+    # =========================================================================
+    # Batch Page ID Lookup Methods
+    # =========================================================================
+
+    async def batch_search_page_ids(
+        self,
+        competitor_names: list[str],
+        timeout_ms: int = 30000,
+        max_concurrent_searches: int = 5,
+    ) -> dict[str, tuple[str | None, str | None]]:
+        """
+        Batch search for Facebook page IDs for multiple competitors.
+
+        Uses parallel Tavily searches and GPT-4o-mini to select the best
+        Facebook page URL for each competitor, then extracts page IDs.
+
+        Args:
+            competitor_names: List of company names to search for
+            timeout_ms: Timeout for each Playwright page load
+            max_concurrent_searches: Maximum concurrent Tavily searches
+
+        Returns:
+            Dict mapping competitor name to (page_id, facebook_url) tuple.
+            - page_id may be None if extraction failed (URL flagged for manual review)
+            - facebook_url may be None if no valid URL was found
+        """
+        if not competitor_names:
+            return {}
+
+        logger.info(f"Starting batch page ID search for {len(competitor_names)} competitors")
+
+        # Step 1: Parallel Tavily searches
+        search_results = await self._parallel_tavily_search(
+            competitor_names, max_concurrent_searches
+        )
+
+        # Step 2: GPT URL selection
+        url_selections = await self._select_urls_with_gpt(search_results)
+
+        # Step 3: Extract page IDs from selected URLs
+        results = await self._extract_page_ids_batch(url_selections, timeout_ms)
+
+        logger.info(
+            f"Batch search complete: {sum(1 for v in results.values() if v[0])} page IDs found, "
+            f"{sum(1 for v in results.values() if v[0] is None and v[1])} flagged for manual review"
+        )
+
+        return results
+
+    async def _parallel_tavily_search(
+        self,
+        competitor_names: list[str],
+        max_concurrent: int = 5,
+    ) -> dict[str, list[dict[str, str]]]:
+        """
+        Execute Tavily searches in parallel for multiple competitors.
+
+        Returns:
+            Dict mapping competitor name to list of {url, title, content} dicts
+        """
+        if not self.tavily_api_key:
+            logger.warning("TAVILY_API_KEY not set. Cannot perform batch search.")
+            return {name: [] for name in competitor_names}
+
+        tavily = AsyncTavilyClient(api_key=self.tavily_api_key)
+        semaphore = asyncio.Semaphore(max_concurrent)
+        results: dict[str, list[dict[str, str]]] = {}
+
+        async def search_one(name: str) -> tuple[str, list[dict[str, str]]]:
+            async with semaphore:
+                search_query = f'site:facebook.com "{name}" page'
+                logger.debug(f"Tavily search for '{name}': {search_query}")
+
+                try:
+                    search_result = await tavily.search(
+                        query=search_query,
+                        search_depth="basic",
+                        max_results=5,
+                        include_domains=["facebook.com"],
+                    )
+
+                    items = []
+                    for result in search_result.get("results", []):
+                        items.append({
+                            "url": result.get("url", ""),
+                            "title": result.get("title", ""),
+                            "content": result.get("content", "")[:200],
+                        })
+
+                    logger.debug(f"Tavily returned {len(items)} results for '{name}'")
+                    return name, items
+
+                except Exception as e:
+                    logger.warning(f"Tavily search failed for '{name}': {e}")
+                    return name, []
+
+        # Execute all searches in parallel
+        tasks = [search_one(name) for name in competitor_names]
+        search_results = await asyncio.gather(*tasks)
+
+        for name, items in search_results:
+            results[name] = items
+
+        return results
+
+    async def _select_urls_with_gpt(
+        self,
+        search_results: dict[str, list[dict[str, str]]],
+    ) -> list[dict]:
+        """
+        Use GPT-4o-mini to select the best Facebook page URL for each competitor.
+
+        Returns:
+            List of selection dicts with keys: competitor_name, selected_url,
+            confidence, needs_manual_review, reason
+        """
+        # Filter out competitors with no search results
+        competitors_with_results = {
+            name: results for name, results in search_results.items() if results
+        }
+
+        if not competitors_with_results:
+            logger.warning("No search results to process with GPT")
+            return [
+                {
+                    "competitor_name": name,
+                    "selected_url": None,
+                    "confidence": "low",
+                    "needs_manual_review": True,
+                    "reason": "No search results found",
+                }
+                for name in search_results.keys()
+            ]
+
+        system_prompt = """You are a Facebook Page URL selector. Given search results for each company, select the most likely official Facebook business page URL.
+
+RULES:
+1. Prefer URLs that match the pattern: facebook.com/{PageName} or facebook.com/{PageName}/
+2. If you find a posts URL like facebook.com/CompanyName/posts/123, extract the base: facebook.com/CompanyName
+3. If you find facebook.com/profile.php?id=12345, keep it as-is (valid page format)
+4. SKIP these URL types - they are NOT business pages:
+   - facebook.com/groups/...
+   - facebook.com/events/...
+   - facebook.com/watch/...
+   - facebook.com/marketplace/...
+   - facebook.com/share/...
+   - facebook.com/login/...
+   - business.facebook.com/...
+   - developers.facebook.com/...
+5. If ALL results are noise or you cannot confidently identify an official page, set needs_manual_review=true
+6. Always normalize URLs: remove trailing slashes, query params, and path suffixes like /posts/123
+
+Return JSON only."""
+
+        user_prompt = f"""For each company below, I have search results from Tavily. Select the best Facebook page URL.
+
+SEARCH RESULTS:
+{json.dumps(competitors_with_results, indent=2)}
+
+Return a JSON object with this exact structure:
+{{
+    "selections": [
+        {{
+            "competitor_name": "Company Name",
+            "selected_url": "https://www.facebook.com/CompanyPage" or null,
+            "confidence": "high" or "medium" or "low",
+            "needs_manual_review": true or false,
+            "reason": "Brief explanation"
+        }}
+    ]
+}}
+
+IMPORTANT:
+- Include ALL competitors from the search results
+- If you see facebook.com/McDonalds/posts/12345, return https://www.facebook.com/McDonalds
+- If you see facebook.com/Nike/videos/12345, return https://www.facebook.com/Nike
+- If results only contain groups, events, or unrelated profiles, set selected_url=null and needs_manual_review=true"""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+
+            result_text = response.choices[0].message.content.strip()
+            data = json.loads(result_text)
+            selections = data.get("selections", [])
+
+            logger.info(f"GPT selected URLs for {len(selections)} competitors")
+            for sel in selections:
+                logger.debug(
+                    f"  {sel['competitor_name']}: {sel.get('selected_url', 'None')} "
+                    f"(confidence: {sel.get('confidence')}, manual_review: {sel.get('needs_manual_review')})"
+                )
+
+            # Add entries for competitors that had no results (not sent to GPT)
+            selected_names = {s["competitor_name"] for s in selections}
+            for name in search_results.keys():
+                if name not in selected_names:
+                    selections.append({
+                        "competitor_name": name,
+                        "selected_url": None,
+                        "confidence": "low",
+                        "needs_manual_review": True,
+                        "reason": "No search results found",
+                    })
+
+            return selections
+
+        except Exception as e:
+            logger.error(f"GPT URL selection failed: {e}")
+            # Fallback: use first valid URL from each competitor's results
+            return self._fallback_url_selection(search_results)
+
+    def _fallback_url_selection(
+        self, search_results: dict[str, list[dict[str, str]]]
+    ) -> list[dict]:
+        """Fallback URL selection when GPT fails."""
+        skip_patterns = [
+            "/login", "/help", "/policies", "/privacy",
+            "business.facebook", "developers.facebook",
+            "/watch", "/groups", "/events", "/marketplace",
+            "/share", "/sharer", "/dialog", "/plugins"
+        ]
+
+        selections = []
+        for name, results in search_results.items():
+            selected_url = None
+            for result in results:
+                url = result.get("url", "")
+                if "facebook.com" in url:
+                    if not any(skip in url.lower() for skip in skip_patterns):
+                        selected_url = self._normalize_facebook_url(url)
+                        break
+
+            selections.append({
+                "competitor_name": name,
+                "selected_url": selected_url,
+                "confidence": "low",
+                "needs_manual_review": selected_url is None,
+                "reason": "Fallback selection (GPT unavailable)",
+            })
+
+        return selections
+
+    def _normalize_facebook_url(self, url: str) -> str:
+        """
+        Normalize a Facebook URL to its canonical page form.
+
+        Examples:
+            facebook.com/Nike/posts/123 -> https://www.facebook.com/Nike
+            facebook.com/Nike/videos/456 -> https://www.facebook.com/Nike
+            facebook.com/Nike/ -> https://www.facebook.com/Nike
+            m.facebook.com/Nike -> https://www.facebook.com/Nike
+        """
+        # Ensure URL has scheme
+        if not url.startswith("http"):
+            url = f"https://{url}"
+
+        parsed = urlparse(url)
+        path = parsed.path.rstrip("/")
+
+        # Remove common suffixes
+        path = re.sub(r"/(posts|videos|photos|events|reviews|about|shop)/.*$", "", path)
+
+        return f"https://www.facebook.com{path}"
+
+    async def _extract_page_ids_batch(
+        self,
+        url_selections: list[dict],
+        timeout_ms: int = 30000,
+        max_concurrent: int = 3,
+    ) -> dict[str, tuple[str | None, str | None]]:
+        """
+        Extract page IDs from selected URLs using shared browser context.
+
+        Reuses a single browser instance with multiple pages for efficiency.
+        """
+        results: dict[str, tuple[str | None, str | None]] = {}
+
+        # Separate URLs that need extraction from manual review cases
+        to_extract = [
+            sel for sel in url_selections
+            if sel.get("selected_url") and not sel.get("needs_manual_review")
+        ]
+        manual_review = [
+            sel for sel in url_selections
+            if not sel.get("selected_url") or sel.get("needs_manual_review")
+        ]
+
+        # Add manual review cases to results
+        for sel in manual_review:
+            results[sel["competitor_name"]] = (None, sel.get("selected_url"))
+
+        if not to_extract:
+            return results
+
+        logger.info(f"Extracting page IDs for {len(to_extract)} URLs")
+
+        # Use existing page ID extraction logic with shared browser
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+
+            try:
+                semaphore = asyncio.Semaphore(max_concurrent)
+
+                async def extract_one(sel: dict) -> tuple[str, str | None, str | None]:
+                    async with semaphore:
+                        name = sel["competitor_name"]
+                        url = sel["selected_url"]
+
+                        try:
+                            context = await browser.new_context(
+                                viewport={"width": 1920, "height": 1080},
+                                user_agent=(
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                    "Chrome/120.0.0.0 Safari/537.36"
+                                ),
+                            )
+                            page = await context.new_page()
+
+                            await page.goto(url, timeout=timeout_ms, wait_until="networkidle")
+                            await asyncio.sleep(2)
+
+                            final_url = page.url
+
+                            # Try meta tags first
+                            page_id = await self._get_page_id_from_meta(page)
+                            if page_id:
+                                logger.debug(f"Found page ID via meta for '{name}': {page_id}")
+                                await context.close()
+                                return name, page_id, final_url
+
+                            # Try transparency section
+                            page_id = await self._get_page_id_from_transparency(
+                                page, final_url, timeout_ms
+                            )
+                            if page_id:
+                                logger.debug(f"Found page ID via transparency for '{name}': {page_id}")
+                                await context.close()
+                                return name, page_id, final_url
+
+                            # Fallback to regex patterns
+                            await page.goto(final_url, timeout=timeout_ms, wait_until="networkidle")
+                            content = await page.content()
+
+                            patterns = [
+                                r'(?<![a-zA-Z_])\\?"page_id\\?":\\?"(\d+)\\?"',
+                                r'(?<![a-zA-Z_])"page_id":"(\d+)"',
+                                r'(?<![a-zA-Z_])"page_id":(\d+)(?!\d)',
+                            ]
+
+                            page_id_candidates: dict[str, int] = {}
+                            for pattern in patterns:
+                                for match in re.finditer(pattern, content):
+                                    pid = match.group(1)
+                                    if len(pid) >= 10:
+                                        page_id_candidates[pid] = page_id_candidates.get(pid, 0) + 1
+
+                            if page_id_candidates:
+                                best_page_id = max(page_id_candidates, key=page_id_candidates.get)
+                                logger.debug(f"Found page ID via regex for '{name}': {best_page_id}")
+                                await context.close()
+                                return name, best_page_id, final_url
+
+                            logger.warning(f"Could not extract page ID for '{name}' from {final_url}")
+                            await context.close()
+                            return name, None, final_url
+
+                        except Exception as e:
+                            logger.warning(f"Page ID extraction failed for '{name}': {e}")
+                            return name, None, url
+
+                tasks = [extract_one(sel) for sel in to_extract]
+                extraction_results = await asyncio.gather(*tasks)
+
+                for name, page_id, facebook_url in extraction_results:
+                    results[name] = (page_id, facebook_url)
+
+            finally:
+                await browser.close()
+
+        return results

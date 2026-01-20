@@ -19,6 +19,7 @@ from app.schemas.competitor import (
     CompetitorResponse,
     CompetitorUpdate,
 )
+from app.services.ad_library_scraper import AdLibraryScraper
 from app.services.competitor_discovery import CompetitorDiscovery, CompetitorDiscoveryError
 
 logger = logging.getLogger(__name__)
@@ -225,22 +226,20 @@ async def discover_competitors(
     already_tracked = 0
     pending_manual_review = []
 
+    # Batch search for Facebook page IDs
+    company_names = [comp.get("company_name") for comp in discovered if comp.get("company_name")]
+    scraper = AdLibraryScraper()
+    page_id_results = await scraper.batch_search_page_ids(company_names)
+
     for comp_data in discovered:
         company_name = comp_data.get("company_name")
-
-        # Search Facebook pages by company name using Google
-        page_id = None
-        facebook_url = None
-        try:
-            logger.info(f"Searching Google for Facebook page: {company_name}")
-            page_id, facebook_url = await discovery.search_for_page_id(company_name)
-        except Exception as e:
-            logger.warning(f"Facebook page search failed for {company_name}: {e}")
+        page_id, facebook_url = page_id_results.get(company_name, (None, None))
 
         # If no page_id found, add to pending review list with URL if available
         if not page_id:
             pending_manual_review.append({
                 "company_name": company_name,
+                "facebook_url": facebook_url,
                 "relevance_reason": comp_data.get("reason"),
                 "description": comp_data.get("description"),
             })
@@ -261,6 +260,7 @@ async def discover_competitors(
             metadata_={
                 "relevance_reason": comp_data.get("reason"),
                 "description": comp_data.get("description"),
+                "facebook_url": facebook_url,
             },
         )
         db.add(db_competitor)

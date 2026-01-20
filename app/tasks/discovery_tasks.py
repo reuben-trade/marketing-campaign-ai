@@ -59,6 +59,8 @@ def discover_competitors_task(self, max_competitors: int = 10):
             session.commit()
             return {"error": "No business strategy found"}
 
+        from app.services.ad_library_scraper import AdLibraryScraper
+
         discovery = CompetitorDiscovery()
         discovered = asyncio.run(
             discovery.discover_competitors(
@@ -72,16 +74,19 @@ def discover_competitors_task(self, max_competitors: int = 10):
 
         added = 0
         skipped = 0
+        manual_review = 0
+
+        # Batch search for Facebook page IDs
+        company_names = [comp["company_name"] for comp in discovered if comp.get("company_name")]
+        scraper = AdLibraryScraper()
+        page_id_results = asyncio.run(scraper.batch_search_page_ids(company_names))
 
         for comp_data in discovered:
-            page_id = asyncio.run(
-                discovery.search_for_page_id(
-                    comp_data["company_name"],
-                    comp_data.get("search_terms"),
-                )
-            )
+            company_name = comp_data.get("company_name")
+            page_id, facebook_url = page_id_results.get(company_name, (None, None))
 
             if not page_id:
+                manual_review += 1
                 continue
 
             existing = (
@@ -103,6 +108,7 @@ def discover_competitors_task(self, max_competitors: int = 10):
                 metadata_={
                     "relevance_reason": comp_data.get("relevance_reason"),
                     "estimated_follower_range": comp_data.get("estimated_follower_range"),
+                    "facebook_url": facebook_url,
                 },
             )
             session.add(competitor)
@@ -118,15 +124,17 @@ def discover_competitors_task(self, max_competitors: int = 10):
             "total_discovered": len(discovered),
             "added": added,
             "skipped": skipped,
+            "manual_review": manual_review,
         }
         session.commit()
 
-        logger.info(f"Competitor discovery completed: {added} added, {skipped} skipped")
+        logger.info(f"Competitor discovery completed: {added} added, {skipped} skipped, {manual_review} need manual review")
 
         return {
             "status": "completed",
             "added": added,
             "skipped": skipped,
+            "manual_review": manual_review,
             "total_discovered": len(discovered),
         }
 

@@ -22,6 +22,8 @@ class Competitor(Base):
     )
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
     page_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    facebook_page: Mapped[str | None] = mapped_column(String(255), unique=True)
+    # e.g., "GroutProAus" from facebook.com/GroutProAus
     industry: Mapped[str | None] = mapped_column(String(255))
     follower_count: Mapped[int | None] = mapped_column(Integer)
     is_market_leader: Mapped[bool] = mapped_column(Boolean, default=False)

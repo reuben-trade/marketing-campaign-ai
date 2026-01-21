@@ -35,6 +35,7 @@ class CreativeDownloader:
         ad_snapshot_url: str,
         competitor_id: UUID,
         ad_id: str,
+        creative_url: str | None = None,
     ) -> tuple[str, str]:
         """
         Download a creative from Meta and store it in Supabase.
@@ -43,13 +44,21 @@ class CreativeDownloader:
             ad_snapshot_url: URL of the ad snapshot page
             competitor_id: UUID of the competitor
             ad_id: Ad Library ID
+            creative_url: Direct URL to the creative (if already extracted from JSON)
 
         Returns:
             Tuple of (storage_path, creative_type)
         """
-        creative_url, creative_type = await self.scraper.get_creative_url_from_snapshot(
-            ad_snapshot_url
-        )
+        # Use direct creative_url if provided, otherwise extract from snapshot page
+        if creative_url:
+            # Determine type from URL
+            creative_type = "video" if any(x in creative_url.lower() for x in [".mp4", ".webm", ".mov", "video"]) else "image"
+            logger.info(f"Using direct creative URL for ad {ad_id}")
+        else:
+            # Fallback to extracting from snapshot page
+            creative_url, creative_type = await self.scraper.get_creative_url_from_snapshot(
+                ad_snapshot_url
+            )
 
         if not creative_url or creative_type == "unknown":
             raise CreativeDownloadError(f"Could not determine creative URL from snapshot: {ad_snapshot_url}")

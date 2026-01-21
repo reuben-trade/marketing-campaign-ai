@@ -3,10 +3,12 @@
 import json
 import logging
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.config import get_settings
 from app.schemas.ad import AdAnalysis, MarketingEffectiveness, VideoAnalysis
@@ -28,8 +30,8 @@ class VideoAnalyzer:
     def __init__(self) -> None:
         """Initialize the video analyzer."""
         settings = get_settings()
-        genai.configure(api_key=settings.google_api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-pro")
+        self.client = genai.Client(api_key=settings.google_api_key)
+        self.model_name = "gemini-2.0-flash"
         self.storage = SupabaseStorage()
 
     async def analyze_video(
@@ -64,14 +66,13 @@ class VideoAnalyzer:
             tmp_path = tmp.name
 
         try:
-            video_file = genai.upload_file(tmp_path, mime_type=mime_type)
+            video_file = self.client.files.upload(file=tmp_path, config={"mime_type": mime_type})
 
-            while video_file.state.name == "PROCESSING":
-                import time
+            while video_file.state == types.FileState.PROCESSING:
                 time.sleep(2)
-                video_file = genai.get_file(video_file.name)
+                video_file = self.client.files.get(name=video_file.name)
 
-            if video_file.state.name == "FAILED":
+            if video_file.state == types.FileState.FAILED:
                 raise VideoAnalysisError("Video processing failed in Gemini")
 
             prompt = VIDEO_ANALYSIS_PROMPT.format(
@@ -83,12 +84,13 @@ class VideoAnalyzer:
                 shares=shares,
             )
 
-            response = self.model.generate_content(
-                [video_file, prompt],
-                generation_config={
-                    "temperature": 0.3,
-                    "max_output_tokens": 4000,
-                },
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[video_file, prompt],
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                    max_output_tokens=4000,
+                ),
             )
 
             result_text = response.text
@@ -105,7 +107,7 @@ class VideoAnalyzer:
 
             result = json.loads(result_text.strip())
 
-            genai.delete_file(video_file.name)
+            self.client.files.delete(name=video_file.name)
 
             return result
 

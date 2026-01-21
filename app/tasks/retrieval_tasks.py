@@ -173,14 +173,16 @@ def retrieve_ads_for_competitor_task(
 
             try:
                 snapshot_url = ad_data.get("ad_snapshot_url")
+                creative_url = ad_data.get("creative_url")  # Direct URL from embedded JSON
                 creative_type = ad_data.get("creative_type", "image")
 
-                if snapshot_url:
+                if creative_url or snapshot_url:
                     storage_path, detected_type = asyncio.run(
                         downloader.download_creative(
                             snapshot_url,
                             competitor.id,
                             ad_library_id,
+                            creative_url=creative_url,
                         )
                     )
                     download_status = "completed"
@@ -196,6 +198,7 @@ def retrieve_ads_for_competitor_task(
                     ad_snapshot_url=snapshot_url,
                     creative_type=creative_type,
                     creative_storage_path=storage_path,
+                    creative_url=creative_url,  # Store direct URL extracted from JSON
                     ad_copy=ad_data.get("ad_copy"),
                     ad_headline=ad_data.get("ad_headline"),
                     ad_description=ad_data.get("ad_description"),

@@ -17,9 +17,15 @@ class CompetitorBase(BaseModel):
     market_position: str | None = Field(None, description="e.g., leader, challenger, niche")
 
 
-class CompetitorCreate(CompetitorBase):
-    """Schema for creating a competitor."""
+class CompetitorCreate(BaseModel):
+    """Schema for creating a competitor manually."""
 
+    company_name: str = Field(..., min_length=1, max_length=255)
+    facebook_url: str | None = Field(None, description="Facebook page URL (used to retrieve page_id if not provided)")
+    industry: str | None = None
+    follower_count: int | None = Field(None, ge=0)
+    is_market_leader: bool = False
+    market_position: str | None = Field(None, description="e.g., leader, challenger, niche")
     discovery_method: str = Field(default="manual_add", description="How the competitor was discovered")
 
 

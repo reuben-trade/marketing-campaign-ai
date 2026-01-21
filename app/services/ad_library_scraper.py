@@ -1226,19 +1226,102 @@ class AdLibraryScraper:
                                 "poster": poster,
                             })
                 else:
-                    # Single creative
-                    video = await page.query_selector("video")
-                    if video:
-                        src = await video.get_attribute("src")
-                        if src:
-                            details["creative_urls"].append({"url": src, "type": "video"})
+                    # Single creative - determine type from page JSON data
+                    # The Ad Library page shows multiple ads, so we need to identify
+                    # the specific ad's creative type from the JSON data
+                    content = await page.content()
+
+                    # Extract ad ID from URL to find ad-specific data
+                    ad_id = None
+                    id_match = re.search(r"[?&]id=(\d+)", snapshot_url)
+                    if id_match:
+                        ad_id = id_match.group(1)
+
+                    has_video_url = False
+                    has_image_url = False
+                    video_url = None
+                    image_url = None
+
+                    if ad_id:
+                        # Search near the ad ID for video/image URL patterns
+                        for match in re.finditer(ad_id, content):
+                            pos = match.start()
+                            window_start = max(0, pos - 2000)
+                            window_end = min(len(content), pos + 3000)
+                            window = content[window_start:window_end]
+
+                            # Video URL patterns
+                            if not video_url:
+                                video_match = re.search(
+                                    r'"video_sd_url"\s*:\s*"([^"]+)"', window
+                                )
+                                if video_match:
+                                    has_video_url = True
+                                    video_url = video_match.group(1).replace(
+                                        "\\u0025", "%"
+                                    ).replace("\\/", "/")
+
+                            if not video_url:
+                                video_match = re.search(
+                                    r'"video_hd_url"\s*:\s*"([^"]+)"', window
+                                )
+                                if video_match:
+                                    has_video_url = True
+                                    video_url = video_match.group(1).replace(
+                                        "\\u0025", "%"
+                                    ).replace("\\/", "/")
+
+                            if not video_url:
+                                video_match = re.search(
+                                    r'"playable_url"\s*:\s*"([^"]+)"', window
+                                )
+                                if video_match:
+                                    has_video_url = True
+                                    video_url = video_match.group(1).replace(
+                                        "\\u0025", "%"
+                                    ).replace("\\/", "/")
+
+                            # Image URL patterns
+                            if not image_url:
+                                image_match = re.search(
+                                    r'"resized_image_url"\s*:\s*"([^"]+)"', window
+                                )
+                                if image_match:
+                                    has_image_url = True
+                                    image_url = image_match.group(1).replace(
+                                        "\\u0025", "%"
+                                    ).replace("\\/", "/")
+
+                            if not image_url:
+                                image_match = re.search(
+                                    r'"watermarked_resized_image_url"\s*:\s*"([^"]+)"',
+                                    window,
+                                )
+                                if image_match:
+                                    has_image_url = True
+                                    image_url = image_match.group(1).replace(
+                                        "\\u0025", "%"
+                                    ).replace("\\/", "/")
+
+                    # Decide based on JSON data - video ads have video URLs
+                    if has_video_url and video_url:
+                        details["creative_urls"].append({"url": video_url, "type": "video"})
+                    elif has_image_url and image_url and not has_video_url:
+                        details["creative_urls"].append({"url": image_url, "type": "image"})
                     else:
-                        # Look for main image
-                        img = await page.query_selector('[data-testid="ad_creative_image"] img')
-                        if img:
-                            src = await img.get_attribute("src")
-                            if src and not src.startswith("data:"):
-                                details["creative_urls"].append({"url": src, "type": "image"})
+                        # Fallback to DOM inspection
+                        video = await page.query_selector("video")
+                        if video:
+                            src = await video.get_attribute("src")
+                            if src:
+                                details["creative_urls"].append({"url": src, "type": "video"})
+                        else:
+                            # Look for main image
+                            img = await page.query_selector('[data-testid="ad_creative_image"] img')
+                            if img:
+                                src = await img.get_attribute("src")
+                                if src and not src.startswith("data:"):
+                                    details["creative_urls"].append({"url": src, "type": "image"})
 
                 # Extract landing page URL
                 links = await page.query_selector_all("a[href]")
@@ -1584,6 +1667,12 @@ class AdLibraryScraper:
         Returns:
             Tuple of (creative_url, creative_type)
         """
+        # Extract ad ID from URL to find ad-specific data
+        ad_id = None
+        id_match = re.search(r"[?&]id=(\d+)", snapshot_url)
+        if id_match:
+            ad_id = id_match.group(1)
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
 
@@ -1600,7 +1689,90 @@ class AdLibraryScraper:
 
                 await page.goto(snapshot_url, timeout=timeout_ms, wait_until="networkidle")
 
-                # Check for video first
+                content = await page.content()
+
+                # PRIORITY 1: Determine media type from JSON data in page source
+                # This is the most reliable method because it uses ad-specific data
+                # The Ad Library page contains multiple ads, so we need to find
+                # the data for THIS specific ad by looking near the ad ID
+                has_video_url = False
+                has_image_url = False
+                video_url = None
+                image_url = None
+
+                if ad_id:
+                    # Search near the ad ID for video/image URL patterns
+                    for match in re.finditer(ad_id, content):
+                        pos = match.start()
+                        # Look at a window around the ad ID
+                        window_start = max(0, pos - 2000)
+                        window_end = min(len(content), pos + 3000)
+                        window = content[window_start:window_end]
+
+                        # Video URL patterns - these indicate a video ad
+                        video_match = re.search(
+                            r'"video_sd_url"\s*:\s*"([^"]+)"', window
+                        )
+                        if video_match:
+                            has_video_url = True
+                            video_url = video_match.group(1).replace(
+                                "\\u0025", "%"
+                            ).replace("\\/", "/")
+
+                        if not video_url:
+                            video_match = re.search(
+                                r'"video_hd_url"\s*:\s*"([^"]+)"', window
+                            )
+                            if video_match:
+                                has_video_url = True
+                                video_url = video_match.group(1).replace(
+                                    "\\u0025", "%"
+                                ).replace("\\/", "/")
+
+                        if not video_url:
+                            video_match = re.search(
+                                r'"playable_url"\s*:\s*"([^"]+)"', window
+                            )
+                            if video_match:
+                                has_video_url = True
+                                video_url = video_match.group(1).replace(
+                                    "\\u0025", "%"
+                                ).replace("\\/", "/")
+
+                        # Image URL patterns
+                        image_match = re.search(
+                            r'"resized_image_url"\s*:\s*"([^"]+)"', window
+                        )
+                        if image_match:
+                            has_image_url = True
+                            if not image_url:
+                                image_url = image_match.group(1).replace(
+                                    "\\u0025", "%"
+                                ).replace("\\/", "/")
+
+                        if not image_url:
+                            image_match = re.search(
+                                r'"watermarked_resized_image_url"\s*:\s*"([^"]+)"',
+                                window,
+                            )
+                            if image_match:
+                                has_image_url = True
+                                image_url = image_match.group(1).replace(
+                                    "\\u0025", "%"
+                                ).replace("\\/", "/")
+
+                # Decide based on what we found
+                # Video ads have video URLs; image ads have only image URLs
+                if has_video_url and video_url:
+                    await context.close()
+                    return video_url, "video"
+                elif has_image_url and image_url and not has_video_url:
+                    await context.close()
+                    return image_url, "image"
+
+                # PRIORITY 2: Fallback to DOM element inspection
+                # Only use this if JSON approach failed
+                # Check for video element
                 video_element = await page.query_selector("video")
                 if video_element:
                     src = await video_element.get_attribute("src")
@@ -1633,9 +1805,7 @@ class AdLibraryScraper:
                             await context.close()
                             return src, "image"
 
-                # Fallback: look in page source for URLs
-                content = await page.content()
-
+                # PRIORITY 3: Last resort - global pattern search
                 # Video URL patterns
                 video_patterns = [
                     r'"video_url"\s*:\s*"([^"]+)"',

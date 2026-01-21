@@ -36,7 +36,7 @@ class CreativeDownloader:
         competitor_id: UUID,
         ad_id: str,
         creative_url: str | None = None,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, str | None]:
         """
         Download a creative from Meta and store it in Supabase.
 
@@ -47,7 +47,7 @@ class CreativeDownloader:
             creative_url: Direct URL to the creative (if already extracted from JSON)
 
         Returns:
-            Tuple of (storage_path, creative_type)
+            Tuple of (storage_path, creative_type, creative_url)
         """
         # Use direct creative_url if provided, otherwise extract from snapshot page
         if creative_url:
@@ -78,7 +78,7 @@ class CreativeDownloader:
                 )
 
                 logger.info(f"Successfully downloaded creative for ad {ad_id}")
-                return storage_path, creative_type
+                return storage_path, creative_type, creative_url
 
             except Exception as e:
                 logger.warning(f"Download attempt {attempt + 1} failed for ad {ad_id}: {e}")
@@ -117,7 +117,7 @@ class CreativeDownloader:
         ads: list[dict],
         competitor_id: UUID,
         concurrency: int = 3,
-    ) -> dict[str, tuple[str, str] | None]:
+    ) -> dict[str, tuple[str, str, str | None] | None]:
         """
         Download multiple creatives concurrently.
 
@@ -127,12 +127,12 @@ class CreativeDownloader:
             concurrency: Maximum concurrent downloads
 
         Returns:
-            Dictionary mapping ad_library_id to (storage_path, creative_type) or None if failed
+            Dictionary mapping ad_library_id to (storage_path, creative_type, creative_url) or None if failed
         """
-        results: dict[str, tuple[str, str] | None] = {}
+        results: dict[str, tuple[str, str, str | None] | None] = {}
         semaphore = asyncio.Semaphore(concurrency)
 
-        async def download_with_limit(ad: dict) -> tuple[str, tuple[str, str] | None]:
+        async def download_with_limit(ad: dict) -> tuple[str, tuple[str, str, str | None] | None]:
             ad_id = ad["ad_library_id"]
             snapshot_url = ad.get("ad_snapshot_url")
 

@@ -121,11 +121,9 @@ class AdLibraryScraper:
                 # The URL with id=xxx opens a "Link to ad" modal showing that specific ad
                 target_modal = None
                 modals = await page.query_selector_all('div[role="dialog"]')
-                logger.debug(f"Found {len(modals)} modal(s) on page")
 
-                for i, modal in enumerate(modals):
+                for modal in modals:
                     modal_text = await modal.inner_text()
-                    logger.debug(f"Modal {i} text preview: {modal_text[:200]}...")
                     if ad_library_id in modal_text:
                         target_modal = modal
                         logger.debug(f"Found modal containing ad {ad_library_id}")
@@ -146,55 +144,29 @@ class AdLibraryScraper:
                         await see_details.evaluate("el => el.click()")
                         await asyncio.sleep(2)
 
-                        # Find the "Ad details" modal (newly opened)
-                        # The modal header is "Ad details" and it contains "Additional assets" section
+                        # Find the modal containing "Additional assets from this ad"
+                        # This might be a new modal or the expanded target_modal
                         details_modal = None
                         modals_after = await page.query_selector_all('div[role="dialog"]')
-                        logger.debug(f"After clicking 'See ad details', found {len(modals_after)} modal(s)")
 
-                        for i, modal in enumerate(modals_after):
+                        for modal in modals_after:
                             modal_text = await modal.inner_text()
-                            # Look for "Ad details" header (the new modal opened by clicking "See ad details")
-                            is_ad_details_modal = modal_text.strip().startswith("Ad details")
-                            logger.debug(
-                                f"Post-click modal {i}: is 'Ad details' modal: {is_ad_details_modal}, "
-                                f"preview: {modal_text[:100]}..."
-                            )
-                            if is_ad_details_modal:
+                            if "additional assets from this ad" in modal_text.lower():
                                 details_modal = modal
-                                logger.debug("Found 'Ad details' modal")
+                                logger.debug("Found modal with 'Additional assets from this ad'")
                                 break
 
                         if details_modal:
-                            # First, scroll within the modal to load all content
-                            # Find the scrollable container inside the modal
-                            scrollable_content = await details_modal.query_selector('div[style*="overflow"]')
-                            if scrollable_content:
-                                logger.debug("Found scrollable container in modal, scrolling to load content...")
-                                await scrollable_content.evaluate("el => el.scrollTop = el.scrollHeight")
-                                await asyncio.sleep(0.8)
-                                await scrollable_content.evaluate("el => el.scrollTop = 0")
-                                await asyncio.sleep(0.3)
-                            else:
-                                # Fallback: scroll the modal itself
-                                logger.debug("No scrollable container, scrolling modal element...")
-                                await details_modal.evaluate("el => el.scrollTop = el.scrollHeight")
-                                await asyncio.sleep(0.8)
-                                await details_modal.evaluate("el => el.scrollTop = 0")
-                                await asyncio.sleep(0.3)
+                            # Expand the "Additional assets" dropdown within the details modal
+                            add_assets = await details_modal.query_selector(':has-text("Additional assets from this ad")')
+                            if add_assets:
+                                logger.debug("Clicking 'Additional assets from this ad' dropdown")
+                                await add_assets.evaluate("el => el.click()")
+                                await asyncio.sleep(1.5)
 
-                            # Now expand the "Additional assets" dropdown
-                            expanded = await self._expand_additional_assets(page, modal=details_modal)
-                            if expanded:
-                                logger.debug("'Additional assets' dropdown expanded successfully")
-                            else:
-                                logger.debug("Could not expand 'Additional assets' dropdown")
-
-                            # Extract additional links and form fields from the modal
+                            # Extract additional links ONLY from within this modal
                             result["additional_links"] = await self._extract_additional_links_from_modal(details_modal)
                             result["form_fields"] = await self._extract_form_fields_from_modal(details_modal)
-                        else:
-                            logger.debug("No 'Ad details' modal found after clicking 'See ad details'")
                 else:
                     # Fallback: No modal found, try the original approach
                     logger.debug("No modal with ad ID found, using fallback extraction")
@@ -225,17 +197,7 @@ class AdLibraryScraper:
                     result.update(await self._extract_timing_info(page))
                     result["platforms"] = await self._extract_platforms(page)
                     result.update(await self._extract_ad_content(page))
-
-                    # Scroll page to ensure dropdown is visible
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    await asyncio.sleep(0.5)
-                    await page.evaluate("window.scrollTo(0, 0)")
-                    await asyncio.sleep(0.3)
-
-                    expanded = await self._expand_additional_assets(page)
-                    if not expanded:
-                        logger.warning("Could not expand 'Additional assets' section")
-
+                    await self._expand_additional_assets(page)
                     result["additional_links"] = await self._extract_additional_links(page)
                     result["form_fields"] = await self._extract_form_fields(page)
 
@@ -608,127 +570,34 @@ class AdLibraryScraper:
 
         return result
 
-    async def _expand_additional_assets(self, page: Page, modal=None) -> bool:
-        """
-        Click the 'Additional assets from this ad' dropdown to expand it.
-
-        Args:
-            page: Playwright page object
-            modal: Optional modal element to search within
-
-        Returns:
-            True if dropdown was expanded, False otherwise
-        """
+    async def _expand_additional_assets(self, page: Page) -> None:
+        """Click the 'Additional assets from this ad' dropdown to expand it."""
         try:
-            # Selectors for the dropdown header (clickable area)
-            # Based on the HTML structure, the dropdown is a div with role="heading"
+            # Look for the dropdown trigger - it's a clickable div with heading role
             dropdown_selectors = [
                 'div[role="heading"]:has-text("Additional assets from this ad")',
-                'span:has-text("Additional assets from this ad")',
                 'text="Additional assets from this ad"',
+                'span:has-text("Additional assets from this ad")',
+                'div:has-text("Additional assets from this ad"):not(:has(div:has-text("Additional assets")))',
             ]
-
-            search_context = modal if modal else page
 
             for selector in dropdown_selectors:
                 try:
-                    if modal:
-                        element = await modal.query_selector(selector)
-                    else:
-                        element = await page.query_selector(selector)
-
-                    if element:
-                        logger.debug(f"Found 'Additional assets' element with selector: {selector}")
-                        # Scroll into view and click
-                        if await self._scroll_into_view_and_click(
-                            page, element, "'Additional assets' dropdown"
-                        ):
-                            await asyncio.sleep(1.5)  # Wait for expansion animation
-                            return True
+                    element = page.locator(selector).first
+                    if await element.count() > 0:
+                        # Use JavaScript click to bypass overlay issues
+                        await element.evaluate("el => el.click()")
+                        logger.debug(f"Clicked 'Additional assets' dropdown using selector: {selector}")
+                        await asyncio.sleep(1.5)  # Wait for content to expand
+                        return
                 except Exception as e:
                     logger.debug(f"Dropdown selector {selector} failed: {e}")
                     continue
 
-            # Fallback: Find the scrollable container within the modal and scroll it
-            if modal:
-                logger.debug("Dropdown not found initially, trying to scroll within modal...")
-
-                # Find scrollable div inside the modal (usually has overflow-y: auto/scroll)
-                scrollable = await modal.query_selector('div[style*="overflow"]')
-                if scrollable:
-                    await scrollable.evaluate("el => el.scrollTop = el.scrollHeight")
-                    await asyncio.sleep(0.5)
-                else:
-                    # Fallback: scroll the modal itself
-                    await modal.evaluate("el => el.scrollTop = el.scrollHeight")
-                    await asyncio.sleep(0.5)
-
-                # Retry selectors after scrolling
-                for selector in dropdown_selectors:
-                    try:
-                        element = await modal.query_selector(selector)
-                        if element:
-                            logger.debug(f"Found 'Additional assets' after scroll with: {selector}")
-                            if await self._scroll_into_view_and_click(
-                                page, element, "'Additional assets' (after scroll)"
-                            ):
-                                await asyncio.sleep(1.5)
-                                return True
-                    except Exception:
-                        continue
-
-            # Final fallback: Try using page-wide locator with force scroll
-            logger.debug("Trying page-wide locator as final fallback...")
-            try:
-                locator = page.locator('text="Additional assets from this ad"').first
-                if await locator.count() > 0:
-                    await locator.scroll_into_view_if_needed()
-                    await asyncio.sleep(0.5)
-                    await locator.click()
-                    logger.debug("Clicked 'Additional assets' via page-wide locator")
-                    await asyncio.sleep(1.5)
-                    return True
-            except Exception as e:
-                logger.debug(f"Page-wide locator fallback failed: {e}")
-
             logger.debug("Could not find 'Additional assets from this ad' dropdown")
-            return False
 
         except Exception as e:
             logger.debug(f"Error expanding additional assets: {e}")
-            return False
-
-    async def _scroll_into_view_and_click(
-        self,
-        page: Page,
-        element,
-        description: str = "element",
-    ) -> bool:
-        """
-        Scroll an element into view and click it.
-
-        Args:
-            page: Playwright page object
-            element: Element handle to scroll and click
-            description: Description for logging
-
-        Returns:
-            True if click succeeded, False otherwise
-        """
-        try:
-            # Scroll element into view
-            await element.evaluate(
-                "el => el.scrollIntoView({ behavior: 'smooth', block: 'center' })"
-            )
-            await asyncio.sleep(0.5)  # Wait for scroll animation
-
-            # Click the element
-            await element.evaluate("el => el.click()")
-            logger.debug(f"Successfully clicked {description}")
-            return True
-        except Exception as e:
-            logger.debug(f"Failed to scroll/click {description}: {e}")
-            return False
 
     async def _extract_additional_links(self, page: Page) -> list[str]:
         """Extract additional URLs from the 'Additional assets' section."""
@@ -1149,7 +1018,7 @@ class AdLibraryScraper:
                 while len(ads) < max_ads and no_new_ads_count < max_no_new_ads:
                     # Extract ads from embedded JSON in page content
                     content = await page.content()
-                    new_ads = await self._extract_ads_from_html(content, seen_ad_ids, page)
+                    new_ads = self._extract_ads_from_html(content, seen_ad_ids)
 
                     if new_ads:
                         ads.extend(new_ads)
@@ -1180,8 +1049,8 @@ class AdLibraryScraper:
         logger.info(f"Finished scraping. Total ads collected: {len(ads)}")
         return ads[:max_ads]
 
-    async def _extract_ads_from_html(
-        self, html_content: str, seen_ad_ids: set[str], page: Page
+    def _extract_ads_from_html(
+        self, html_content: str, seen_ad_ids: set[str]
     ) -> list[dict[str, Any]]:
         """
         Extract ad data from embedded JSON in the HTML.
@@ -1189,7 +1058,6 @@ class AdLibraryScraper:
         Args:
             html_content: Raw HTML content
             seen_ad_ids: Set of already seen ad IDs to avoid duplicates
-            page: Playwright page object for DOM queries
 
         Returns:
             List of newly extracted ads
@@ -1249,131 +1117,12 @@ class AdLibraryScraper:
             if snapshot_start != -1 and '"is_active":false' in snapshot_section:
                 is_active = False
 
-            # Determine creative type by checking DOM for video vs img elements
-            # This is more reliable than URL pattern matching since Facebook may include
-            # video URLs in JSON even for static image ads
-            creative_url = None
-            creative_type = "image"  # Default to image
-
-            # Try to find the ad container in DOM and check for video element
-            try:
-                # Look for ad card containing this ad_archive_id
-                # Ad Library uses data attributes or link hrefs containing the ad ID
-                ad_selectors = [
-                    f'a[href*="id={ad_archive_id}"]',
-                    f'div[data-ad-id="{ad_archive_id}"]',
-                    f'[data-testid*="{ad_archive_id}"]',
-                ]
-
-                ad_container = None
-                for selector in ad_selectors:
-                    try:
-                        element = await page.query_selector(selector)
-                        if element:
-                            # Navigate up to find the ad card container
-                            ad_container = await element.evaluate_handle(
-                                """el => {
-                                    let parent = el;
-                                    for (let i = 0; i < 10; i++) {
-                                        parent = parent.parentElement;
-                                        if (!parent) break;
-                                        // Look for a container that has both the ad content
-                                        if (parent.querySelector('video') || parent.querySelector('img[src*="scontent"]')) {
-                                            return parent;
-                                        }
-                                    }
-                                    return el.closest('div[class]');
-                                }"""
-                            )
-                            if ad_container:
-                                break
-                    except Exception:
-                        continue
-
-                # Check if ad container has a video element
-                if ad_container:
-                    has_video = await ad_container.evaluate(
-                        "el => el.querySelector('video') !== null"
-                    )
-                    if has_video:
-                        creative_type = "video"
-                        # Get video src
-                        video_src = await ad_container.evaluate(
-                            """el => {
-                                const video = el.querySelector('video');
-                                if (video) {
-                                    return video.src || video.querySelector('source')?.src || null;
-                                }
-                                return null;
-                            }"""
-                        )
-                        if video_src:
-                            creative_url = video_src
-                    else:
-                        creative_type = "image"
-                        # Get image src
-                        img_src = await ad_container.evaluate(
-                            """el => {
-                                const img = el.querySelector('img[src*="scontent"]');
-                                if (img) return img.src;
-                                // Try any img with a real src (not data:)
-                                const anyImg = el.querySelector('img:not([src^="data:"])');
-                                if (anyImg) return anyImg.src;
-                                return null;
-                            }"""
-                        )
-                        if img_src:
-                            creative_url = img_src
-
-            except Exception as e:
-                logger.debug(f"DOM-based media detection failed for ad {ad_archive_id}: {e}")
-
-            # Fallback to JSON extraction if DOM detection didn't find a URL
-            if not creative_url and snapshot_start != -1:
-                extended_section = html_content[snapshot_start:snapshot_start + 8000]
-
-                # Only use video URL patterns if DOM detected a video element
-                if creative_type == "video":
-                    video_patterns = [
-                        r'"video_sd_url":"([^"]+)"',
-                        r'"video_hd_url":"([^"]+)"',
-                        r'"playable_url":"([^"]+)"',
-                        r'"playable_url_quality_hd":"([^"]+)"',
-                        r'"video_url":"([^"]+)"',
-                    ]
-                    for pattern in video_patterns:
-                        video_match = re.search(pattern, extended_section)
-                        if video_match:
-                            creative_url = video_match.group(1).replace("\\/", "/").replace("\\u0025", "%")
-                            break
-
-                # Try image URL patterns (for images or as fallback)
-                if not creative_url:
-                    image_patterns = [
-                        r'"resized_image_url":"([^"]+)"',
-                        r'"original_image_url":"([^"]+)"',
-                        r'"watermarked_resized_image_url":"([^"]+)"',
-                        r'"full_image_url":"([^"]+)"',
-                        r'"image_url":"([^"]+)"',
-                        r'"uri":"(https://scontent[^"]+)"',
-                        r'"url":"(https://scontent[^"]+)"',
-                    ]
-                    for pattern in image_patterns:
-                        image_match = re.search(pattern, extended_section)
-                        if image_match:
-                            creative_url = image_match.group(1).replace("\\/", "/").replace("\\u0025", "%")
-                            # If we found an image URL but didn't detect type from DOM, it's an image
-                            if creative_type != "video":
-                                creative_type = "image"
-                            break
-
-            # Build ad snapshot URL (fallback for viewing the ad)
+            # Build ad snapshot URL
             snapshot_url = f"https://www.facebook.com/ads/library/?id={ad_archive_id}"
 
             ad_data = {
                 "ad_library_id": ad_archive_id,
                 "ad_snapshot_url": snapshot_url,
-                "creative_url": creative_url,  # Direct URL to image/video
                 "ad_copy": body_text,
                 "ad_headline": None,
                 "ad_description": None,
@@ -1381,7 +1130,7 @@ class AdLibraryScraper:
                 "publication_date": start_date,
                 "is_active": is_active,
                 "platforms": ["facebook"],
-                "creative_type": creative_type,
+                "creative_type": "image",  # Will be determined when downloading
                 "is_carousel": False,
                 "carousel_item_count": None,
                 "landing_page_url": link_url,
@@ -1868,13 +1617,8 @@ class AdLibraryScraper:
                             return src, "video"
 
                 # Look for main image
-                # Try various selectors that Facebook uses (updated for current DOM structure)
+                # Try various selectors that Facebook uses
                 image_selectors = [
-                    # Current Facebook Ad Library selectors
-                    'div[role="dialog"] img[src*="scontent"]',
-                    'div[role="main"] img[src*="scontent"]',
-                    'img[src*="scontent"]',
-                    # Legacy selectors
                     'img[data-testid="ad_creative_image"]',
                     'img._8jnf',
                     'div[data-testid="ad_creative"] img',
@@ -1885,17 +1629,15 @@ class AdLibraryScraper:
                     img_element = await page.query_selector(selector)
                     if img_element:
                         src = await img_element.get_attribute("src")
-                        if src and not src.startswith("data:") and "scontent" in src:
+                        if src and not src.startswith("data:"):
                             await context.close()
                             return src, "image"
 
                 # Fallback: look in page source for URLs
                 content = await page.content()
 
-                # Video URL patterns (expanded)
+                # Video URL patterns
                 video_patterns = [
-                    r'"video_sd_url"\s*:\s*"([^"]+)"',
-                    r'"video_hd_url"\s*:\s*"([^"]+)"',
                     r'"video_url"\s*:\s*"([^"]+)"',
                     r'"playable_url"\s*:\s*"([^"]+)"',
                     r'"playable_url_quality_hd"\s*:\s*"([^"]+)"',
@@ -1907,16 +1649,11 @@ class AdLibraryScraper:
                         await context.close()
                         return url, "video"
 
-                # Image URL patterns (expanded with scontent patterns)
+                # Image URL patterns
                 image_patterns = [
-                    r'"resized_image_url"\s*:\s*"([^"]+)"',
-                    r'"original_image_url"\s*:\s*"([^"]+)"',
-                    r'"watermarked_resized_image_url"\s*:\s*"([^"]+)"',
                     r'"full_image_url"\s*:\s*"([^"]+)"',
                     r'"image_url"\s*:\s*"([^"]+)"',
                     r'"photo_image"\s*:\{"uri":"([^"]+)"',
-                    r'"uri"\s*:\s*"(https://scontent[^"]+)"',
-                    r'"url"\s*:\s*"(https://scontent[^"]+)"',
                 ]
                 for pattern in image_patterns:
                     match = re.search(pattern, content)

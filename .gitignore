@@ -81,6 +81,3 @@ celerybeat.pid
 
 # Alembic
 alembic/versions/*.pyc
-
-#LLM 
-.claude

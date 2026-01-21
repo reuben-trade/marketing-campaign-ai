@@ -309,10 +309,9 @@ async def retrieve_ads(
             snapshot_url = ad_data.get("ad_snapshot_url")
             creative_url = ad_data.get("creative_url")  # Direct URL from embedded JSON
             creative_type = ad_data.get("creative_type", "image")
-            creative_url = None
 
-            if snapshot_url:
-                storage_path, detected_type, creative_url = await downloader.download_creative(
+            if creative_url or snapshot_url:
+                storage_path, detected_type = await downloader.download_creative(
                     snapshot_url,
                     competitor.id,
                     ad_library_id,
@@ -347,7 +346,7 @@ async def retrieve_ads(
                 ad_snapshot_url=snapshot_url,
                 creative_type=creative_type,
                 creative_storage_path=storage_path,
-                creative_url=creative_url,
+                creative_url=creative_url,  # Store direct URL extracted from JSON
                 # Use detailed ad_copy if available, otherwise fallback to basic scrape
                 ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
                 ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),

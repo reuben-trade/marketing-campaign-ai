@@ -311,7 +311,7 @@ async def retrieve_ads(
             creative_type = ad_data.get("creative_type", "image")
 
             if creative_url or snapshot_url:
-                storage_path, detected_type = await downloader.download_creative(
+                storage_path, detected_type, extracted_url = await downloader.download_creative(
                     snapshot_url,
                     competitor.id,
                     ad_library_id,
@@ -321,6 +321,9 @@ async def retrieve_ads(
                 # Use detected type if available
                 if detected_type:
                     creative_type = detected_type
+                # Use the extracted URL if we didn't have one
+                if extracted_url:
+                    creative_url = extracted_url
             else:
                 storage_path = f"pending/{ad_library_id}"
                 download_status = "pending"
@@ -346,7 +349,7 @@ async def retrieve_ads(
                 ad_snapshot_url=snapshot_url,
                 creative_type=creative_type,
                 creative_storage_path=storage_path,
-                creative_url=creative_url,  # Store direct URL extracted from JSON
+                creative_url=creative_url,  # Store direct URL (either from JSON or extracted)
                 # Use detailed ad_copy if available, otherwise fallback to basic scrape
                 ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
                 ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),

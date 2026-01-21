@@ -23,6 +23,7 @@ from app.schemas.ad import (
 )
 from app.services.ad_library_scraper import AdLibraryScraper, AdLibraryScraperError
 from app.services.creative_downloader import CreativeDownloader, CreativeDownloadError
+from app.services.duplicate_detection import DuplicateDetector
 from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
 from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
 
@@ -278,8 +279,10 @@ async def retrieve_ads(
     retrieved = 0
     skipped = 0
     failed = 0
+    duplicates_found = 0
 
     downloader = CreativeDownloader()
+    duplicate_detector = DuplicateDetector()
 
     for ad_data in scraped_ads:
         ad_library_id = ad_data.get("ad_library_id")
@@ -290,7 +293,7 @@ async def retrieve_ads(
         # Ensure ad_library_id is a string for consistent comparison
         ad_library_id = str(ad_library_id)
 
-        # Check if we already have this ad
+        # Check if we already have this ad (by ad_library_id)
         existing = await db.execute(
             select(Ad).where(Ad.ad_library_id == ad_library_id)
         )
@@ -310,24 +313,6 @@ async def retrieve_ads(
             creative_url = ad_data.get("creative_url")  # Direct URL from embedded JSON
             creative_type = ad_data.get("creative_type", "image")
 
-            if creative_url or snapshot_url:
-                storage_path, detected_type, extracted_url = await downloader.download_creative(
-                    snapshot_url,
-                    competitor.id,
-                    ad_library_id,
-                    creative_url=creative_url,  # Pass direct URL if available
-                )
-                download_status = "completed"
-                # Use detected type if available
-                if detected_type:
-                    creative_type = detected_type
-                # Use the extracted URL if we didn't have one
-                if extracted_url:
-                    creative_url = extracted_url
-            else:
-                storage_path = f"pending/{ad_library_id}"
-                download_status = "pending"
-
             # Scrape detailed ad info from modal view (if enabled)
             ad_details = {}
             if request.scrape_details:
@@ -343,33 +328,118 @@ async def retrieve_ads(
                 except Exception as e:
                     logger.warning(f"Failed to scrape details for ad {ad_library_id}: {e}")
 
-            db_ad = Ad(
-                competitor_id=competitor.id,
-                ad_library_id=ad_library_id,
-                ad_snapshot_url=snapshot_url,
-                creative_type=creative_type,
-                creative_storage_path=storage_path,
-                creative_url=creative_url,  # Store direct URL (either from JSON or extracted)
-                # Use detailed ad_copy if available, otherwise fallback to basic scrape
-                ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
-                ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),
-                ad_description=sanitize_unicode(ad_details.get("link_description") or ad_data.get("ad_description")),
-                cta_text=sanitize_unicode(ad_details.get("cta_text") or ad_data.get("cta_text")),
-                publication_date=ad_data.get("publication_date"),
-                download_status=download_status,
-                is_carousel=ad_data.get("is_carousel", False),
-                carousel_item_count=ad_data.get("carousel_item_count"),
-                landing_page_url=sanitize_unicode(ad_data.get("landing_page_url")),
-                is_active=ad_data.get("is_active", True),
-                # New detailed fields from modal
-                started_running_date=ad_details.get("started_running_date"),
-                total_active_time=ad_details.get("total_active_time"),
-                platforms=ad_details.get("platforms"),
-                link_headline=sanitize_unicode(ad_details.get("link_headline")),
-                link_description=sanitize_unicode(ad_details.get("link_description")),
-                additional_links=ad_details.get("additional_links"),
-                form_fields=ad_details.get("form_fields"),
-            )
+            # --- DUPLICATE DETECTION ---
+            # Check if this creative already exists (by perceptual hash)
+            original_ad = None
+            perceptual_hash = None
+
+            if creative_url:
+                # Compute hash from URL without downloading full file yet
+                perceptual_hash = await duplicate_detector.get_phash_from_url(
+                    creative_url, creative_type
+                )
+                if perceptual_hash:
+                    # Look for existing original with matching hash
+                    original_ad = await duplicate_detector.find_original_by_hash(
+                        db, perceptual_hash, creative_type
+                    )
+
+            if original_ad:
+                # --- DUPLICATE PATH ---
+                # Create minimal record referencing the original (no download needed)
+                logger.info(
+                    f"Duplicate detected: ad {ad_library_id} matches original {original_ad.id}"
+                )
+                db_ad = Ad(
+                    competitor_id=competitor.id,
+                    ad_library_id=ad_library_id,
+                    ad_snapshot_url=snapshot_url,
+                    creative_type=creative_type,
+                    creative_storage_path="",  # Empty - use original's storage
+                    creative_url=creative_url,
+                    original_ad_id=original_ad.id,  # Link to original
+                    # Text fields (may differ from original)
+                    ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
+                    ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),
+                    ad_description=sanitize_unicode(ad_details.get("link_description") or ad_data.get("ad_description")),
+                    cta_text=sanitize_unicode(ad_details.get("cta_text") or ad_data.get("cta_text")),
+                    publication_date=ad_data.get("publication_date"),
+                    download_status="completed",  # Nothing to download
+                    is_carousel=ad_data.get("is_carousel", False),
+                    carousel_item_count=ad_data.get("carousel_item_count"),
+                    landing_page_url=sanitize_unicode(ad_data.get("landing_page_url")),
+                    is_active=ad_data.get("is_active", True),
+                    likes=ad_data.get("likes", 0),
+                    comments=ad_data.get("comments", 0),
+                    shares=ad_data.get("shares", 0),
+                    # Detailed fields from modal
+                    started_running_date=ad_details.get("started_running_date"),
+                    total_active_time=ad_details.get("total_active_time"),
+                    platforms=ad_details.get("platforms"),
+                    link_headline=sanitize_unicode(ad_details.get("link_headline")),
+                    link_description=sanitize_unicode(ad_details.get("link_description")),
+                    additional_links=ad_details.get("additional_links"),
+                    form_fields=ad_details.get("form_fields"),
+                )
+                # Increment duplicate count on original
+                original_ad.duplicate_count += 1
+                duplicates_found += 1
+
+            else:
+                # --- ORIGINAL PATH ---
+                # Download the creative and store it
+                if creative_url or snapshot_url:
+                    storage_path, detected_type, extracted_url = await downloader.download_creative(
+                        snapshot_url,
+                        competitor.id,
+                        ad_library_id,
+                        creative_url=creative_url,
+                    )
+                    download_status = "completed"
+                    if detected_type:
+                        creative_type = detected_type
+                    if extracted_url:
+                        creative_url = extracted_url
+                    # Compute hash if we didn't have creative_url before
+                    if not perceptual_hash and creative_url:
+                        perceptual_hash = await duplicate_detector.get_phash_from_url(
+                            creative_url, creative_type
+                        )
+                else:
+                    storage_path = f"pending/{ad_library_id}"
+                    download_status = "pending"
+
+                db_ad = Ad(
+                    competitor_id=competitor.id,
+                    ad_library_id=ad_library_id,
+                    ad_snapshot_url=snapshot_url,
+                    creative_type=creative_type,
+                    creative_storage_path=storage_path,
+                    creative_url=creative_url,
+                    perceptual_hash=perceptual_hash,  # Store hash for future dedup
+                    duplicate_count=1,  # This is an original
+                    ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
+                    ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),
+                    ad_description=sanitize_unicode(ad_details.get("link_description") or ad_data.get("ad_description")),
+                    cta_text=sanitize_unicode(ad_details.get("cta_text") or ad_data.get("cta_text")),
+                    publication_date=ad_data.get("publication_date"),
+                    download_status=download_status,
+                    is_carousel=ad_data.get("is_carousel", False),
+                    carousel_item_count=ad_data.get("carousel_item_count"),
+                    landing_page_url=sanitize_unicode(ad_data.get("landing_page_url")),
+                    is_active=ad_data.get("is_active", True),
+                    likes=ad_data.get("likes", 0),
+                    comments=ad_data.get("comments", 0),
+                    shares=ad_data.get("shares", 0),
+                    started_running_date=ad_details.get("started_running_date"),
+                    total_active_time=ad_details.get("total_active_time"),
+                    platforms=ad_details.get("platforms"),
+                    link_headline=sanitize_unicode(ad_details.get("link_headline")),
+                    link_description=sanitize_unicode(ad_details.get("link_description")),
+                    additional_links=ad_details.get("additional_links"),
+                    form_fields=ad_details.get("form_fields"),
+                )
+
             # Use savepoint to handle duplicates without rolling back entire transaction
             try:
                 async with db.begin_nested():
@@ -386,6 +456,9 @@ async def retrieve_ads(
         except Exception as e:
             logger.warning(f"Failed to process ad {ad_library_id}: {e}")
             failed += 1
+
+    # Clean up duplicate detector HTTP client
+    await duplicate_detector.close()
 
     competitor.last_retrieved = datetime.utcnow()
     await db.commit()
@@ -407,9 +480,10 @@ async def analyze_ad(
     Analyze a single ad using AI.
 
     Uses GPT-4 Vision for images and Gemini for videos.
+    If the ad is a duplicate, copies analysis from the original instead of re-analyzing.
     """
     result = await db.execute(
-        select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad_id)
+        select(Ad).options(selectinload(Ad.competitor), selectinload(Ad.original_ad)).where(Ad.id == ad_id)
     )
     ad = result.scalar_one_or_none()
 
@@ -425,36 +499,91 @@ async def analyze_ad(
             detail="Ad creative has not been downloaded yet",
         )
 
-    competitor = ad.competitor
+    # --- DUPLICATE HANDLING ---
+    # If this ad is a duplicate, use the original's analysis
+    if ad.original_ad_id:
+        original_ad = ad.original_ad
+        if not original_ad:
+            # Fetch original if not loaded
+            result = await db.execute(
+                select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad.original_ad_id)
+            )
+            original_ad = result.scalar_one_or_none()
 
+        if original_ad and original_ad.analysis:
+            # Copy analysis from original (no LLM call needed)
+            logger.info(f"Copying analysis from original ad {original_ad.id} to duplicate {ad.id}")
+            ad.analysis = original_ad.analysis
+            ad.analyzed = True
+            ad.analyzed_date = datetime.utcnow()
+            ad.analysis_status = "completed"
+            await db.commit()
+            await db.refresh(ad)
+            return _build_ad_response(ad)
+
+        # Original exists but not analyzed - analyze the original instead
+        if original_ad:
+            ad_to_analyze = original_ad
+            competitor = original_ad.competitor
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Original ad not found for this duplicate",
+            )
+    else:
+        # This is an original ad - analyze it directly
+        ad_to_analyze = ad
+        competitor = ad.competitor
+
+    # --- ANALYSIS ---
     try:
-        if ad.creative_type == "image":
+        if ad_to_analyze.creative_type == "image":
             analyzer = ImageAnalyzer()
             analysis = await analyzer.analyze_from_storage(
-                ad.creative_storage_path,
+                ad_to_analyze.creative_storage_path,
                 competitor_name=competitor.company_name,
                 market_position=competitor.market_position,
                 follower_count=competitor.follower_count,
-                likes=ad.likes,
-                comments=ad.comments,
-                shares=ad.shares,
+                likes=ad_to_analyze.likes,
+                comments=ad_to_analyze.comments,
+                shares=ad_to_analyze.shares,
             )
         else:
             analyzer = VideoAnalyzer()
             analysis = await analyzer.analyze_from_storage(
-                ad.creative_storage_path,
+                ad_to_analyze.creative_storage_path,
                 competitor_name=competitor.company_name,
                 market_position=competitor.market_position,
                 follower_count=competitor.follower_count,
-                likes=ad.likes,
-                comments=ad.comments,
-                shares=ad.shares,
+                likes=ad_to_analyze.likes,
+                comments=ad_to_analyze.comments,
+                shares=ad_to_analyze.shares,
             )
 
-        ad.analysis = analysis
-        ad.analyzed = True
-        ad.analyzed_date = datetime.utcnow()
-        ad.analysis_status = "completed"
+        # Update the analyzed ad (original)
+        ad_to_analyze.analysis = analysis
+        ad_to_analyze.analyzed = True
+        ad_to_analyze.analyzed_date = datetime.utcnow()
+        ad_to_analyze.analysis_status = "completed"
+
+        # If we analyzed the original for a duplicate request, also update the duplicate
+        if ad.original_ad_id and ad_to_analyze.id != ad.id:
+            ad.analysis = analysis
+            ad.analyzed = True
+            ad.analyzed_date = datetime.utcnow()
+            ad.analysis_status = "completed"
+
+        # Propagate analysis to ALL duplicates of this original
+        await db.execute(
+            Ad.__table__.update()
+            .where(Ad.original_ad_id == ad_to_analyze.id)
+            .values(
+                analysis=analysis,
+                analyzed=True,
+                analyzed_date=datetime.utcnow(),
+                analysis_status="completed",
+            )
+        )
 
     except (ImageAnalysisError, VideoAnalysisError) as e:
         ad.analysis_status = "failed"
@@ -467,6 +596,11 @@ async def analyze_ad(
     await db.commit()
     await db.refresh(ad)
 
+    return _build_ad_response(ad)
+
+
+def _build_ad_response(ad: Ad) -> AdResponse:
+    """Build AdResponse from Ad model."""
     return AdResponse(
         id=ad.id,
         competitor_id=ad.competitor_id,
@@ -499,6 +633,8 @@ async def analyze_ad(
         analysis_status=ad.analysis_status,
         total_engagement=ad.total_engagement,
         overall_score=ad.overall_score,
+        original_ad_id=ad.original_ad_id,
+        duplicate_count=ad.duplicate_count,
     )
 
 
@@ -511,7 +647,9 @@ async def run_analysis(
     Run analysis on unanalyzed ads.
 
     Processes ads in batches, analyzing up to `limit` ads.
+    Only analyzes ORIGINAL ads (not duplicates) and propagates results to duplicates.
     """
+    # Only select ORIGINAL ads (original_ad_id IS NULL) that need analysis
     result = await db.execute(
         select(Ad)
         .options(selectinload(Ad.competitor))
@@ -520,6 +658,7 @@ async def run_analysis(
                 Ad.analyzed == False,
                 Ad.download_status == "completed",
                 Ad.analysis_status == "pending",
+                Ad.original_ad_id.is_(None),  # Only originals, not duplicates
             )
         )
         .limit(limit)
@@ -528,6 +667,7 @@ async def run_analysis(
 
     processed = 0
     failed = 0
+    duplicates_updated = 0
 
     image_analyzer = ImageAnalyzer()
     video_analyzer = VideoAnalyzer()
@@ -562,6 +702,19 @@ async def run_analysis(
             ad.analysis_status = "completed"
             processed += 1
 
+            # Propagate analysis to ALL duplicates of this original
+            update_result = await db.execute(
+                Ad.__table__.update()
+                .where(Ad.original_ad_id == ad.id)
+                .values(
+                    analysis=analysis,
+                    analyzed=True,
+                    analyzed_date=datetime.utcnow(),
+                    analysis_status="completed",
+                )
+            )
+            duplicates_updated += update_result.rowcount
+
         except Exception as e:
             logger.error(f"Failed to analyze ad {ad.id}: {e}")
             ad.analysis_status = "failed"
@@ -572,6 +725,7 @@ async def run_analysis(
     return {
         "processed": processed,
         "failed": failed,
+        "duplicates_updated": duplicates_updated,
         "total_attempted": len(ads),
     }
 

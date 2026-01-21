@@ -16,8 +16,7 @@ from PIL import Image
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# from app.models.ad import Ad  # Assumed import
-# from app.utils.supabase_storage import SupabaseStorage # Assumed import
+from app.models.ad import Ad
 
 logger = logging.getLogger(__name__)
 
@@ -184,8 +183,80 @@ class DuplicateDetector:
             return None
 
     # =========================================================================
+    # ORIGINAL AD LOOKUP BY HASH
+    # =========================================================================
+
+    async def find_original_by_hash(
+        self,
+        db: AsyncSession,
+        phash: str,
+        creative_type: str = "image",
+    ) -> Optional[Ad]:
+        """
+        Find the original ad with a matching perceptual hash.
+
+        Only returns ads where original_ad_id IS NULL (i.e., originals, not duplicates).
+        Uses hamming distance comparison for fuzzy matching.
+
+        Args:
+            db: Database session
+            phash: The perceptual hash to search for
+            creative_type: Either 'image' or 'video'
+
+        Returns:
+            The matching original Ad, or None if no match found
+        """
+        if not phash:
+            return None
+
+        # Query all original ads (not duplicates) of the same type with a hash
+        stmt = select(Ad).where(
+            Ad.perceptual_hash.is_not(None),
+            Ad.original_ad_id.is_(None),  # Only originals
+            Ad.creative_type == creative_type,
+        )
+        result = await db.execute(stmt)
+        original_ads = result.scalars().all()
+
+        # Compare hashes using hamming distance
+        for ad in original_ads:
+            if self.is_duplicate_hash(phash, ad.perceptual_hash):
+                logger.info(f"Found matching original ad {ad.id} for hash")
+                return ad
+
+        return None
+
+    # =========================================================================
     # AD-LEVEL DUPLICATE CHECKING
     # =========================================================================
+
+    async def get_phash_from_url(
+        self, creative_url: str, creative_type: str = "image"
+    ) -> Optional[str]:
+        """
+        Computes the perceptual hash directly from a creative URL.
+
+        Args:
+            creative_url: The URL of the creative media
+            creative_type: Either 'image' or 'video'
+
+        Returns:
+            The computed pHash string or None if failed
+        """
+        if not creative_url:
+            return None
+
+        try:
+            response = await self.http_client.get(creative_url)
+            content_bytes = response.content
+
+            if creative_type == 'video':
+                return self.compute_video_phash(content_bytes)
+            else:
+                return self.compute_image_phash(content_bytes)
+        except Exception as e:
+            logger.error(f"Failed to compute hash from URL {creative_url}: {e}")
+            return None
 
     async def get_ad_phash(self, db: AsyncSession, ad_id: str) -> Optional[str]:
         """
@@ -206,17 +277,7 @@ class DuplicateDetector:
         if not creative_url:
             return None
 
-        try:
-            response = await self.http_client.get(creative_url)
-            content_bytes = response.content
-
-            if creative_type == 'video':
-                return self.compute_video_phash(content_bytes)
-            else:
-                return self.compute_image_phash(content_bytes)
-        except Exception as e:
-            logger.error(f"Failed to compute hash for ad {ad_id}: {e}")
-            return None
+        return await self.get_phash_from_url(creative_url, creative_type or "image")
 
     async def are_ads_duplicates(
         self,

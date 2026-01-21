@@ -134,6 +134,20 @@ class Ad(Base):
     analysis_status: Mapped[str] = mapped_column(String(20), default="pending")
     # "pending", "completed", "failed"
 
+    # Duplicate tracking
+    perceptual_hash: Mapped[str | None] = mapped_column(String(256))
+    # pHash for images (16 hex chars), pipe-delimited hashes for videos
+
+    original_ad_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("ads.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # If set, this ad is a duplicate - points to the original ad with the creative
+
+    duplicate_count: Mapped[int] = mapped_column(Integer, default=1)
+    # How many times this creative has been seen (only tracked on originals)
+
     # Relationships
     competitor: Mapped["Competitor"] = relationship(  # noqa: F821
         "Competitor",
@@ -153,6 +167,12 @@ class Ad(Base):
         back_populates="ad",
         lazy="selectin",
     )
+    original_ad: Mapped["Ad | None"] = relationship(
+        "Ad",
+        remote_side="Ad.id",
+        foreign_keys="Ad.original_ad_id",
+        lazy="selectin",
+    )
 
     __table_args__ = (
         Index("idx_ads_competitor", "competitor_id"),
@@ -161,6 +181,8 @@ class Ad(Base):
         Index("idx_ads_publication_date", "publication_date", postgresql_ops={"publication_date": "DESC"}),
         Index("idx_ads_landing_page_id", "landing_page_id"),
         Index("idx_ads_is_active", "is_active"),
+        Index("idx_ads_perceptual_hash", "perceptual_hash"),
+        Index("idx_ads_original_ad_id", "original_ad_id"),
     )
 
     @property

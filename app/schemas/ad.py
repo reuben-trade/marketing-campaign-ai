@@ -109,7 +109,16 @@ class AdResponse(AdBase):
     total_engagement: int = Field(..., description="Sum of likes, comments, shares")
     overall_score: float | None = Field(None, description="Overall marketing score")
 
+    # Duplicate tracking
+    original_ad_id: UUID | None = Field(None, description="If set, this is a duplicate - references the original ad")
+    duplicate_count: int = Field(1, description="How many times this creative has been seen (on originals)")
+
     model_config = {"from_attributes": True}
+
+    @property
+    def is_duplicate(self) -> bool:
+        """Returns True if this ad is a duplicate of another."""
+        return self.original_ad_id is not None
 
 
 class AdListResponse(BaseModel):

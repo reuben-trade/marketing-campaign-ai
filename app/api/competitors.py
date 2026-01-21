@@ -72,9 +72,39 @@ async def add_competitor(
     db: DbSession,
     competitor: CompetitorCreate,
 ) -> CompetitorResponse:
-    """Manually add a competitor."""
+    """
+    Manually add a competitor.
+
+    The page_id will be automatically retrieved using:
+    1. The facebook_url if provided (extracts page_id from the URL)
+    2. The company_name if no facebook_url is provided (searches for the Facebook page)
+    """
+    scraper = AdLibraryScraper()
+    page_id: str | None = None
+    facebook_url: str | None = competitor.facebook_url
+
+    # Try to get page_id from facebook_url if provided
+    if facebook_url:
+        logger.info(f"Extracting page_id from provided URL: {facebook_url}")
+        page_id = await scraper.extract_page_id_from_profile(facebook_url)
+        if not page_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not extract page_id from URL: {facebook_url}. Please verify the URL is a valid Facebook page.",
+            )
+    else:
+        # Search for page_id by company name
+        logger.info(f"Searching for Facebook page for: {competitor.company_name}")
+        page_id, facebook_url = await scraper.search_page_id_by_name(competitor.company_name)
+        if not page_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not find Facebook page for '{competitor.company_name}'. Please provide a facebook_url manually.",
+            )
+
+    # Check if competitor with this page_id already exists
     existing = await db.execute(
-        select(Competitor).where(Competitor.page_id == competitor.page_id)
+        select(Competitor).where(Competitor.page_id == page_id)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -84,7 +114,8 @@ async def add_competitor(
 
     db_competitor = Competitor(
         company_name=competitor.company_name,
-        page_id=competitor.page_id,
+        page_id=page_id,
+        facebook_page=facebook_url,
         industry=competitor.industry,
         follower_count=competitor.follower_count,
         is_market_leader=competitor.is_market_leader,

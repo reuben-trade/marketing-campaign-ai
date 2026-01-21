@@ -35,7 +35,6 @@ class CreativeDownloader:
         ad_snapshot_url: str,
         competitor_id: UUID,
         ad_id: str,
-        creative_url: str | None = None,
     ) -> tuple[str, str, str]:
         """
         Download a creative from Meta and store it in Supabase.

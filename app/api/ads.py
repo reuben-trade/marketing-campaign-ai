@@ -489,7 +489,7 @@ async def run_analysis(
     filters = [
         Ad.analyzed == False or Ad.analysis_status == 'failed',
         Ad.download_status == "completed",
-        Ad.analysis_status == "pending" or Ad.analysis_status == 'failed',
+        Ad.analysis_status == "pending" or Ad.analysis_status == 'failed', #TODO: remove this line - test it still works first
     ]
 
     # Only filter by original_ad_id if not skipping the check
@@ -502,7 +502,6 @@ async def run_analysis(
         .where(and_(*filters))
         .limit(limit)
     )
-    ads = result.scalars().all()
 
     print(f"ads: {ads}\n")
 

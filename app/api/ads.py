@@ -471,6 +471,145 @@ async def retrieve_ads(
     )
 
 
+@router.post("/analyze/run")
+async def run_analysis(
+    db: DbSession,
+    limit: int = Query(10, ge=1, le=100),
+    skip_duplicate_check: bool = Query(False, description="Skip the original_ad_id check to process all unanalyzed ads"),
+) -> dict:
+    """
+    Run analysis on unanalyzed ads.
+
+    Processes ads in batches, analyzing up to `limit` ads.
+    Only analyzes ORIGINAL ads (not duplicates) and propagates results to duplicates.
+
+    Use skip_duplicate_check=true to process ads regardless of original_ad_id status.
+    """
+    # Build filter conditions
+    filters = [
+        Ad.analyzed == False or Ad.analysis_status == 'failed',
+        Ad.download_status == "completed",
+        Ad.analysis_status == "pending" or Ad.analysis_status == 'failed',
+    ]
+
+    # Only filter by original_ad_id if not skipping the check
+    if not skip_duplicate_check:
+        filters.append(Ad.original_ad_id.is_(None))  # Only originals, not duplicates
+
+    result = await db.execute(
+        select(Ad)
+        .options(selectinload(Ad.competitor))
+        .where(and_(*filters))
+        .limit(limit)
+    )
+    ads = result.scalars().all()
+
+    print(f"ads: {ads}\n")
+
+    processed = 0
+    failed = 0
+    duplicates_updated = 0
+
+    image_analyzer = ImageAnalyzer()
+    video_analyzer = VideoAnalyzer()
+
+    for ad in ads:
+        competitor = ad.competitor
+        try:
+            if ad.creative_type == "image":
+                analysis = await image_analyzer.analyze_from_storage(
+                    ad.creative_storage_path,
+                    competitor_name=competitor.company_name,
+                    market_position=competitor.market_position,
+                    follower_count=competitor.follower_count,
+                    likes=ad.likes,
+                    comments=ad.comments,
+                    shares=ad.shares,
+                )
+                ad.analysis = analysis
+                video_intelligence = None
+            else:
+                # Video analysis returns new EnhancedAdAnalysis format
+                raw_analysis = await video_analyzer.analyze_from_storage(
+                    ad.creative_storage_path,
+                    competitor_name=competitor.company_name,
+                    market_position=competitor.market_position,
+                    follower_count=competitor.follower_count,
+                    likes=ad.likes,
+                    comments=ad.comments,
+                    shares=ad.shares,
+                )
+
+                # Store the full Creative DNA in video_intelligence
+                video_intelligence = video_analyzer.get_video_intelligence(raw_analysis)
+                ad.video_intelligence = video_intelligence
+
+                # Create backward-compatible analysis dict from the new format
+                hook_score = video_analyzer.extract_hook_score(raw_analysis)
+                analysis = {
+                    "summary": raw_analysis.get("overall_narrative_summary", ""),
+                    "insights": [],
+                    "uvps": [],
+                    "ctas": [],
+                    "visual_themes": [],
+                    "target_audience": raw_analysis.get("inferred_audience", ""),
+                    "emotional_appeal": raw_analysis.get("primary_messaging_pillar", ""),
+                    "marketing_effectiveness": {
+                        "hook_strength": hook_score,
+                        "message_clarity": raw_analysis.get("overall_pacing_score", 5),
+                        "visual_impact": raw_analysis.get("overall_pacing_score", 5),
+                        "cta_effectiveness": 5,
+                        "overall_score": raw_analysis.get("overall_pacing_score", 5),
+                    },
+                    "strategic_insights": f"Production Style: {raw_analysis.get('production_style', 'Unknown')}",
+                    "reasoning": raw_analysis.get("overall_narrative_summary", ""),
+                    "video_analysis": {
+                        "pacing": f"Pacing score: {raw_analysis.get('overall_pacing_score', 5)}/10",
+                        "audio_strategy": "",
+                        "story_arc": raw_analysis.get("overall_narrative_summary", ""),
+                        "caption_usage": "",
+                        "optimal_length": "",
+                    },
+                }
+                ad.analysis = analysis
+
+            ad.analyzed = True
+            ad.analyzed_date = datetime.utcnow()
+            ad.analysis_status = "completed"
+            processed += 1
+
+            # Propagate analysis to ALL duplicates of this original
+            update_values = {
+                "analysis": analysis,
+                "analyzed": True,
+                "analyzed_date": datetime.utcnow(),
+                "analysis_status": "completed",
+            }
+            if video_intelligence:
+                update_values["video_intelligence"] = video_intelligence
+
+            update_result = await db.execute(
+                Ad.__table__.update()
+                .where(Ad.original_ad_id == ad.id)
+                .values(**update_values)
+            )
+            duplicates_updated += update_result.rowcount
+
+        except Exception as e:
+            logger.error(f"Failed to analyze ad {ad.id}: {e}")
+            ad.analysis_status = "failed"
+            failed += 1
+
+    await db.commit()
+
+    return {
+        "processed": processed,
+        "failed": failed,
+        "duplicates_updated": duplicates_updated,
+        "total_attempted": len(ads),
+    }
+
+
 @router.post("/analyze/{ad_id}", response_model=AdResponse)
 async def analyze_ad(
     db: DbSession,
@@ -537,6 +676,7 @@ async def analyze_ad(
 
     # --- ANALYSIS ---
     try:
+        video_intelligence = None
         if ad_to_analyze.creative_type == "image":
             analyzer = ImageAnalyzer()
             analysis = await analyzer.analyze_from_storage(
@@ -549,8 +689,8 @@ async def analyze_ad(
                 shares=ad_to_analyze.shares,
             )
         else:
-            analyzer = VideoAnalyzer()
-            analysis = await analyzer.analyze_from_storage(
+            video_analyzer = VideoAnalyzer()
+            raw_analysis = await video_analyzer.analyze_from_storage(
                 ad_to_analyze.creative_storage_path,
                 competitor_name=competitor.company_name,
                 market_position=competitor.market_position,
@@ -559,6 +699,38 @@ async def analyze_ad(
                 comments=ad_to_analyze.comments,
                 shares=ad_to_analyze.shares,
             )
+
+            # Store the full Creative DNA in video_intelligence
+            video_intelligence = video_analyzer.get_video_intelligence(raw_analysis)
+            ad_to_analyze.video_intelligence = video_intelligence
+
+            # Create backward-compatible analysis dict from the new format
+            hook_score = video_analyzer.extract_hook_score(raw_analysis)
+            analysis = {
+                "summary": raw_analysis.get("overall_narrative_summary", ""),
+                "insights": [],
+                "uvps": [],
+                "ctas": [],
+                "visual_themes": [],
+                "target_audience": raw_analysis.get("inferred_audience", ""),
+                "emotional_appeal": raw_analysis.get("primary_messaging_pillar", ""),
+                "marketing_effectiveness": {
+                    "hook_strength": hook_score,
+                    "message_clarity": raw_analysis.get("overall_pacing_score", 5),
+                    "visual_impact": raw_analysis.get("overall_pacing_score", 5),
+                    "cta_effectiveness": 5,
+                    "overall_score": raw_analysis.get("overall_pacing_score", 5),
+                },
+                "strategic_insights": f"Production Style: {raw_analysis.get('production_style', 'Unknown')}",
+                "reasoning": raw_analysis.get("overall_narrative_summary", ""),
+                "video_analysis": {
+                    "pacing": f"Pacing score: {raw_analysis.get('overall_pacing_score', 5)}/10",
+                    "audio_strategy": "",
+                    "story_arc": raw_analysis.get("overall_narrative_summary", ""),
+                    "caption_usage": "",
+                    "optimal_length": "",
+                },
+            }
 
         # Update the analyzed ad (original)
         ad_to_analyze.analysis = analysis
@@ -572,17 +744,23 @@ async def analyze_ad(
             ad.analyzed = True
             ad.analyzed_date = datetime.utcnow()
             ad.analysis_status = "completed"
+            if video_intelligence:
+                ad.video_intelligence = video_intelligence
 
         # Propagate analysis to ALL duplicates of this original
+        update_values = {
+            "analysis": analysis,
+            "analyzed": True,
+            "analyzed_date": datetime.utcnow(),
+            "analysis_status": "completed",
+        }
+        if video_intelligence:
+            update_values["video_intelligence"] = video_intelligence
+
         await db.execute(
             Ad.__table__.update()
             .where(Ad.original_ad_id == ad_to_analyze.id)
-            .values(
-                analysis=analysis,
-                analyzed=True,
-                analyzed_date=datetime.utcnow(),
-                analysis_status="completed",
-            )
+            .values(**update_values)
         )
 
     except (ImageAnalysisError, VideoAnalysisError) as e:
@@ -636,98 +814,6 @@ def _build_ad_response(ad: Ad) -> AdResponse:
         original_ad_id=ad.original_ad_id,
         duplicate_count=ad.duplicate_count,
     )
-
-
-@router.post("/analyze/run")
-async def run_analysis(
-    db: DbSession,
-    limit: int = Query(10, ge=1, le=100),
-) -> dict:
-    """
-    Run analysis on unanalyzed ads.
-
-    Processes ads in batches, analyzing up to `limit` ads.
-    Only analyzes ORIGINAL ads (not duplicates) and propagates results to duplicates.
-    """
-    # Only select ORIGINAL ads (original_ad_id IS NULL) that need analysis
-    result = await db.execute(
-        select(Ad)
-        .options(selectinload(Ad.competitor))
-        .where(
-            and_(
-                Ad.analyzed == False,
-                Ad.download_status == "completed",
-                Ad.analysis_status == "pending",
-                Ad.original_ad_id.is_(None),  # Only originals, not duplicates
-            )
-        )
-        .limit(limit)
-    )
-    ads = result.scalars().all()
-
-    processed = 0
-    failed = 0
-    duplicates_updated = 0
-
-    image_analyzer = ImageAnalyzer()
-    video_analyzer = VideoAnalyzer()
-
-    for ad in ads:
-        competitor = ad.competitor
-        try:
-            if ad.creative_type == "image":
-                analysis = await image_analyzer.analyze_from_storage(
-                    ad.creative_storage_path,
-                    competitor_name=competitor.company_name,
-                    market_position=competitor.market_position,
-                    follower_count=competitor.follower_count,
-                    likes=ad.likes,
-                    comments=ad.comments,
-                    shares=ad.shares,
-                )
-            else:
-                analysis = await video_analyzer.analyze_from_storage(
-                    ad.creative_storage_path,
-                    competitor_name=competitor.company_name,
-                    market_position=competitor.market_position,
-                    follower_count=competitor.follower_count,
-                    likes=ad.likes,
-                    comments=ad.comments,
-                    shares=ad.shares,
-                )
-
-            ad.analysis = analysis
-            ad.analyzed = True
-            ad.analyzed_date = datetime.utcnow()
-            ad.analysis_status = "completed"
-            processed += 1
-
-            # Propagate analysis to ALL duplicates of this original
-            update_result = await db.execute(
-                Ad.__table__.update()
-                .where(Ad.original_ad_id == ad.id)
-                .values(
-                    analysis=analysis,
-                    analyzed=True,
-                    analyzed_date=datetime.utcnow(),
-                    analysis_status="completed",
-                )
-            )
-            duplicates_updated += update_result.rowcount
-
-        except Exception as e:
-            logger.error(f"Failed to analyze ad {ad.id}: {e}")
-            ad.analysis_status = "failed"
-            failed += 1
-
-    await db.commit()
-
-    return {
-        "processed": processed,
-        "failed": failed,
-        "duplicates_updated": duplicates_updated,
-        "total_attempted": len(ads),
-    }
 
 
 @router.post("/{ad_id}/scrape-details", response_model=AdResponse)

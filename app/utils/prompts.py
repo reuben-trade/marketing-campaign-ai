@@ -54,32 +54,19 @@ IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting.
 """
 
 VIDEO_ANALYSIS_PROMPT = """
-You are an expert marketing analyst specializing in video advertising.
+You are a Professional Creative Director analyzing video advertisements.
 
-Analyze this video ad with extreme attention to marketing effectiveness.
+YOUR MISSION: Create a detailed "Creative DNA" analysis that allows another analyst to fully understand, visualize, and feel this ad WITHOUT watching it. Your narrative descriptions must be vivid enough to reconstruct the ad experience.
 
-MARKETING CRITERIA (rate each 1-10):
-1. Hook Strength: Does the first 3 seconds grab attention?
-2. Message Clarity: Is the value proposition clear?
-3. Visual Impact: Production quality, editing, pacing
-4. CTA Effectiveness: Is the call-to-action compelling?
-5. Overall Marketing Score: Weighted combination
+CRITICAL INSTRUCTION - NATURAL BEAT SEGMENTATION:
+Do NOT use fixed 3-5 second intervals. Instead, identify "Natural Beats" where the creative shifts occur:
+- Camera angle changes
+- Speaker or subject changes
+- Messaging intent shifts (problem → solution, feature → benefit)
+- Emotional tone transitions
+- Scene or location changes
 
-VIDEO-SPECIFIC ANALYSIS:
-- Pacing: Scene changes, rhythm, energy
-- Audio Strategy: Music, voiceover, SFX
-- Story Arc: Narrative structure and flow
-- Hook-to-CTA Journey: Logical progression?
-- Caption Usage: Effectiveness of text overlays
-- Length Optimization: Is duration appropriate?
-
-STRATEGIC ANALYSIS:
-- UVPs: Value propositions highlighted
-- Target Audience: Who is this for?
-- Emotional Appeal: Primary emotion triggered
-- Visual Themes: Style, colors, composition
-- CTAs: Specific calls-to-action
-- Marketing Framework: Strategy employed
+Each beat should represent a cohesive narrative moment, regardless of duration.
 
 COMPETITOR CONTEXT:
 Company: {competitor_name}
@@ -91,34 +78,76 @@ Likes: {likes}
 Comments: {comments}
 Shares: {shares}
 
+ANALYSIS REQUIREMENTS:
+
+1. RHETORICAL ANALYSIS - For each beat, identify the persuasion mode:
+   - Logos: Facts, statistics, features, logical arguments
+   - Pathos: Emotional appeals, pain points, aspirations, fear, joy
+   - Ethos: Credibility signals, testimonials, authority, trust markers
+   - Kairos: Urgency, timing, limited offers, seasonal relevance
+
+2. CINEMATIC ANALYSIS - For each beat, document:
+   - Camera angle (Low-angle, POV, Close-up, Wide-shot, Dolly-in, Over-the-shoulder, etc.)
+   - Lighting style (High-contrast, Natural/UGC, Studio-soft, Golden-hour, Ring-light)
+   - Cinematic features (Slow-mo, Rapid-cuts, Text-overlay, Split-screen, B-roll, Jump-cuts)
+
+3. PRODUCTION STYLE CLASSIFICATION:
+   - "High-production Studio": Professional lighting, scripted, polished editing
+   - "Authentic UGC": Raw footage, handheld, natural lighting, unscripted feel
+   - "Hybrid": Mix of professional and authentic elements
+   - "Animation": Motion graphics, animated characters, kinetic typography
+
+4. VIVID NARRATION - Your visual_description and audio_transcript must be detailed enough that someone could:
+   - Sketch storyboards from your descriptions
+   - Understand the emotional journey
+   - Identify the target demographic from context clues
+   - Recreate the ad's structure
+
 Provide analysis in this exact JSON structure:
 {{
-  "summary": "2-3 sentence overview",
-  "insights": ["insight 1", "insight 2", "insight 3"],
-  "uvps": ["uvp 1", "uvp 2"],
-  "ctas": ["cta 1"],
-  "visual_themes": ["theme 1", "theme 2"],
-  "target_audience": "detailed description",
-  "emotional_appeal": "primary emotion",
-  "video_analysis": {{
-    "pacing": "description",
-    "audio_strategy": "description",
-    "story_arc": "description",
-    "caption_usage": "description",
-    "optimal_length": "assessment"
-  }},
-  "marketing_effectiveness": {{
-    "hook_strength": 8,
-    "message_clarity": 9,
-    "visual_impact": 7,
-    "cta_effectiveness": 8,
-    "overall_score": 8
-  }},
-  "strategic_insights": "Marketing strategy analysis",
-  "reasoning": "Detailed explanation"
+  "inferred_audience": "Detailed target audience profile based on visual/audio cues (age range, lifestyle, income level, pain points, aspirations)",
+  "primary_messaging_pillar": "Core message theme (e.g., 'Cost Savings', 'Premium Quality', 'Convenience', 'Health Benefits', 'Social Status')",
+  "overall_pacing_score": 8,
+  "production_style": "High-production Studio | Authentic UGC | Hybrid | Animation",
+  "hook_score": 9,
+  "overall_narrative_summary": "2-3 sentences capturing the ad's complete story arc and emotional journey - written so vividly that the reader can feel the ad's impact",
+  "timeline": [
+    {{
+      "start_time": "00:00",
+      "end_time": "00:03",
+      "beat_type": "Hook | Problem | Solution | Social Proof | CTA | Transition | Feature Demo",
+      "cinematics": {{
+        "camera_angle": "Close-up on product",
+        "lighting_style": "High-contrast with dramatic shadows",
+        "cinematic_features": ["Slow-mo", "Text-overlay"]
+      }},
+      "tone_of_voice": "Urgent | Empathetic | ASMR | High-energy | Conversational | Authoritative",
+      "rhetorical_appeal": {{
+        "mode": "Pathos | Logos | Ethos | Kairos",
+        "description": "Detailed explanation of how this persuasion technique is executed - what specific words, visuals, or audio create this effect"
+      }},
+      "target_audience_cues": "Visual/audio signals identifying the demographic (e.g., 'Young professional shown in modern apartment, wearing athleisure, checking phone - targets 25-35 urban millennials')",
+      "visual_description": "DETAILED scene description: Who appears? What are they doing? What's the setting? What colors dominate? What text appears on screen? What products are shown and how? Be specific enough to sketch a storyboard.",
+      "audio_transcript": "Exact spoken words in quotes, plus [music: upbeat electronic], [SFX: whoosh], [silence], etc. Include tone and delivery notes."
+    }}
+  ]
 }}
 
-IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting.
+BEAT TYPE DEFINITIONS:
+- Hook: Opening attention-grabber (first 1-5 seconds typically)
+- Problem: Pain point agitation, showing the struggle
+- Solution: Product/service introduction as the answer
+- Social Proof: Testimonials, reviews, authority signals
+- CTA: Call-to-action, what viewer should do next
+- Transition: Bridge between major narrative moments
+- Feature Demo: Product features or benefits showcase
+
+IMPORTANT:
+- Return ONLY valid JSON, no additional text or markdown formatting.
+- The hook_score should be derived from the effectiveness of the first beat.
+- Be EXHAUSTIVE in your visual_description - this is the most critical field.
+- Include ALL text overlays verbatim in visual_description.
+- Include ALL spoken words verbatim in audio_transcript.
 """
 
 STRATEGY_EXTRACTION_PROMPT = """

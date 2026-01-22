@@ -12,6 +12,12 @@ from google.genai import types
 
 from app.config import get_settings
 from app.schemas.ad import AdAnalysis, MarketingEffectiveness, VideoAnalysis
+from app.schemas.ad_analysis import (
+    CinematicDetails,
+    EnhancedAdAnalysis,
+    NarrativeBeat,
+    RhetoricalAppeal,
+)
 from app.utils.prompts import VIDEO_ANALYSIS_PROMPT
 from app.utils.supabase_storage import SupabaseStorage
 
@@ -208,3 +214,106 @@ class VideoAnalyzer:
             reasoning=raw_analysis.get("reasoning", ""),
             video_analysis=video_analysis,
         )
+
+    def parse_enhanced_analysis(self, raw_analysis: dict[str, Any]) -> EnhancedAdAnalysis:
+        """
+        Parse raw analysis into an EnhancedAdAnalysis schema with narrative beats.
+
+        Args:
+            raw_analysis: Raw analysis dictionary from the AI (new format)
+
+        Returns:
+            EnhancedAdAnalysis object with validated structure
+
+        Raises:
+            VideoAnalysisError: If the response doesn't match expected schema
+        """
+        try:
+            # Parse timeline beats
+            timeline = []
+            for beat_data in raw_analysis.get("timeline", []):
+                cinematics_data = beat_data.get("cinematics", {})
+                rhetorical_data = beat_data.get("rhetorical_appeal", {})
+
+                cinematics = CinematicDetails(
+                    camera_angle=cinematics_data.get("camera_angle", "Unknown"),
+                    lighting_style=cinematics_data.get("lighting_style", "Unknown"),
+                    cinematic_features=cinematics_data.get("cinematic_features", []),
+                )
+
+                rhetorical_appeal = RhetoricalAppeal(
+                    mode=rhetorical_data.get("mode", "Unknown"),
+                    description=rhetorical_data.get("description", ""),
+                )
+
+                beat = NarrativeBeat(
+                    start_time=beat_data.get("start_time", "00:00"),
+                    end_time=beat_data.get("end_time", "00:00"),
+                    beat_type=beat_data.get("beat_type", "Unknown"),
+                    cinematics=cinematics,
+                    tone_of_voice=beat_data.get("tone_of_voice", ""),
+                    rhetorical_appeal=rhetorical_appeal,
+                    target_audience_cues=beat_data.get("target_audience_cues", ""),
+                    visual_description=beat_data.get("visual_description", ""),
+                    audio_transcript=beat_data.get("audio_transcript", ""),
+                )
+                timeline.append(beat)
+
+            # Derive hook_score from first beat if not provided
+            hook_score = raw_analysis.get("hook_score")
+            if hook_score is None and timeline:
+                # Default to overall_pacing_score if hook_score not explicitly set
+                hook_score = raw_analysis.get("overall_pacing_score", 5)
+
+            return EnhancedAdAnalysis(
+                inferred_audience=raw_analysis.get("inferred_audience", ""),
+                primary_messaging_pillar=raw_analysis.get("primary_messaging_pillar", ""),
+                overall_pacing_score=raw_analysis.get("overall_pacing_score", 5),
+                production_style=raw_analysis.get("production_style", "Unknown"),
+                hook_score=hook_score if hook_score is not None else 5,
+                timeline=timeline,
+                overall_narrative_summary=raw_analysis.get("overall_narrative_summary", ""),
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to parse enhanced analysis: {e}")
+            raise VideoAnalysisError(f"Failed to parse enhanced analysis: {e}") from e
+
+    def get_video_intelligence(self, raw_analysis: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract video intelligence data for persistence in JSONB column.
+
+        This returns the validated and structured Creative DNA that can be
+        stored directly in the video_intelligence column for future AI critiques.
+
+        Args:
+            raw_analysis: Raw analysis dictionary from the AI
+
+        Returns:
+            Validated video intelligence dictionary ready for JSONB storage
+        """
+        enhanced = self.parse_enhanced_analysis(raw_analysis)
+        return enhanced.model_dump()
+
+    def extract_hook_score(self, raw_analysis: dict[str, Any]) -> int:
+        """
+        Extract hook score from the analysis.
+
+        The hook score is derived from the first NarrativeBeat in the timeline
+        or from the explicit hook_score field.
+
+        Args:
+            raw_analysis: Raw analysis dictionary from the AI
+
+        Returns:
+            Hook score (1-10)
+        """
+        # Check for explicit hook_score first
+        if "hook_score" in raw_analysis:
+            return max(1, min(10, raw_analysis["hook_score"]))
+
+        # Fall back to overall_pacing_score
+        if "overall_pacing_score" in raw_analysis:
+            return max(1, min(10, raw_analysis["overall_pacing_score"]))
+
+        return 5  # Default middle score

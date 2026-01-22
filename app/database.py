@@ -29,7 +29,7 @@ engine = create_async_engine(
     pool_size=5,
     max_overflow=10,
     connect_args={
-        "prepare_threshold": 0,  # Disable prepared statements for pgbouncer compatibility
+        "prepare_threshold": None,  # Disable prepared statements for pgbouncer compatibility
     },
 )
 

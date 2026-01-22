@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(poetry install:*)"
+      "Bash(poetry install:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

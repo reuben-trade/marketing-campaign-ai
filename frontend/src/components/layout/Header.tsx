@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell } from 'lucide-react';
+import { Bell, Package, Sparkles, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -12,6 +12,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from '@/hooks/useNotifications';
 import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import type { Notification, NotificationType } from '@/types/notification';
+
+const notificationIcons: Record<NotificationType, React.ReactNode> = {
+  new_ads: <Package className="h-4 w-4 text-blue-500" />,
+  analysis_complete: <Sparkles className="h-4 w-4 text-green-500" />,
+  recommendation_ready: <Sparkles className="h-4 w-4 text-yellow-500" />,
+  competitor_discovered: <Users className="h-4 w-4 text-purple-500" />,
+  system: <Bell className="h-4 w-4 text-gray-500" />,
+};
 
 export function Header() {
   const router = useRouter();
@@ -22,8 +31,8 @@ export function Header() {
   const unreadCount = notificationsData?.unread_count ?? 0;
   const notifications = notificationsData?.items ?? [];
 
-  const handleNotificationClick = (notification: typeof notifications[0]) => {
-    if (!notification.read_at) {
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.is_read) {
       markAsRead.mutate(notification.id);
     }
     if (notification.competitor_id) {
@@ -79,22 +88,30 @@ export function Header() {
                         onClick={() => handleNotificationClick(notification)}
                         className={cn(
                           'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors',
-                          !notification.read_at && 'bg-blue-50'
+                          !notification.is_read && 'bg-blue-50'
                         )}
                       >
-                        <div className="flex items-start gap-2">
-                          <span
-                            className={cn(
-                              'mt-1.5 h-2 w-2 rounded-full flex-shrink-0',
-                              notification.read_at ? 'bg-gray-300' : 'bg-blue-500'
-                            )}
-                          />
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex-shrink-0">
+                            {notificationIcons[notification.type] || notificationIcons.system}
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  'h-2 w-2 rounded-full flex-shrink-0',
+                                  notification.is_read ? 'bg-transparent' : 'bg-blue-500'
+                                )}
+                              />
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {notification.title}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
                               {notification.message}
                             </p>
                             {notification.competitor_name && (
-                              <p className="text-xs text-gray-500 mt-0.5">
+                              <p className="text-xs text-blue-600 mt-0.5">
                                 Click to view in Ads Browser
                               </p>
                             )}

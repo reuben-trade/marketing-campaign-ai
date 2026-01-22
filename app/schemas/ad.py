@@ -101,6 +101,7 @@ class AdResponse(AdBase):
     id: UUID
     competitor_id: UUID
     analysis: AdAnalysis | None = None
+    video_intelligence: dict | None = Field(None, description="Enhanced V2 analysis with timeline beats, critique, and creative DNA")
     retrieved_date: datetime
     analyzed_date: datetime | None = None
     analyzed: bool

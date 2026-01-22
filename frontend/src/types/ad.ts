@@ -63,7 +63,8 @@ export interface AdStats {
 }
 
 export interface AdRetrieveRequest {
-  competitor_id: string;
+  competitor_id?: string;
+  competitor_ids?: string[];
   max_ads?: number;
   since_days?: number;
   scrape_details?: boolean;

@@ -27,6 +27,7 @@ from app.services.creative_downloader import CreativeDownloader, CreativeDownloa
 from app.services.duplicate_detection import DuplicateDetector
 from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
 from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
+from app.api.notifications import create_new_ads_notification
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -104,6 +105,7 @@ async def list_ads(
             additional_links=ad.additional_links,
             form_fields=ad.form_fields,
             analysis=ad.analysis,
+            video_intelligence=ad.video_intelligence,
             retrieved_date=ad.retrieved_date,
             analyzed_date=ad.analyzed_date,
             analyzed=ad.analyzed,
@@ -231,6 +233,7 @@ async def get_ad(
         additional_links=ad.additional_links,
         form_fields=ad.form_fields,
         analysis=ad.analysis,
+        video_intelligence=ad.video_intelligence,
         retrieved_date=ad.retrieved_date,
         analyzed_date=ad.analyzed_date,
         analyzed=ad.analyzed,
@@ -463,6 +466,18 @@ async def retrieve_ads(
 
     competitor.last_retrieved = datetime.utcnow()
     await db.commit()
+
+    # Create notification if new ads were retrieved
+    if retrieved > 0:
+        try:
+            await create_new_ads_notification(
+                db=db,
+                competitor_id=competitor.id,
+                competitor_name=competitor.company_name,
+                ad_count=retrieved,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create notification for new ads: {e}")
 
     return AdRetrieveResponse(
         retrieved=retrieved,
@@ -851,6 +866,7 @@ def _build_ad_response(ad: Ad) -> AdResponse:
         additional_links=ad.additional_links,
         form_fields=ad.form_fields,
         analysis=ad.analysis,
+        video_intelligence=ad.video_intelligence,
         retrieved_date=ad.retrieved_date,
         analyzed_date=ad.analyzed_date,
         analyzed=ad.analyzed,
@@ -957,6 +973,7 @@ async def scrape_ad_details(
         additional_links=ad.additional_links,
         form_fields=ad.form_fields,
         analysis=ad.analysis,
+        video_intelligence=ad.video_intelligence,
         retrieved_date=ad.retrieved_date,
         analyzed_date=ad.analyzed_date,
         analyzed=ad.analyzed,

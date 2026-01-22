@@ -15,8 +15,16 @@ export function useNotifications(params?: {
   });
 }
 
+export function useUnreadCount() {
+  return useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: () => notificationsApi.getUnreadCount(),
+    refetchInterval: 30000, // Poll every 30 seconds for badge count
+  });
+}
+
 export function useUnreadNotificationsCount() {
-  const { data } = useNotifications({ unread_only: true });
+  const { data } = useUnreadCount();
   return data?.unread_count ?? 0;
 }
 
@@ -36,6 +44,17 @@ export function useMarkAllNotificationsAsRead() {
 
   return useMutation({
     mutationFn: () => notificationsApi.markAllAsRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => notificationsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },

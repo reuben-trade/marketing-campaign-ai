@@ -21,8 +21,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAds, useAdStats, useAnalyzeAds } from '@/hooks/useAds';
+import { useAds, useAdStats, useAnalyzeAds, useRetrieveAds } from '@/hooks/useAds';
 import { useCompetitors } from '@/hooks/useCompetitors';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import { useFilterStore } from '@/stores/filterStore';
 import {
   ImageIcon,
@@ -36,6 +39,8 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  Download,
+  Building2,
 } from 'lucide-react';
 import type { Ad } from '@/types/ad';
 import { formatDistanceToNow } from 'date-fns';
@@ -62,6 +67,10 @@ function AdsPageContent() {
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // Retrieval section state
+  const [retrieveCompetitorIds, setRetrieveCompetitorIds] = useState<string[]>([]);
+  const [retrieveCount, setRetrieveCount] = useState(10);
 
   const {
     selectedCompetitorIds,
@@ -98,6 +107,7 @@ function AdsPageContent() {
   const { data: adsData, isLoading } = useAds(filters);
   const { data: stats } = useAdStats();
   const analyzeAds = useAnalyzeAds();
+  const retrieveAds = useRetrieveAds();
 
   const ads = adsData?.items ?? [];
   const totalAds = adsData?.total ?? 0;
@@ -111,6 +121,52 @@ function AdsPageContent() {
 
   const onAnalyze = async () => {
     await analyzeAds.mutateAsync(10);
+  };
+
+  const toggleRetrieveCompetitor = (competitorId: string) => {
+    setRetrieveCompetitorIds((prev) =>
+      prev.includes(competitorId)
+        ? prev.filter((id) => id !== competitorId)
+        : [...prev, competitorId]
+    );
+  };
+
+  const selectAllCompetitors = () => {
+    setRetrieveCompetitorIds(competitors.map((c) => c.id));
+  };
+
+  const clearRetrieveSelection = () => {
+    setRetrieveCompetitorIds([]);
+  };
+
+  const onRetrieveAds = async () => {
+    if (retrieveCompetitorIds.length === 0) {
+      toast.error('Please select at least one competitor');
+      return;
+    }
+
+    try {
+      let totalRetrieved = 0;
+      let totalSkipped = 0;
+      let totalFailed = 0;
+
+      // Process each competitor
+      for (const competitorId of retrieveCompetitorIds) {
+        const result = await retrieveAds.mutateAsync({
+          competitor_id: competitorId,
+          max_ads: retrieveCount,
+        });
+        totalRetrieved += result.retrieved;
+        totalSkipped += result.skipped;
+        totalFailed += result.failed;
+      }
+
+      toast.success(
+        `Retrieved ${totalRetrieved} ads from ${retrieveCompetitorIds.length} competitor(s). ${totalSkipped} skipped, ${totalFailed} failed.`
+      );
+    } catch (error) {
+      toast.error('Failed to retrieve ads. Please try again.');
+    }
   };
 
   return (
@@ -136,6 +192,142 @@ function AdsPageContent() {
           )}
         </Button>
       </div>
+
+      {/* Ad Retrieval Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Retrieve Ads from Facebook Ad Library
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-4 items-end">
+              {/* Competitor Selection */}
+              <div className="min-w-[250px] flex-1">
+                <Label className="text-sm font-medium mb-2 block">Select Competitors</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      <Building2 className="h-4 w-4 mr-2" />
+                      {retrieveCompetitorIds.length === 0
+                        ? 'Select competitors...'
+                        : retrieveCompetitorIds.length === competitors.length
+                        ? 'All competitors'
+                        : `${retrieveCompetitorIds.length} competitor(s) selected`}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-0" align="start">
+                    <div className="p-2 border-b flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        onClick={selectAllCompetitors}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        onClick={clearRetrieveSelection}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    <ScrollArea className="h-64">
+                      <div className="p-2 space-y-1">
+                        {competitors.map((competitor) => (
+                          <label
+                            key={competitor.id}
+                            className="flex items-center gap-2 p-2 rounded hover:bg-gray-100 cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={retrieveCompetitorIds.includes(competitor.id)}
+                              onCheckedChange={() => toggleRetrieveCompetitor(competitor.id)}
+                            />
+                            <span className="text-sm truncate">{competitor.company_name}</span>
+                            {competitor.ad_count !== undefined && (
+                              <Badge variant="secondary" className="ml-auto text-xs">
+                                {competitor.ad_count} ads
+                              </Badge>
+                            )}
+                          </label>
+                        ))}
+                        {competitors.length === 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            No competitors found. Add competitors first.
+                          </p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Ad Count Input */}
+              <div className="w-[180px]">
+                <Label htmlFor="retrieve-count" className="text-sm font-medium mb-2 block">
+                  Number of Ads
+                </Label>
+                <Input
+                  id="retrieve-count"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={retrieveCount}
+                  onChange={(e) => setRetrieveCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Retrieve Button */}
+              <Button
+                onClick={onRetrieveAds}
+                disabled={retrieveAds.isPending || retrieveCompetitorIds.length === 0}
+                className="min-w-[140px]"
+              >
+                {retrieveAds.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Retrieving...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Retrieve Ads
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Selected competitors preview */}
+            {retrieveCompetitorIds.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {retrieveCompetitorIds.slice(0, 5).map((id) => {
+                  const competitor = competitors.find((c) => c.id === id);
+                  return competitor ? (
+                    <Badge key={id} variant="secondary" className="flex items-center gap-1">
+                      {competitor.company_name}
+                      <button
+                        onClick={() => toggleRetrieveCompetitor(id)}
+                        className="ml-1 hover:bg-gray-300 rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ) : null;
+                })}
+                {retrieveCompetitorIds.length > 5 && (
+                  <Badge variant="outline">+{retrieveCompetitorIds.length - 5} more</Badge>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>

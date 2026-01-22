@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Integer, JSON, Numeric, String, Uuid
+from sqlalchemy import ARRAY, DateTime, Integer, JSON, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -63,6 +63,6 @@ class Recommendation(Base):
     # }
 
     # Tracking
-    ads_analyzed: Mapped[list[uuid.UUID] | None] = mapped_column(JSON)
+    ads_analyzed: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid))
     generation_time_seconds: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     model_used: Mapped[str | None] = mapped_column(String(100))

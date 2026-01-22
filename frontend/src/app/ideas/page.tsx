@@ -251,7 +251,7 @@ function RecommendationDisplay({ recommendation }: { recommendation: Recommendat
                       {recommendation.trend_analysis.visual_trends.map((trend, i) => (
                         <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
                           <span className="text-blue-500 mt-1">-</span>
-                          {trend}
+                          <span><strong>{trend.trend}</strong>: {trend.description}</span>
                         </li>
                       ))}
                     </ul>
@@ -265,7 +265,7 @@ function RecommendationDisplay({ recommendation }: { recommendation: Recommendat
                       {recommendation.trend_analysis.messaging_trends.map((trend, i) => (
                         <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
                           <span className="text-green-500 mt-1">-</span>
-                          {trend}
+                          <span><strong>{trend.trend}</strong>: {trend.description}</span>
                         </li>
                       ))}
                     </ul>
@@ -279,7 +279,7 @@ function RecommendationDisplay({ recommendation }: { recommendation: Recommendat
                       {recommendation.trend_analysis.cta_trends.map((trend, i) => (
                         <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
                           <span className="text-purple-500 mt-1">-</span>
-                          {trend}
+                          <span><strong>{trend.trend}</strong>: {trend.effectiveness}</span>
                         </li>
                       ))}
                     </ul>
@@ -456,11 +456,16 @@ function RecommendationCard({
           {recommendation.testing_variants && recommendation.testing_variants.length > 0 && (
             <div>
               <h5 className="font-medium text-sm mb-2">Testing Variants</h5>
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
                 {recommendation.testing_variants.map((variant, i) => (
-                  <Badge key={i} variant="outline">
-                    {variant}
-                  </Badge>
+                  <div key={i} className="border rounded-lg p-3 bg-gray-50">
+                    <p className="font-medium text-sm">{variant.variable}</p>
+                    <div className="flex gap-4 mt-1 text-xs text-gray-600">
+                      <span><strong>A:</strong> {variant.variant_a}</span>
+                      <span><strong>B:</strong> {variant.variant_b}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{variant.hypothesis}</p>
+                  </div>
                 ))}
               </div>
             </div>

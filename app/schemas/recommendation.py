@@ -38,9 +38,9 @@ class CTATrend(BaseModel):
 class EngagementPatterns(BaseModel):
     """Engagement pattern analysis."""
 
-    best_performing_length: str
-    optimal_posting_time: str
-    hook_timing: str
+    best_performing_length: str | None = None
+    optimal_posting_time: str | None = None
+    hook_timing: str | None = None
 
 
 class TrendAnalysis(BaseModel):
@@ -78,17 +78,20 @@ class VisualDirection(BaseModel):
 class ScriptSection(BaseModel):
     """A section of the video script."""
 
-    timing: str
-    visual_description: str
+    timing: str | None = None
+    visual_description: str | None = None
     action: str | None = None
     audio: str | None = None
     voiceover: str | None = None
-    on_screen_text: str
-    text_style: str
+    on_screen_text: str | None = None
+    text_style: str | None = None
     why_this_works: str | None = None
     product_demo: str | None = None
     text_overlay: str | None = None
     urgency_element: str | None = None
+    opening_line: str | None = None
+    pain_point: str | None = None
+    product_reveal: str | None = None
 
 
 class ScriptBreakdown(BaseModel):
@@ -228,9 +231,9 @@ class TargetingAlignment(BaseModel):
 class SuccessMetrics(BaseModel):
     """Success metrics for recommendations."""
 
-    primary: str
+    primary: str | None = None
     secondary: list[str] = Field(default_factory=list)
-    optimization: str
+    optimization: str | None = None
 
 
 class ProductionNotes(BaseModel):

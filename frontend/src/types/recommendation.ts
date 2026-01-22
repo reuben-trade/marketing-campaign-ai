@@ -26,6 +26,13 @@ export interface ScriptBreakdown {
   };
 }
 
+export interface TestingVariant {
+  variable: string;
+  variant_a: string;
+  variant_b: string;
+  hypothesis: string;
+}
+
 export interface AdRecommendation {
   recommendation_id: number;
   priority: 'high' | 'medium' | 'low';
@@ -44,14 +51,36 @@ export interface AdRecommendation {
   copywriting?: Record<string, unknown>;
   design_specifications?: Record<string, unknown>;
   targeting_alignment?: Record<string, unknown>;
-  testing_variants?: string[];
+  testing_variants?: TestingVariant[];
   success_metrics?: Record<string, unknown>;
 }
 
+export interface VisualTrend {
+  trend: string;
+  prevalence: string;
+  description: string;
+  why_it_works: string;
+  example_ad_ids: string[];
+}
+
+export interface MessagingTrend {
+  trend: string;
+  prevalence: string;
+  description: string;
+  why_it_works: string;
+  example_ad_ids: string[];
+}
+
+export interface CTATrend {
+  trend: string;
+  examples: string[];
+  effectiveness: string;
+}
+
 export interface TrendAnalysis {
-  visual_trends?: string[];
-  messaging_trends?: string[];
-  cta_trends?: string[];
+  visual_trends?: VisualTrend[];
+  messaging_trends?: MessagingTrend[];
+  cta_trends?: CTATrend[];
   engagement_patterns?: Record<string, unknown>;
 }
 

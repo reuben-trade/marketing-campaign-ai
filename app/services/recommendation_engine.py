@@ -181,7 +181,7 @@ class RecommendationEngine:
                 {"role": "user", "content": prompt},
             ],
             temperature=0.5,
-            max_tokens=8000,
+            max_tokens=4096,
         )
 
         result_text = response.choices[0].message.content

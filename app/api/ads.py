@@ -478,18 +478,25 @@ async def run_analysis(
     skip_duplicate_check: bool = Query(False, description="Skip the original_ad_id check to process all unanalyzed ads"),
 ) -> dict:
     """
-    Run analysis on unanalyzed ads.
+    Run analysis on unanalyzed ads using V2 Enhanced Analysis.
 
     Processes ads in batches, analyzing up to `limit` ads.
     Only analyzes ORIGINAL ads (not duplicates) and propagates results to duplicates.
+
+    Returns EnhancedAdAnalysisV2 with:
+    - Creative DNA (text/copy, audio, brand elements)
+    - Engagement predictors (thumb-stop, curiosity gap)
+    - Platform optimization signals
+    - Actionable critique with grades and suggestions
+    - Timestamped narrative beats (video only)
 
     Use skip_duplicate_check=true to process ads regardless of original_ad_id status.
     """
     # Build filter conditions
     filters = [
-        Ad.analyzed == False or Ad.analysis_status == 'failed',
+        Ad.analyzed == False,
         Ad.download_status == "completed",
-        Ad.analysis_status == "pending" or Ad.analysis_status == 'failed', #TODO: remove this line - test it still works first
+        Ad.analysis_status.in_(["pending", "failed"]),
     ]
 
     # Only filter by original_ad_id if not skipping the check
@@ -502,8 +509,9 @@ async def run_analysis(
         .where(and_(*filters))
         .limit(limit)
     )
+    ads = result.scalars().all()
 
-    print(f"ads: {ads}\n")
+    logger.info(f"Found {len(ads)} ads to analyze")
 
     processed = 0
     failed = 0
@@ -516,7 +524,8 @@ async def run_analysis(
         competitor = ad.competitor
         try:
             if ad.creative_type == "image":
-                analysis = await image_analyzer.analyze_from_storage(
+                # Use V2 enhanced image analysis
+                raw_analysis = await image_analyzer.analyze_from_storage_v2(
                     ad.creative_storage_path,
                     competitor_name=competitor.company_name,
                     market_position=competitor.market_position,
@@ -525,11 +534,13 @@ async def run_analysis(
                     comments=ad.comments,
                     shares=ad.shares,
                 )
-                ad.analysis = analysis
-                video_intelligence = None
+                # Parse into EnhancedAdAnalysisV2 model
+                enhanced_analysis = image_analyzer.parse_enhanced_analysis_v2(raw_analysis)
+                # Get serializable dict for JSONB storage
+                video_intelligence = image_analyzer.get_image_intelligence_v2(enhanced_analysis)
             else:
-                # Video analysis returns new EnhancedAdAnalysis format
-                raw_analysis = await video_analyzer.analyze_from_storage(
+                # Use V2 enhanced video analysis
+                raw_analysis = await video_analyzer.analyze_from_storage_v2(
                     ad.creative_storage_path,
                     competitor_name=competitor.company_name,
                     market_position=competitor.market_position,
@@ -538,39 +549,45 @@ async def run_analysis(
                     comments=ad.comments,
                     shares=ad.shares,
                 )
+                # Parse into EnhancedAdAnalysisV2 model
+                enhanced_analysis = video_analyzer.parse_enhanced_analysis_v2(raw_analysis)
+                # Get serializable dict for JSONB storage
+                video_intelligence = video_analyzer.get_video_intelligence_v2(enhanced_analysis)
 
-                # Store the full Creative DNA in video_intelligence
-                video_intelligence = video_analyzer.get_video_intelligence(raw_analysis)
-                ad.video_intelligence = video_intelligence
+            # Store the full V2 Creative DNA in video_intelligence column
+            ad.video_intelligence = video_intelligence
 
-                # Create backward-compatible analysis dict from the new format
-                hook_score = video_analyzer.extract_hook_score(raw_analysis)
-                analysis = {
-                    "summary": raw_analysis.get("overall_narrative_summary", ""),
-                    "insights": [],
-                    "uvps": [],
-                    "ctas": [],
-                    "visual_themes": [],
-                    "target_audience": raw_analysis.get("inferred_audience", ""),
-                    "emotional_appeal": raw_analysis.get("primary_messaging_pillar", ""),
-                    "marketing_effectiveness": {
-                        "hook_strength": hook_score,
-                        "message_clarity": raw_analysis.get("overall_pacing_score", 5),
-                        "visual_impact": raw_analysis.get("overall_pacing_score", 5),
-                        "cta_effectiveness": 5,
-                        "overall_score": raw_analysis.get("overall_pacing_score", 5),
-                    },
-                    "strategic_insights": f"Production Style: {raw_analysis.get('production_style', 'Unknown')}",
-                    "reasoning": raw_analysis.get("overall_narrative_summary", ""),
-                    "video_analysis": {
-                        "pacing": f"Pacing score: {raw_analysis.get('overall_pacing_score', 5)}/10",
-                        "audio_strategy": "",
-                        "story_arc": raw_analysis.get("overall_narrative_summary", ""),
-                        "caption_usage": "",
-                        "optimal_length": "",
-                    },
-                }
-                ad.analysis = analysis
+            # Create backward-compatible analysis dict for legacy consumers
+            hook_score = video_intelligence.get("hook_score", 5)
+            pacing_score = video_intelligence.get("overall_pacing_score", 5)
+            critique = video_intelligence.get("critique", {})
+            analysis = {
+                "summary": video_intelligence.get("overall_narrative_summary", ""),
+                "insights": [],
+                "uvps": [],
+                "ctas": [],
+                "visual_themes": [],
+                "target_audience": video_intelligence.get("inferred_audience", ""),
+                "emotional_appeal": video_intelligence.get("primary_messaging_pillar", ""),
+                "marketing_effectiveness": {
+                    "hook_strength": hook_score,
+                    "message_clarity": pacing_score,
+                    "visual_impact": pacing_score,
+                    "cta_effectiveness": 5,
+                    "overall_score": pacing_score,
+                },
+                "strategic_insights": f"Production Style: {video_intelligence.get('production_style', 'Unknown')}",
+                "reasoning": critique.get("overall_assessment", video_intelligence.get("overall_narrative_summary", "")),
+                "video_analysis": {
+                    "pacing": f"Pacing score: {pacing_score}/10",
+                    "audio_strategy": "",
+                    "story_arc": video_intelligence.get("overall_narrative_summary", ""),
+                    "caption_usage": "",
+                    "optimal_length": "",
+                },
+                "grade": critique.get("overall_grade", ""),
+            }
+            ad.analysis = analysis
 
             ad.analyzed = True
             ad.analyzed_date = datetime.utcnow()
@@ -580,12 +597,11 @@ async def run_analysis(
             # Propagate analysis to ALL duplicates of this original
             update_values = {
                 "analysis": analysis,
+                "video_intelligence": video_intelligence,
                 "analyzed": True,
                 "analyzed_date": datetime.utcnow(),
                 "analysis_status": "completed",
             }
-            if video_intelligence:
-                update_values["video_intelligence"] = video_intelligence
 
             update_result = await db.execute(
                 Ad.__table__.update()
@@ -615,10 +631,17 @@ async def analyze_ad(
     ad_id: UUID,
 ) -> AdResponse:
     """
-    Analyze a single ad using AI.
+    Analyze a single ad using V2 Enhanced Analysis.
 
-    Uses GPT-4 Vision for images and Gemini for videos.
+    Uses GPT-4o for images and Gemini 2.0 Flash for videos.
     If the ad is a duplicate, copies analysis from the original instead of re-analyzing.
+
+    Returns EnhancedAdAnalysisV2 with:
+    - Creative DNA (text/copy, audio, brand elements)
+    - Engagement predictors (thumb-stop, curiosity gap)
+    - Platform optimization signals
+    - Actionable critique with grades and suggestions
+    - Timestamped narrative beats (video only)
     """
     result = await db.execute(
         select(Ad).options(selectinload(Ad.competitor), selectinload(Ad.original_ad)).where(Ad.id == ad_id)
@@ -652,6 +675,7 @@ async def analyze_ad(
             # Copy analysis from original (no LLM call needed)
             logger.info(f"Copying analysis from original ad {original_ad.id} to duplicate {ad.id}")
             ad.analysis = original_ad.analysis
+            ad.video_intelligence = original_ad.video_intelligence
             ad.analyzed = True
             ad.analyzed_date = datetime.utcnow()
             ad.analysis_status = "completed"
@@ -673,12 +697,12 @@ async def analyze_ad(
         ad_to_analyze = ad
         competitor = ad.competitor
 
-    # --- ANALYSIS ---
+    # --- V2 ENHANCED ANALYSIS ---
     try:
-        video_intelligence = None
         if ad_to_analyze.creative_type == "image":
-            analyzer = ImageAnalyzer()
-            analysis = await analyzer.analyze_from_storage(
+            # Use V2 enhanced image analysis
+            image_analyzer = ImageAnalyzer()
+            raw_analysis = await image_analyzer.analyze_from_storage_v2(
                 ad_to_analyze.creative_storage_path,
                 competitor_name=competitor.company_name,
                 market_position=competitor.market_position,
@@ -687,9 +711,14 @@ async def analyze_ad(
                 comments=ad_to_analyze.comments,
                 shares=ad_to_analyze.shares,
             )
+            # Parse into EnhancedAdAnalysisV2 model
+            enhanced_analysis = image_analyzer.parse_enhanced_analysis_v2(raw_analysis)
+            # Get serializable dict for JSONB storage
+            video_intelligence = image_analyzer.get_image_intelligence_v2(enhanced_analysis)
         else:
+            # Use V2 enhanced video analysis
             video_analyzer = VideoAnalyzer()
-            raw_analysis = await video_analyzer.analyze_from_storage(
+            raw_analysis = await video_analyzer.analyze_from_storage_v2(
                 ad_to_analyze.creative_storage_path,
                 competitor_name=competitor.company_name,
                 market_position=competitor.market_position,
@@ -698,38 +727,44 @@ async def analyze_ad(
                 comments=ad_to_analyze.comments,
                 shares=ad_to_analyze.shares,
             )
+            # Parse into EnhancedAdAnalysisV2 model
+            enhanced_analysis = video_analyzer.parse_enhanced_analysis_v2(raw_analysis)
+            # Get serializable dict for JSONB storage
+            video_intelligence = video_analyzer.get_video_intelligence_v2(enhanced_analysis)
 
-            # Store the full Creative DNA in video_intelligence
-            video_intelligence = video_analyzer.get_video_intelligence(raw_analysis)
-            ad_to_analyze.video_intelligence = video_intelligence
+        # Store the full V2 Creative DNA in video_intelligence column
+        ad_to_analyze.video_intelligence = video_intelligence
 
-            # Create backward-compatible analysis dict from the new format
-            hook_score = video_analyzer.extract_hook_score(raw_analysis)
-            analysis = {
-                "summary": raw_analysis.get("overall_narrative_summary", ""),
-                "insights": [],
-                "uvps": [],
-                "ctas": [],
-                "visual_themes": [],
-                "target_audience": raw_analysis.get("inferred_audience", ""),
-                "emotional_appeal": raw_analysis.get("primary_messaging_pillar", ""),
-                "marketing_effectiveness": {
-                    "hook_strength": hook_score,
-                    "message_clarity": raw_analysis.get("overall_pacing_score", 5),
-                    "visual_impact": raw_analysis.get("overall_pacing_score", 5),
-                    "cta_effectiveness": 5,
-                    "overall_score": raw_analysis.get("overall_pacing_score", 5),
-                },
-                "strategic_insights": f"Production Style: {raw_analysis.get('production_style', 'Unknown')}",
-                "reasoning": raw_analysis.get("overall_narrative_summary", ""),
-                "video_analysis": {
-                    "pacing": f"Pacing score: {raw_analysis.get('overall_pacing_score', 5)}/10",
-                    "audio_strategy": "",
-                    "story_arc": raw_analysis.get("overall_narrative_summary", ""),
-                    "caption_usage": "",
-                    "optimal_length": "",
-                },
-            }
+        # Create backward-compatible analysis dict for legacy consumers
+        hook_score = video_intelligence.get("hook_score", 5)
+        pacing_score = video_intelligence.get("overall_pacing_score", 5)
+        critique = video_intelligence.get("critique", {})
+        analysis = {
+            "summary": video_intelligence.get("overall_narrative_summary", ""),
+            "insights": [],
+            "uvps": [],
+            "ctas": [],
+            "visual_themes": [],
+            "target_audience": video_intelligence.get("inferred_audience", ""),
+            "emotional_appeal": video_intelligence.get("primary_messaging_pillar", ""),
+            "marketing_effectiveness": {
+                "hook_strength": hook_score,
+                "message_clarity": pacing_score,
+                "visual_impact": pacing_score,
+                "cta_effectiveness": 5,
+                "overall_score": pacing_score,
+            },
+            "strategic_insights": f"Production Style: {video_intelligence.get('production_style', 'Unknown')}",
+            "reasoning": critique.get("overall_assessment", video_intelligence.get("overall_narrative_summary", "")),
+            "video_analysis": {
+                "pacing": f"Pacing score: {pacing_score}/10",
+                "audio_strategy": "",
+                "story_arc": video_intelligence.get("overall_narrative_summary", ""),
+                "caption_usage": "",
+                "optimal_length": "",
+            },
+            "grade": critique.get("overall_grade", ""),
+        }
 
         # Update the analyzed ad (original)
         ad_to_analyze.analysis = analysis
@@ -740,21 +775,19 @@ async def analyze_ad(
         # If we analyzed the original for a duplicate request, also update the duplicate
         if ad.original_ad_id and ad_to_analyze.id != ad.id:
             ad.analysis = analysis
+            ad.video_intelligence = video_intelligence
             ad.analyzed = True
             ad.analyzed_date = datetime.utcnow()
             ad.analysis_status = "completed"
-            if video_intelligence:
-                ad.video_intelligence = video_intelligence
 
         # Propagate analysis to ALL duplicates of this original
         update_values = {
             "analysis": analysis,
+            "video_intelligence": video_intelligence,
             "analyzed": True,
             "analyzed_date": datetime.utcnow(),
             "analysis_status": "completed",
         }
-        if video_intelligence:
-            update_values["video_intelligence"] = video_intelligence
 
         await db.execute(
             Ad.__table__.update()

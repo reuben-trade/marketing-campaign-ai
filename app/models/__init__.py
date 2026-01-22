@@ -2,6 +2,7 @@
 
 from app.models.ad import Ad
 from app.models.ad_creative_analysis import AdCreativeAnalysis
+from app.models.ad_element import AdElement
 from app.models.analysis_run import AnalysisRun
 from app.models.business_strategy import BusinessStrategy
 from app.models.competitor import Competitor
@@ -12,6 +13,7 @@ from app.models.recommendation import Recommendation
 __all__ = [
     "Ad",
     "AdCreativeAnalysis",
+    "AdElement",
     "AnalysisRun",
     "BusinessStrategy",
     "Competitor",

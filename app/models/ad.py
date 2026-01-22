@@ -73,13 +73,6 @@ class Ad(Base):
     additional_links: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
     # URLs from "Additional assets from this ad" section
     form_fields: Mapped[dict | None] = mapped_column(JSONB)
-    # Lead gen form data: {
-    #   "intro_text": str,
-    #   "questions": [{"question": str, "options": list[str]}],
-    #   "fields": list[str],  # e.g., ["Full name", "Email", "Phone number"]
-    #   "terms_links": [{"text": str, "url": str}],
-    #   "thank_you_text": str
-    # }
 
     # Engagement metrics
     likes: Mapped[int] = mapped_column(Integer, default=0)
@@ -89,63 +82,10 @@ class Ad(Base):
 
     # Analysis results
     analysis: Mapped[dict | None] = mapped_column(JSON)
-    # Structure: {
-    #   "summary": str,
-    #   "insights": list[str],
-    #   "uvps": list[str],
-    #   "ctas": list[str],
-    #   "visual_themes": list[str],
-    #   "target_audience": str,
-    #   "emotional_appeal": str,
-    #   "marketing_effectiveness": {
-    #     "hook_strength": int (1-10),
-    #     "message_clarity": int (1-10),
-    #     "visual_impact": int (1-10),
-    #     "cta_effectiveness": int (1-10),
-    #     "overall_score": int (1-10)
-    #   },
-    #   "strategic_insights": str,
-    #   "reasoning": str,
-    #   "video_analysis": {  # Only for videos
-    #     "pacing": str,
-    #     "audio_strategy": str,
-    #     "story_arc": str,
-    #     "caption_usage": str,
-    #     "optimal_length": str
-    #   }
-    # }
 
     # Enhanced video analysis - "Creative DNA" for AI critiques
     video_intelligence: Mapped[dict | None] = mapped_column(JSONB)
-    # Structure (EnhancedAdAnalysis): {
-    #   "inferred_audience": str,
-    #   "primary_messaging_pillar": str,
-    #   "overall_pacing_score": int (1-10),
-    #   "production_style": str,
-    #   "hook_score": int (1-10),
-    #   "overall_narrative_summary": str,
-    #   "timeline": [  # Natural beats (not fixed intervals)
-    #     {
-    #       "start_time": "MM:SS",
-    #       "end_time": "MM:SS",
-    #       "beat_type": "Hook|Problem|Solution|Social Proof|CTA|Transition|Feature Demo",
-    #       "cinematics": {
-    #         "camera_angle": str,
-    #         "lighting_style": str,
-    #         "cinematic_features": list[str]
-    #       },
-    #       "tone_of_voice": str,
-    #       "rhetorical_appeal": {
-    #         "mode": "Logos|Pathos|Ethos|Kairos",
-    #         "description": str
-    #       },
-    #       "target_audience_cues": str,
-    #       "visual_description": str,
-    #       "audio_transcript": str
-    #     }
-    #   ]
-    # }
-
+   
     # Metadata
     publication_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ad_delivery_stop_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -192,6 +132,12 @@ class Ad(Base):
         "AdCreativeAnalysis",
         back_populates="ad",
         uselist=False,
+    )
+    elements: Mapped[list["AdElement"]] = relationship(
+        "AdElement",  # noqa: F821
+        back_populates="ad",
+        lazy="selectin",
+        order_by="AdElement.beat_index",
     )
     cross_platform_entries: Mapped[list["CrossPlatformAd"]] = relationship(  # noqa: F821
         "CrossPlatformAd",

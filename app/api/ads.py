@@ -22,6 +22,7 @@ from app.schemas.ad import (
     AdStats,
 )
 from app.services.ad_library_scraper import AdLibraryScraper, AdLibraryScraperError
+from app.services.creative_analysis_service import populate_from_video_intelligence
 from app.services.creative_downloader import CreativeDownloader, CreativeDownloadError
 from app.services.duplicate_detection import DuplicateDetector
 from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
@@ -594,6 +595,9 @@ async def run_analysis(
             ad.analysis_status = "completed"
             processed += 1
 
+            # Populate ad_creative_analysis and ad_elements tables
+            await populate_from_video_intelligence(db, ad, video_intelligence)
+
             # Propagate analysis to ALL duplicates of this original
             update_values = {
                 "analysis": analysis,
@@ -609,6 +613,9 @@ async def run_analysis(
                 .values(**update_values)
             )
             duplicates_updated += update_result.rowcount
+
+            # Note: Duplicates will have their creative_analysis/elements populated
+            # when they are individually analyzed or via backfill
 
         except Exception as e:
             logger.error(f"Failed to analyze ad {ad.id}: {e}")
@@ -679,6 +686,9 @@ async def analyze_ad(
             ad.analyzed = True
             ad.analyzed_date = datetime.utcnow()
             ad.analysis_status = "completed"
+            # Populate creative_analysis and elements for this duplicate
+            if ad.video_intelligence:
+                await populate_from_video_intelligence(db, ad)
             await db.commit()
             await db.refresh(ad)
             return _build_ad_response(ad)
@@ -772,6 +782,9 @@ async def analyze_ad(
         ad_to_analyze.analyzed_date = datetime.utcnow()
         ad_to_analyze.analysis_status = "completed"
 
+        # Populate ad_creative_analysis and ad_elements tables
+        await populate_from_video_intelligence(db, ad_to_analyze, video_intelligence)
+
         # If we analyzed the original for a duplicate request, also update the duplicate
         if ad.original_ad_id and ad_to_analyze.id != ad.id:
             ad.analysis = analysis
@@ -779,6 +792,8 @@ async def analyze_ad(
             ad.analyzed = True
             ad.analyzed_date = datetime.utcnow()
             ad.analysis_status = "completed"
+            # Also populate for the duplicate
+            await populate_from_video_intelligence(db, ad, video_intelligence)
 
         # Propagate analysis to ALL duplicates of this original
         update_values = {

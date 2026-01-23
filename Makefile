@@ -5,7 +5,9 @@ help:
 	@echo "Marketing AI - Available Commands:"
 	@echo ""
 	@echo "  install       Install dependencies with Poetry"
-	@echo "  dev           Run the development server"
+	@echo "  dev           Run the development server (PORT=8000 by default)"
+	@echo "  dev-alt       Run development server on alternate port (8001)"
+	@echo "  dev-alt2      Run development server on second alternate port (8002)"
 	@echo "  run           Run the production server"
 	@echo "  test          Run tests with pytest"
 	@echo "  lint          Run linting with ruff"
@@ -25,11 +27,19 @@ install:
 
 # Run development server
 dev:
-	poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	poetry run uvicorn app.main:app --reload --host $${HOST:-0.0.0.0} --port $${PORT:-8000}
 
 # Run production server
 run:
-	poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000
+	poetry run uvicorn app.main:app --host $${HOST:-0.0.0.0} --port $${PORT:-8000}
+
+# Run second instance on port 8001
+dev-alt:
+	PORT=8001 poetry run uvicorn app.main:app --reload --host $${HOST:-0.0.0.0} --port 8001
+
+# Run third instance on port 8002
+dev-alt2:
+	PORT=8002 poetry run uvicorn app.main:app --reload --host $${HOST:-0.0.0.0} --port 8002
 
 # Run tests
 test:

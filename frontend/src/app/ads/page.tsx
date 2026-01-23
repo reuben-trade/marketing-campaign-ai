@@ -164,7 +164,7 @@ function AdsPageContent() {
       toast.success(
         `Retrieved ${totalRetrieved} ads from ${retrieveCompetitorIds.length} competitor(s). ${totalSkipped} skipped, ${totalFailed} failed.`
       );
-    } catch (error) {
+    } catch {
       toast.error('Failed to retrieve ads. Please try again.');
     }
   };

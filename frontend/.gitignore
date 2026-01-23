@@ -34,3 +34,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test fixtures
+tests/fixtures/*.mp4
+tests/fixtures/*.mov
+tests/fixtures/*.webm

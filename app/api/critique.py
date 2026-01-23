@@ -19,6 +19,7 @@ from app.schemas.critique import (
 )
 from app.services.image_analyzer import ImageAnalysisError, ImageAnalyzer
 from app.services.video_analyzer import VideoAnalysisError, VideoAnalyzer
+from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -173,12 +174,31 @@ async def critique_uploaded_ad(
             else None
         )
 
+        # Upload file to Supabase storage
+        storage = SupabaseStorage()
+        file_storage_path = None
+        file_url = None
+
+        critique_id = uuid.uuid4()
+        try:
+            file_storage_path = await storage.upload_critique_file(
+                critique_id=critique_id,
+                content=content,
+                filename=file.filename,
+                media_type=media_type,
+            )
+            file_url = storage.get_public_url(file_storage_path, bucket=storage.critique_files_bucket)
+        except SupabaseStorageError as e:
+            logger.warning(f"Failed to upload file to storage: {e}. Continuing without file URL.")
+
         # Persist to database
         critique_record = Critique(
-            id=uuid.uuid4(),
+            id=critique_id,
             file_name=file.filename,
             file_size_bytes=file_size,
             media_type=media_type,
+            file_storage_path=file_storage_path,
+            file_url=file_url,
             brand_name=brand_name,
             industry=industry,
             target_audience=target_audience,
@@ -203,6 +223,7 @@ async def critique_uploaded_ad(
             media_type=media_type,
             file_size_bytes=file_size,
             file_name=file.filename,
+            file_url=file_url,
             created_at=critique_record.created_at,
         )
 
@@ -263,6 +284,7 @@ async def list_critiques(
                 file_name=c.file_name,
                 file_size_bytes=c.file_size_bytes,
                 media_type=c.media_type,
+                file_url=c.file_url,
                 brand_name=c.brand_name,
                 industry=c.industry,
                 overall_grade=c.overall_grade,
@@ -327,6 +349,7 @@ async def get_critique(
         media_type=critique.media_type,
         file_size_bytes=critique.file_size_bytes,
         file_name=critique.file_name,
+        file_url=critique.file_url,
         created_at=critique.created_at,
     )
 
@@ -339,7 +362,7 @@ async def delete_critique(
     critique_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Delete a saved critique."""
+    """Delete a saved critique and its associated file from storage."""
     result = await db.execute(select(Critique).where(Critique.id == critique_id))
     critique = result.scalar_one_or_none()
 
@@ -348,6 +371,14 @@ async def delete_critique(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Critique {critique_id} not found",
         )
+
+    # Delete file from storage if it exists
+    if critique.file_storage_path:
+        try:
+            storage = SupabaseStorage()
+            await storage.delete_file(critique.file_storage_path, bucket=storage.critique_files_bucket)
+        except SupabaseStorageError as e:
+            logger.warning(f"Failed to delete file from storage: {e}. Continuing with critique deletion.")
 
     await db.delete(critique)
     return {"message": "Critique deleted successfully", "id": str(critique_id)}

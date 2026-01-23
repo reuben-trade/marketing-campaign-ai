@@ -26,6 +26,7 @@ class SupabaseStorage:
         self.client: Client = create_client(settings.supabase_url, settings.supabase_key)
         self.ad_creatives_bucket = settings.ad_creatives_bucket
         self.strategy_documents_bucket = settings.strategy_documents_bucket
+        self.critique_files_bucket = settings.critique_files_bucket
 
     def _get_content_type(self, filename: str) -> str:
         """Get content type from filename."""
@@ -106,6 +107,45 @@ class SupabaseStorage:
             return storage_path
         except Exception as e:
             raise SupabaseStorageError(f"Failed to upload document: {e}") from e
+
+    async def upload_critique_file(
+        self,
+        critique_id: UUID,
+        content: bytes,
+        filename: str,
+        media_type: str,
+    ) -> str:
+        """
+        Upload a critique file (image or video) to Supabase Storage.
+
+        Args:
+            critique_id: UUID of the critique
+            content: File content as bytes
+            filename: Original filename
+            media_type: "image" or "video"
+
+        Returns:
+            Storage path of the uploaded file
+        """
+        extension = Path(filename).suffix or (".jpg" if media_type == "image" else ".mp4")
+        subfolder = "images" if media_type == "image" else "videos"
+        storage_path = f"{subfolder}/{critique_id}{extension}"
+
+        content_type = self._get_content_type(filename)
+
+        try:
+            self.client.storage.from_(self.critique_files_bucket).upload(
+                path=storage_path,
+                file=content,
+                file_options={"content-type": content_type, "upsert": "true"},
+            )
+            return storage_path
+        except Exception as e:
+            # Check if it's a duplicate error (409) - treat as success since file exists
+            error_str = str(e)
+            if "409" in error_str or "Duplicate" in error_str or "already exists" in error_str:
+                return storage_path
+            raise SupabaseStorageError(f"Failed to upload critique file: {e}") from e
 
     def get_public_url(self, storage_path: str, bucket: str | None = None) -> str:
         """

@@ -27,6 +27,8 @@ class Critique(Base):
     file_name: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     media_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    file_storage_path: Mapped[str | None] = mapped_column(String(1000))
+    file_url: Mapped[str | None] = mapped_column(String(2000))
 
     # User-provided context
     brand_name: Mapped[str | None] = mapped_column(String(255))

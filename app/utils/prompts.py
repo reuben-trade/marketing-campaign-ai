@@ -433,6 +433,15 @@ Brand Name (if provided): {brand_name}
 Industry: {industry}
 Target Audience Context: {target_audience}
 
+PLATFORM CTA BUTTON: {platform_cta}
+NOTE: The platform CTA button (e.g., "Learn More", "Shop Now", "Get Quote") appears as a clickable
+button on the ad platform interface, OUTSIDE of the creative itself. It is NOT visible within the
+video/image. When evaluating CTA effectiveness, be aware that this off-screen button exists. The ad
+does have a call-to-action mechanism, but on-screen CTA reinforcement within the creative itself may
+still be valuable for effectiveness. Do NOT flag the ad as "missing a CTA" simply because there is
+no on-screen CTA text — instead evaluate the overall CTA strategy holistically, considering both
+the platform button and any in-creative CTA elements.
+
 ================================================================================
 MANDATORY COMPONENT IDENTIFICATION
 ================================================================================
@@ -799,6 +808,9 @@ Engagement: {likes} Likes, {comments} Comments, {shares} Shares
 Brand Name (if provided): {brand_name}
 Industry: {industry}
 Target Audience Context: {target_audience}
+
+PLATFORM CTA BUTTON: {platform_cta}
+NOTE: The platform CTA button appears as a clickable button on the ad platform interface, OUTSIDE of the creative itself. 
 
 ANALYSIS REQUIREMENTS:
 

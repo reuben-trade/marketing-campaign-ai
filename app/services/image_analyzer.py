@@ -278,6 +278,7 @@ class ImageAnalyzer:
         brand_name: str | None = None,
         industry: str | None = None,
         target_audience: str | None = None,
+        platform_cta: str | None = None,
     ) -> dict[str, Any]:
         """
         Analyze an image using the enhanced V2 prompt with full Creative DNA.
@@ -293,6 +294,7 @@ class ImageAnalyzer:
             brand_name: Brand name for context (optional)
             industry: Industry for context (optional)
             target_audience: Target audience context (optional)
+            platform_cta: Platform CTA button text (optional, e.g. "Learn More")
 
         Returns:
             Enhanced analysis result dictionary (V2 schema)
@@ -309,6 +311,7 @@ class ImageAnalyzer:
             brand_name=brand_name or "Not provided",
             industry=industry or "Not provided",
             target_audience=target_audience or "Not provided",
+            platform_cta=platform_cta or "Not specified",
         )
 
         try:
@@ -368,6 +371,7 @@ class ImageAnalyzer:
         brand_name: str | None = None,
         industry: str | None = None,
         target_audience: str | None = None,
+        platform_cta: str | None = None,
     ) -> dict[str, Any]:
         """
         Analyze an image from Supabase Storage using V2 enhanced analysis.
@@ -383,6 +387,7 @@ class ImageAnalyzer:
             brand_name: Brand name for context (optional)
             industry: Industry for context (optional)
             target_audience: Target audience context (optional)
+            platform_cta: Platform CTA button text (optional)
 
         Returns:
             Enhanced analysis result dictionary (V2 schema)
@@ -399,6 +404,7 @@ class ImageAnalyzer:
             brand_name,
             industry,
             target_audience,
+            platform_cta,
         )
 
     def parse_enhanced_analysis_v2(

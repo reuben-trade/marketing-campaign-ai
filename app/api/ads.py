@@ -549,6 +549,7 @@ async def run_analysis(
                     likes=ad.likes,
                     comments=ad.comments,
                     shares=ad.shares,
+                    platform_cta=ad.cta_text,
                 )
                 # Parse into EnhancedAdAnalysisV2 model
                 enhanced_analysis = image_analyzer.parse_enhanced_analysis_v2(raw_analysis)
@@ -564,6 +565,7 @@ async def run_analysis(
                     likes=ad.likes,
                     comments=ad.comments,
                     shares=ad.shares,
+                    platform_cta=ad.cta_text,
                 )
                 # Parse into EnhancedAdAnalysisV2 model
                 enhanced_analysis = video_analyzer.parse_enhanced_analysis_v2(raw_analysis)
@@ -735,6 +737,7 @@ async def analyze_ad(
                 likes=ad_to_analyze.likes,
                 comments=ad_to_analyze.comments,
                 shares=ad_to_analyze.shares,
+                platform_cta=ad_to_analyze.cta_text,
             )
             # Parse into EnhancedAdAnalysisV2 model
             enhanced_analysis = image_analyzer.parse_enhanced_analysis_v2(raw_analysis)
@@ -751,6 +754,7 @@ async def analyze_ad(
                 likes=ad_to_analyze.likes,
                 comments=ad_to_analyze.comments,
                 shares=ad_to_analyze.shares,
+                platform_cta=ad_to_analyze.cta_text,
             )
             # Parse into EnhancedAdAnalysisV2 model
             enhanced_analysis = video_analyzer.parse_enhanced_analysis_v2(raw_analysis)

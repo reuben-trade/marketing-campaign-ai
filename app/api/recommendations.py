@@ -293,6 +293,7 @@ async def generate_recommendations(
                     likes=user_ad.likes or 0,
                     comments=user_ad.comments or 0,
                     shares=user_ad.shares or 0,
+                    platform_cta=user_ad.cta_text,
                 )
 
                 # Store the analysis

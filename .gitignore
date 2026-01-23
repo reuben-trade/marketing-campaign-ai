@@ -83,5 +83,7 @@ celerybeat.pid
 alembic/versions/*.pyc
 
 #LLM
-claude/
-playwright-mcp/
+claude/*
+.claude/*
+playwright-mcp/*
+.playwright-mcp/*

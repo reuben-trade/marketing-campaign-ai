@@ -219,6 +219,7 @@ class VideoAnalyzer:
         brand_name: str | None = None,
         industry: str | None = None,
         target_audience: str | None = None,
+        platform_cta: str | None = None,
     ) -> dict[str, Any]:
         """
         Analyze a video using the enhanced V2 prompt with full Creative DNA.
@@ -235,6 +236,7 @@ class VideoAnalyzer:
             brand_name: Brand name for context (optional)
             industry: Industry for context (optional)
             target_audience: Target audience context (optional)
+            platform_cta: Platform CTA button text (optional, e.g. "Learn More")
 
         Returns:
             Enhanced analysis result dictionary (V2 schema)
@@ -265,6 +267,7 @@ class VideoAnalyzer:
                 brand_name=brand_name or "Not provided",
                 industry=industry or "Not provided",
                 target_audience=target_audience or "Not provided",
+                platform_cta=platform_cta or "Not specified",
             )
 
             response = self.client.models.generate_content(
@@ -316,6 +319,7 @@ class VideoAnalyzer:
         brand_name: str | None = None,
         industry: str | None = None,
         target_audience: str | None = None,
+        platform_cta: str | None = None,
     ) -> dict[str, Any]:
         """
         Analyze a video from Supabase Storage using V2 enhanced analysis.
@@ -331,6 +335,7 @@ class VideoAnalyzer:
             brand_name: Brand name for context (optional)
             industry: Industry for context (optional)
             target_audience: Target audience context (optional)
+            platform_cta: Platform CTA button text (optional)
 
         Returns:
             Enhanced analysis result dictionary (V2 schema)
@@ -357,6 +362,7 @@ class VideoAnalyzer:
             brand_name,
             industry,
             target_audience,
+            platform_cta,
         )
 
     def _validate_ad_components(self, timeline: list[EnhancedNarrativeBeat]) -> None:

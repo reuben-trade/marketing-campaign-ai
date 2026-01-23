@@ -1,5 +1,8 @@
 """Critique endpoint request/response schemas."""
 
+from datetime import datetime
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from app.schemas.ad_analysis import EnhancedAdAnalysisV2
@@ -20,11 +23,19 @@ class CritiqueRequest(BaseModel):
         None,
         description="Target audience description for context",
     )
+    platform_cta: str | None = Field(
+        None,
+        description="Platform CTA button text (e.g., 'Learn More', 'Shop Now')",
+    )
 
 
 class CritiqueResponse(BaseModel):
     """Response from ad critique analysis."""
 
+    id: UUID | None = Field(
+        None,
+        description="Critique ID (set when persisted to database)",
+    )
     analysis: EnhancedAdAnalysisV2 = Field(
         ...,
         description="Complete enhanced analysis with Creative DNA V2",
@@ -45,6 +56,41 @@ class CritiqueResponse(BaseModel):
         ...,
         description="Size of the uploaded file in bytes",
     )
+    file_name: str | None = Field(
+        None,
+        description="Original file name",
+    )
+    created_at: datetime | None = Field(
+        None,
+        description="When the critique was created",
+    )
+
+
+class CritiqueListItem(BaseModel):
+    """Summary item for critique list endpoint."""
+
+    id: UUID
+    file_name: str
+    file_size_bytes: int
+    media_type: str
+    brand_name: str | None = None
+    industry: str | None = None
+    overall_grade: str | None = None
+    hook_score: int | None = None
+    pacing_score: int | None = None
+    thumb_stop_score: int | None = None
+    model_used: str | None = None
+    processing_time_seconds: float | None = None
+    created_at: datetime
+
+
+class CritiqueListResponse(BaseModel):
+    """Response for listing critiques."""
+
+    critiques: list[CritiqueListItem]
+    total: int
+    page: int
+    page_size: int
 
 
 class CritiqueError(BaseModel):

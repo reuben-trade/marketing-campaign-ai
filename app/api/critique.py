@@ -2,11 +2,21 @@
 
 import logging
 import time
+import uuid
 from typing import Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.critique import CritiqueError, CritiqueResponse
+from app.database import get_db
+from app.models.critique import Critique
+from app.schemas.critique import (
+    CritiqueError,
+    CritiqueListItem,
+    CritiqueListResponse,
+    CritiqueResponse,
+)
 from app.services.image_analyzer import ImageAnalysisError, ImageAnalyzer
 from app.services.video_analyzer import VideoAnalysisError, VideoAnalyzer
 
@@ -57,9 +67,17 @@ async def critique_uploaded_ad(
     brand_name: str | None = Form(None, description="Brand/company name for context"),
     industry: str | None = Form(None, description="Industry for context"),
     target_audience: str | None = Form(None, description="Target audience description"),
+    platform_cta: str | None = Form(
+        None,
+        description="Platform CTA button text (e.g., 'Learn More', 'Shop Now'). "
+        "This is the off-screen button that appears on the ad platform.",
+    ),
+    db: AsyncSession = Depends(get_db),
 ) -> CritiqueResponse:
     """
     Analyze a user-uploaded ad creative and provide comprehensive critique.
+
+    Results are automatically persisted to the database for future access.
 
     **Supported formats:**
     - Images: jpg, jpeg, png, webp, gif (max 20MB)
@@ -75,6 +93,7 @@ async def critique_uploaded_ad(
     - brand_name: Helps the AI understand branding context
     - industry: Helps benchmark against industry standards
     - target_audience: Helps evaluate audience fit
+    - platform_cta: The CTA button text on the ad platform (not visible in creative)
     """
     # Validate file
     if not file.filename:
@@ -126,6 +145,7 @@ async def critique_uploaded_ad(
                 brand_name=brand_name,
                 industry=industry,
                 target_audience=target_audience,
+                platform_cta=platform_cta,
             )
             analysis = analyzer.parse_enhanced_analysis_v2(raw_analysis)
             model_used = "gemini-2.0-flash"
@@ -138,18 +158,52 @@ async def critique_uploaded_ad(
                 brand_name=brand_name,
                 industry=industry,
                 target_audience=target_audience,
+                platform_cta=platform_cta,
             )
             analysis = analyzer.parse_enhanced_analysis_v2(raw_analysis)
             model_used = "gpt-4o"
 
         processing_time = time.time() - start_time
 
+        # Extract scores for denormalized storage
+        critique_data = analysis.critique
+        thumb_stop = (
+            analysis.engagement_predictors.thumb_stop.thumb_stop_score
+            if analysis.engagement_predictors and analysis.engagement_predictors.thumb_stop
+            else None
+        )
+
+        # Persist to database
+        critique_record = Critique(
+            id=uuid.uuid4(),
+            file_name=file.filename,
+            file_size_bytes=file_size,
+            media_type=media_type,
+            brand_name=brand_name,
+            industry=industry,
+            target_audience=target_audience,
+            platform_cta=platform_cta,
+            analysis=analysis.model_dump(),
+            overall_grade=critique_data.overall_grade if critique_data else None,
+            hook_score=analysis.hook_score,
+            pacing_score=analysis.overall_pacing_score,
+            thumb_stop_score=thumb_stop,
+            analysis_confidence=analysis.analysis_confidence,
+            model_used=model_used,
+            processing_time_seconds=round(processing_time, 2),
+        )
+        db.add(critique_record)
+        await db.flush()
+
         return CritiqueResponse(
+            id=critique_record.id,
             analysis=analysis,
             processing_time_seconds=round(processing_time, 2),
             model_used=model_used,
             media_type=media_type,
             file_size_bytes=file_size,
+            file_name=file.filename,
+            created_at=critique_record.created_at,
         )
 
     except VideoAnalysisError as e:
@@ -172,6 +226,61 @@ async def critique_uploaded_ad(
         )
 
 
+@router.get(
+    "",
+    response_model=CritiqueListResponse,
+)
+async def list_critiques(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    media_type: str | None = Query(None, description="Filter by media type: 'image' or 'video'"),
+    db: AsyncSession = Depends(get_db),
+) -> CritiqueListResponse:
+    """List all saved critiques, ordered by most recent first."""
+    # Build query
+    query = select(Critique)
+    count_query = select(func.count(Critique.id))
+
+    if media_type:
+        query = query.where(Critique.media_type == media_type)
+        count_query = count_query.where(Critique.media_type == media_type)
+
+    # Get total count
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Get paginated results
+    query = query.order_by(Critique.created_at.desc())
+    query = query.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(query)
+    critiques = result.scalars().all()
+
+    return CritiqueListResponse(
+        critiques=[
+            CritiqueListItem(
+                id=c.id,
+                file_name=c.file_name,
+                file_size_bytes=c.file_size_bytes,
+                media_type=c.media_type,
+                brand_name=c.brand_name,
+                industry=c.industry,
+                overall_grade=c.overall_grade,
+                hook_score=c.hook_score,
+                pacing_score=c.pacing_score,
+                thumb_stop_score=c.thumb_stop_score,
+                model_used=c.model_used,
+                processing_time_seconds=float(c.processing_time_seconds) if c.processing_time_seconds else None,
+                created_at=c.created_at,
+            )
+            for c in critiques
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
 @router.get("/supported-formats")
 async def get_supported_formats() -> dict:
     """Get list of supported file formats and size limits."""
@@ -187,3 +296,58 @@ async def get_supported_formats() -> dict:
             "max_size_mb": MAX_VIDEO_SIZE // (1024 * 1024),
         },
     }
+
+
+@router.get(
+    "/{critique_id}",
+    response_model=CritiqueResponse,
+    responses={404: {"model": CritiqueError, "description": "Critique not found"}},
+)
+async def get_critique(
+    critique_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> CritiqueResponse:
+    """Get a specific saved critique with full analysis data."""
+    result = await db.execute(select(Critique).where(Critique.id == critique_id))
+    critique = result.scalar_one_or_none()
+
+    if not critique:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Critique {critique_id} not found",
+        )
+
+    from app.schemas.ad_analysis import EnhancedAdAnalysisV2
+
+    return CritiqueResponse(
+        id=critique.id,
+        analysis=EnhancedAdAnalysisV2(**critique.analysis),
+        processing_time_seconds=float(critique.processing_time_seconds) if critique.processing_time_seconds else 0,
+        model_used=critique.model_used or "unknown",
+        media_type=critique.media_type,
+        file_size_bytes=critique.file_size_bytes,
+        file_name=critique.file_name,
+        created_at=critique.created_at,
+    )
+
+
+@router.delete(
+    "/{critique_id}",
+    responses={404: {"model": CritiqueError, "description": "Critique not found"}},
+)
+async def delete_critique(
+    critique_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a saved critique."""
+    result = await db.execute(select(Critique).where(Critique.id == critique_id))
+    critique = result.scalar_one_or_none()
+
+    if not critique:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Critique {critique_id} not found",
+        )
+
+    await db.delete(critique)
+    return {"message": "Critique deleted successfully", "id": str(critique_id)}

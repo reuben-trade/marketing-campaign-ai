@@ -16,7 +16,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useUploadCritique } from '@/hooks/useCritique';
+import { useUploadCritique, useCritiques, useCritique, useDeleteCritique } from '@/hooks/useCritique';
 import {
   Upload,
   X,
@@ -31,8 +31,10 @@ import {
   ImageIcon,
   Clock,
   Zap,
+  History,
+  Trash2,
 } from 'lucide-react';
-import type { CritiqueResponse } from '@/types/critique';
+import type { CritiqueResponse, CritiqueListItem } from '@/types/critique';
 import type { StrengthItem, WeaknessItem, RemakeSuggestion } from '@/types/analysis';
 
 export default function CritiquePage() {
@@ -42,17 +44,26 @@ export default function CritiquePage() {
     brand_name: '',
     industry: '',
     target_audience: '',
+    platform_cta: '',
   });
   const [result, setResult] = useState<CritiqueResponse | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedCritiqueId, setSelectedCritiqueId] = useState<string | null>(null);
 
   const uploadCritique = useUploadCritique();
+  const deleteCritique = useDeleteCritique();
+  const { data: critiquesData } = useCritiques({ page_size: 50 });
+  const { data: loadedCritique } = useCritique(selectedCritiqueId);
+
+  // When a saved critique is loaded, show it as result
+  const displayResult = selectedCritiqueId && loadedCritique ? loadedCritique : result;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
       setSelectedFile(file);
       setResult(null);
+      setSelectedCritiqueId(null);
     }
   }, []);
 
@@ -74,9 +85,11 @@ export default function CritiquePage() {
     if (context.brand_name) formData.append('brand_name', context.brand_name);
     if (context.industry) formData.append('industry', context.industry);
     if (context.target_audience) formData.append('target_audience', context.target_audience);
+    if (context.platform_cta) formData.append('platform_cta', context.platform_cta);
 
     setUploadProgress(0);
     setAnalysisProgress(0);
+    setSelectedCritiqueId(null);
 
     try {
       const response = await uploadCritique.mutateAsync({
@@ -114,159 +127,319 @@ export default function CritiquePage() {
     setAnalysisProgress(0);
   };
 
+  const handleSelectCritique = (critique: CritiqueListItem) => {
+    setSelectedCritiqueId(critique.id);
+    setResult(null);
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setAnalysisProgress(0);
+  };
+
+  const handleDeleteCritique = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await deleteCritique.mutateAsync(id);
+    if (selectedCritiqueId === id) {
+      setSelectedCritiqueId(null);
+    }
+  };
+
+  const handleNewAnalysis = () => {
+    setSelectedCritiqueId(null);
+    setResult(null);
+    setSelectedFile(null);
+  };
+
   const isVideo = selectedFile?.type.startsWith('video/');
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Get Feedback</h1>
-        <p className="text-gray-500 mt-1">
-          Upload your ad creative for AI-powered analysis and improvement suggestions
-        </p>
-      </div>
+    <div className="flex gap-6">
+      {/* Main Content */}
+      <div className="flex-1 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Get Feedback</h1>
+          <p className="text-gray-500 mt-1">
+            Upload your ad creative for AI-powered analysis and improvement suggestions
+          </p>
+        </div>
 
-      {/* Upload Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-blue-500" />
-            Upload Your Creative
-          </CardTitle>
-          <CardDescription>
-            Supported formats: Images (JPG, PNG, WebP, GIF - max 20MB) | Videos (MP4, MOV, WebM - max
-            100MB)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Dropzone */}
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            <input {...getInputProps()} />
-            {selectedFile ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  {isVideo ? (
-                    <Video className="h-10 w-10 text-purple-500" />
-                  ) : (
-                    <ImageIcon className="h-10 w-10 text-blue-500" />
+        {/* Upload Section */}
+        {!displayResult && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-blue-500" />
+                Upload Your Creative
+              </CardTitle>
+              <CardDescription>
+                Supported formats: Images (JPG, PNG, WebP, GIF - max 20MB) | Videos (MP4, MOV, WebM -
+                max 100MB)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Dropzone */}
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <input {...getInputProps()} />
+                {selectedFile ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-2">
+                      {isVideo ? (
+                        <Video className="h-10 w-10 text-purple-500" />
+                      ) : (
+                        <ImageIcon className="h-10 w-10 text-blue-500" />
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <Badge variant="secondary">{selectedFile.name}</Badge>
+                      <span className="text-sm text-gray-500">
+                        ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearFile();
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+                    <p className="text-gray-600">
+                      {isDragActive
+                        ? 'Drop your file here...'
+                        : 'Drag & drop your ad creative here, or click to browse'}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Images up to 20MB | Videos up to 100MB
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Optional Context */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm">Optional Context (improves analysis)</h4>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="brand_name">Brand Name</Label>
+                    <Input
+                      id="brand_name"
+                      placeholder="Your brand"
+                      value={context.brand_name}
+                      onChange={(e) => setContext((prev) => ({ ...prev, brand_name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="industry">Industry</Label>
+                    <Input
+                      id="industry"
+                      placeholder="e.g., SaaS, E-commerce"
+                      value={context.industry}
+                      onChange={(e) => setContext((prev) => ({ ...prev, industry: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="target_audience">Target Audience</Label>
+                    <Input
+                      id="target_audience"
+                      placeholder="e.g., Millennials, B2B"
+                      value={context.target_audience}
+                      onChange={(e) =>
+                        setContext((prev) => ({ ...prev, target_audience: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="platform_cta">Platform CTA Button</Label>
+                    <Input
+                      id="platform_cta"
+                      placeholder="e.g., Learn More, Shop Now"
+                      value={context.platform_cta}
+                      onChange={(e) =>
+                        setContext((prev) => ({ ...prev, platform_cta: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Upload Progress */}
+              {uploadCritique.isPending && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                    <span className="text-sm text-gray-600">
+                      {uploadProgress < 100 ? 'Uploading...' : 'Analyzing your creative...'}
+                    </span>
+                  </div>
+                  <Progress value={uploadProgress < 100 ? uploadProgress : analysisProgress} />
+                  {uploadProgress === 100 && (
+                    <p className="text-xs text-gray-500">
+                      {isVideo
+                        ? 'Video analysis typically takes 20-45 seconds'
+                        : 'Image analysis typically takes 10-20 seconds'}
+                    </p>
                   )}
                 </div>
-                <div className="flex items-center justify-center gap-2">
-                  <Badge variant="secondary">{selectedFile.name}</Badge>
-                  <span className="text-sm text-gray-500">
-                    ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearFile();
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
-                <p className="text-gray-600">
-                  {isDragActive
-                    ? 'Drop your file here...'
-                    : 'Drag & drop your ad creative here, or click to browse'}
-                </p>
-                <p className="text-sm text-gray-400 mt-2">
-                  Images up to 20MB | Videos up to 100MB
-                </p>
-              </>
-            )}
-          </div>
-
-          {/* Optional Context */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm">Optional Context (improves analysis)</h4>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="brand_name">Brand Name</Label>
-                <Input
-                  id="brand_name"
-                  placeholder="Your brand"
-                  value={context.brand_name}
-                  onChange={(e) => setContext((prev) => ({ ...prev, brand_name: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="industry">Industry</Label>
-                <Input
-                  id="industry"
-                  placeholder="e.g., SaaS, E-commerce"
-                  value={context.industry}
-                  onChange={(e) => setContext((prev) => ({ ...prev, industry: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="target_audience">Target Audience</Label>
-                <Input
-                  id="target_audience"
-                  placeholder="e.g., Millennials, B2B"
-                  value={context.target_audience}
-                  onChange={(e) =>
-                    setContext((prev) => ({ ...prev, target_audience: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Upload Progress */}
-          {uploadCritique.isPending && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                <span className="text-sm text-gray-600">
-                  {uploadProgress < 100 ? 'Uploading...' : 'Analyzing your creative...'}
-                </span>
-              </div>
-              <Progress value={uploadProgress < 100 ? uploadProgress : analysisProgress} />
-              {uploadProgress === 100 && (
-                <p className="text-xs text-gray-500">
-                  {isVideo
-                    ? 'Video analysis typically takes 20-45 seconds'
-                    : 'Image analysis typically takes 10-20 seconds'}
-                </p>
               )}
+
+              {/* Upload Button */}
+              <Button
+                onClick={handleUpload}
+                disabled={!selectedFile || uploadCritique.isPending}
+                className="w-full"
+              >
+                {uploadCritique.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-2 h-4 w-4" />
+                    Analyze Creative
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Results Section */}
+        {displayResult && (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {displayResult.file_name && (
+                  <Badge variant="outline">{displayResult.file_name}</Badge>
+                )}
+                {displayResult.created_at && (
+                  <span className="text-sm text-gray-500">
+                    {new Date(displayResult.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleNewAnalysis}>
+                <Upload className="mr-2 h-4 w-4" />
+                New Analysis
+              </Button>
             </div>
-          )}
+            <CritiqueResults result={displayResult} />
+          </>
+        )}
+      </div>
 
-          {/* Upload Button */}
-          <Button
-            onClick={handleUpload}
-            disabled={!selectedFile || uploadCritique.isPending}
-            className="w-full"
-          >
-            {uploadCritique.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analyzing...
-              </>
+      {/* History Sidebar */}
+      {critiquesData && critiquesData.critiques.length > 0 && (
+        <div className="w-72 flex-shrink-0">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Previous Feedback ({critiquesData.total})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[600px]">
+                <div className="space-y-1 p-3 pt-0">
+                  {critiquesData.critiques.map((critique) => (
+                    <CritiqueHistoryItem
+                      key={critique.id}
+                      critique={critique}
+                      isSelected={selectedCritiqueId === critique.id}
+                      onSelect={() => handleSelectCritique(critique)}
+                      onDelete={(e) => handleDeleteCritique(critique.id, e)}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CritiqueHistoryItem({
+  critique,
+  isSelected,
+  onSelect,
+  onDelete,
+}: {
+  critique: CritiqueListItem;
+  isSelected: boolean;
+  onSelect: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}) {
+  const getGradeColor = (grade: string) => {
+    const letter = grade.charAt(0).toUpperCase();
+    switch (letter) {
+      case 'A': return 'bg-green-500 text-white';
+      case 'B': return 'bg-blue-500 text-white';
+      case 'C': return 'bg-yellow-500 text-white';
+      case 'D': return 'bg-orange-500 text-white';
+      case 'F': return 'bg-red-500 text-white';
+      default: return 'bg-gray-500 text-white';
+    }
+  };
+
+  return (
+    <div
+      className={`p-3 rounded-lg cursor-pointer transition-colors group ${
+        isSelected ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'
+      }`}
+      onClick={onSelect}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            {critique.media_type === 'video' ? (
+              <Video className="h-3 w-3 text-purple-500 flex-shrink-0" />
             ) : (
-              <>
-                <Zap className="mr-2 h-4 w-4" />
-                Analyze Creative
-              </>
+              <ImageIcon className="h-3 w-3 text-blue-500 flex-shrink-0" />
             )}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Results Section */}
-      {result && <CritiqueResults result={result} />}
+            <span className="text-xs font-medium truncate">{critique.file_name}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {critique.overall_grade && (
+              <Badge className={`text-[10px] px-1.5 py-0 ${getGradeColor(critique.overall_grade)}`}>
+                {critique.overall_grade}
+              </Badge>
+            )}
+            <span className="text-[10px] text-gray-400">
+              {new Date(critique.created_at).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3 w-3 text-gray-400 hover:text-red-500" />
+        </Button>
+      </div>
     </div>
   );
 }

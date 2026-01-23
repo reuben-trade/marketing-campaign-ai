@@ -19,9 +19,119 @@ from app.schemas.recommendation import (
     RecommendationResponse,
 )
 from app.services.recommendation_engine import RecommendationEngine, RecommendationError
+from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _normalize_stored_recommendations(recommendations: list[dict] | None) -> list[dict]:
+    """
+    Normalize recommendation data loaded from database to match Pydantic schema.
+
+    This handles legacy data where the LLM returned simplified structures
+    (e.g., strings instead of objects for copywriting fields).
+    """
+    if not recommendations:
+        return []
+
+    normalized = []
+    for rec in recommendations:
+        rec = dict(rec)  # Make a copy to avoid modifying the original
+
+        # Normalize copywriting fields - convert strings to CopyElement objects
+        if "copywriting" in rec and rec["copywriting"]:
+            copywriting = dict(rec["copywriting"])
+            for field in ["headline", "subheadline", "body_copy", "cta_button"]:
+                if field in copywriting:
+                    value = copywriting[field]
+                    if isinstance(value, str):
+                        copywriting[field] = {
+                            "text": value,
+                            "placement": "center" if field == "headline" else "below headline",
+                        }
+                    elif isinstance(value, dict):
+                        if "text" not in value:
+                            value["text"] = str(value.get("content", ""))
+                        if "placement" not in value:
+                            value["placement"] = "center" if field == "headline" else "below"
+            rec["copywriting"] = copywriting
+
+        # Normalize content_breakdown fields
+        if "content_breakdown" in rec and rec["content_breakdown"]:
+            content_breakdown = dict(rec["content_breakdown"])
+            for field in ["left_side_problem", "right_side_solution"]:
+                if field in content_breakdown:
+                    value = content_breakdown[field]
+                    if isinstance(value, str):
+                        content_breakdown[field] = {
+                            "visual": value,
+                            "text": "",
+                            "style": "bold",
+                        }
+                    elif isinstance(value, dict):
+                        if "visual" not in value:
+                            value["visual"] = str(value.get("description", ""))
+                        if "text" not in value:
+                            value["text"] = ""
+                        if "style" not in value:
+                            value["style"] = "bold"
+            rec["content_breakdown"] = content_breakdown
+
+        # Normalize visual_direction.color_palette
+        if "visual_direction" in rec and rec["visual_direction"]:
+            vd = dict(rec["visual_direction"])
+            if "color_palette" in vd and vd["color_palette"]:
+                cp = dict(vd["color_palette"])
+                if "primary" not in cp:
+                    cp["primary"] = cp.get("main", "#000000")
+                if "secondary" not in cp:
+                    cp["secondary"] = cp.get("accent", "#333333")
+                if "accent" not in cp:
+                    cp["accent"] = cp.get("highlight", "#666666")
+                vd["color_palette"] = cp
+            rec["visual_direction"] = vd
+
+        # Normalize testing_variants
+        if "testing_variants" in rec:
+            if rec["testing_variants"] is None:
+                rec["testing_variants"] = []
+            elif not isinstance(rec["testing_variants"], list):
+                rec["testing_variants"] = [rec["testing_variants"]]
+
+        # Normalize success_metrics.secondary
+        if "success_metrics" in rec and rec["success_metrics"]:
+            sm = dict(rec["success_metrics"])
+            if "secondary" in sm and not isinstance(sm["secondary"], list):
+                if isinstance(sm["secondary"], str):
+                    sm["secondary"] = [sm["secondary"]]
+                elif sm["secondary"] is None:
+                    sm["secondary"] = []
+            rec["success_metrics"] = sm
+
+        # Normalize production_notes.assets_needed
+        if "production_notes" in rec and rec["production_notes"]:
+            notes = dict(rec["production_notes"])
+            if "assets_needed" in notes and not isinstance(notes["assets_needed"], list):
+                if isinstance(notes["assets_needed"], str):
+                    notes["assets_needed"] = [notes["assets_needed"]]
+                elif notes["assets_needed"] is None:
+                    notes["assets_needed"] = []
+            rec["production_notes"] = notes
+
+        # Normalize design_specifications.colors
+        if "design_specifications" in rec and rec["design_specifications"]:
+            specs = dict(rec["design_specifications"])
+            if "colors" in specs and not isinstance(specs["colors"], dict):
+                if isinstance(specs["colors"], list):
+                    specs["colors"] = {f"color_{i}": c for i, c in enumerate(specs["colors"])}
+                elif isinstance(specs["colors"], str):
+                    specs["colors"] = {"primary": specs["colors"]}
+            rec["design_specifications"] = specs
+
+        normalized.append(rec)
+
+    return normalized
 
 
 @router.post("/generate", response_model=RecommendationResponse)
@@ -35,6 +145,8 @@ async def generate_recommendations(
 
     Uses the business strategy and top-performing competitor ads
     to generate detailed, actionable content recommendations.
+
+    Optionally analyzes user's own ad for comparison if user_ad_id is provided.
     """
     strategy_result = await db.execute(
         select(BusinessStrategy).order_by(BusinessStrategy.last_updated.desc()).limit(1)
@@ -47,9 +159,14 @@ async def generate_recommendations(
             detail="No business strategy found. Please create a strategy first.",
         )
 
+    # Fetch competitor ads with all related data
     ads_query = (
         select(Ad)
-        .options(selectinload(Ad.competitor))
+        .options(
+            selectinload(Ad.competitor),
+            selectinload(Ad.elements),
+            selectinload(Ad.creative_analysis),
+        )
         .where(
             and_(
                 Ad.analyzed == True,
@@ -90,17 +207,151 @@ async def generate_recommendations(
         "marketing_objectives": strategy.marketing_objectives,
     }
 
+    # Build ads list with rich video_intelligence data
     ads_list = []
     for ad in ads:
-        ads_list.append({
+        ad_data = {
             "id": str(ad.id),
-            "competitor_name": ad.competitor.company_name,
+            "competitor_name": ad.competitor.company_name if ad.competitor else "Unknown",
             "creative_type": ad.creative_type,
-            "likes": ad.likes,
-            "comments": ad.comments,
-            "shares": ad.shares,
+            "likes": ad.likes or 0,
+            "comments": ad.comments or 0,
+            "shares": ad.shares or 0,
             "analysis": ad.analysis,
-        })
+            "video_intelligence": ad.video_intelligence,
+        }
+
+        # Include ad elements (narrative beats)
+        if ad.elements:
+            ad_data["elements"] = [
+                {
+                    "beat_type": elem.beat_type,
+                    "start_time": elem.start_time,
+                    "end_time": elem.end_time,
+                    "visual_description": elem.visual_description,
+                    "audio_transcript": elem.audio_transcript,
+                    "tone_of_voice": elem.tone_of_voice,
+                    "emotion": elem.emotion,
+                    "emotion_intensity": elem.emotion_intensity,
+                    "camera_angle": elem.camera_angle,
+                    "lighting_style": elem.lighting_style,
+                    "color_grading": elem.color_grading,
+                    "motion_type": elem.motion_type,
+                    "text_overlays": elem.text_overlays,
+                    "rhetorical_mode": elem.rhetorical_mode,
+                    "persuasion_techniques": elem.persuasion_techniques,
+                }
+                for elem in ad.elements
+            ]
+
+        # Include creative analysis metrics
+        if ad.creative_analysis:
+            ca = ad.creative_analysis
+            ad_data["creative_analysis"] = {
+                "hook_score": ca.hook_score,
+                "copy_framework": ca.copy_framework,
+                "headline_text": ca.headline_text,
+                "cta_text": ca.cta_text,
+                "production_style": ca.production_style,
+                "production_quality_score": ca.production_quality_score,
+                "thumb_stop_score": ca.thumb_stop_score,
+                "overall_grade": ca.overall_grade,
+            }
+
+        ads_list.append(ad_data)
+
+    # Handle user's own ad analysis if provided
+    user_ad_analysis = None
+    if request.user_ad_id:
+        user_ad_result = await db.execute(
+            select(Ad)
+            .options(
+                selectinload(Ad.elements),
+                selectinload(Ad.creative_analysis),
+            )
+            .where(Ad.id == request.user_ad_id)
+        )
+        user_ad = user_ad_result.scalar_one_or_none()
+
+        if not user_ad:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User ad with ID {request.user_ad_id} not found.",
+            )
+
+        # If user's ad hasn't been analyzed with V2, analyze it now
+        if not user_ad.video_intelligence and user_ad.creative_storage_path:
+            try:
+                video_analyzer = VideoAnalyzer()
+                analysis_result = await video_analyzer.analyze_from_storage_v2(
+                    storage_path=user_ad.creative_storage_path,
+                    competitor_name=strategy.business_name or "User",
+                    market_position=strategy.market_position,
+                    brand_name=strategy.business_name,
+                    industry=strategy.industry,
+                    target_audience=str(strategy.target_audience) if strategy.target_audience else None,
+                    likes=user_ad.likes or 0,
+                    comments=user_ad.comments or 0,
+                    shares=user_ad.shares or 0,
+                )
+
+                # Store the analysis
+                user_ad.video_intelligence = analysis_result
+                user_ad.analyzed = True
+                user_ad.analysis_status = "completed"
+                await db.commit()
+                await db.refresh(user_ad)
+
+                logger.info(f"Analyzed user ad {user_ad.id} with Gemini V2")
+            except VideoAnalysisError as e:
+                logger.warning(f"Failed to analyze user ad: {e}")
+                # Continue without user ad analysis
+
+        # Build user ad data structure
+        user_ad_analysis = {
+            "id": str(user_ad.id),
+            "creative_type": user_ad.creative_type,
+            "likes": user_ad.likes or 0,
+            "comments": user_ad.comments or 0,
+            "shares": user_ad.shares or 0,
+            "analysis": user_ad.analysis,
+            "video_intelligence": user_ad.video_intelligence,
+        }
+
+        if user_ad.elements:
+            user_ad_analysis["elements"] = [
+                {
+                    "beat_type": elem.beat_type,
+                    "start_time": elem.start_time,
+                    "end_time": elem.end_time,
+                    "visual_description": elem.visual_description,
+                    "audio_transcript": elem.audio_transcript,
+                    "tone_of_voice": elem.tone_of_voice,
+                    "emotion": elem.emotion,
+                    "emotion_intensity": elem.emotion_intensity,
+                    "camera_angle": elem.camera_angle,
+                    "lighting_style": elem.lighting_style,
+                    "color_grading": elem.color_grading,
+                    "motion_type": elem.motion_type,
+                    "text_overlays": elem.text_overlays,
+                    "rhetorical_mode": elem.rhetorical_mode,
+                    "persuasion_techniques": elem.persuasion_techniques,
+                }
+                for elem in user_ad.elements
+            ]
+
+        if user_ad.creative_analysis:
+            ca = user_ad.creative_analysis
+            user_ad_analysis["creative_analysis"] = {
+                "hook_score": ca.hook_score,
+                "copy_framework": ca.copy_framework,
+                "headline_text": ca.headline_text,
+                "cta_text": ca.cta_text,
+                "production_style": ca.production_style,
+                "production_quality_score": ca.production_quality_score,
+                "thumb_stop_score": ca.thumb_stop_score,
+                "overall_grade": ca.overall_grade,
+            }
 
     try:
         engine = RecommendationEngine()
@@ -108,6 +359,9 @@ async def generate_recommendations(
             business_strategy=strategy_dict,
             analyzed_ads=ads_list,
             model=model,
+            num_video_ideas=request.num_video_ideas,
+            num_image_ideas=request.num_image_ideas,
+            user_ad_analysis=user_ad_analysis,
         )
     except RecommendationError as e:
         raise HTTPException(
@@ -127,7 +381,7 @@ async def generate_recommendations(
         recommendations=recommendations.get("recommendations"),
         executive_summary=recommendations.get("executive_summary"),
         implementation_roadmap=recommendations.get("implementation_roadmap"),
-        ads_analyzed=[ad.id for ad in ads],
+        ads_analyzed=[str(ad.id) for ad in ads],
         generation_time_seconds=Decimal(str(round(generation_time, 2))),
         model_used=model_used,
     )
@@ -169,7 +423,7 @@ async def get_latest_recommendation(
         generated_date=recommendation.generated_date,
         executive_summary=recommendation.executive_summary,
         trend_analysis=recommendation.trend_analysis,
-        recommendations=recommendation.recommendations or [],
+        recommendations=_normalize_stored_recommendations(recommendation.recommendations),
         implementation_roadmap=recommendation.implementation_roadmap,
         ads_analyzed=recommendation.ads_analyzed or [],
         generation_time_seconds=recommendation.generation_time_seconds,
@@ -199,7 +453,7 @@ async def get_recommendation(
         generated_date=recommendation.generated_date,
         executive_summary=recommendation.executive_summary,
         trend_analysis=recommendation.trend_analysis,
-        recommendations=recommendation.recommendations or [],
+        recommendations=_normalize_stored_recommendations(recommendation.recommendations),
         implementation_roadmap=recommendation.implementation_roadmap,
         ads_analyzed=recommendation.ads_analyzed or [],
         generation_time_seconds=recommendation.generation_time_seconds,
@@ -234,7 +488,7 @@ async def list_recommendations(
                 generated_date=rec.generated_date,
                 executive_summary=rec.executive_summary,
                 trend_analysis=rec.trend_analysis,
-                recommendations=rec.recommendations or [],
+                recommendations=_normalize_stored_recommendations(rec.recommendations),
                 implementation_roadmap=rec.implementation_roadmap,
                 ads_analyzed=rec.ads_analyzed or [],
                 generation_time_seconds=rec.generation_time_seconds,

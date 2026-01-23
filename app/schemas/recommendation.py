@@ -201,13 +201,15 @@ class Copywriting(BaseModel):
 class DesignSpecifications(BaseModel):
     """Design specifications for image ads."""
 
-    dimensions: str
-    file_format: str
-    file_size: str
-    safe_zones: str
-    text_coverage: str
-    contrast_ratio: str
-    mobile_optimization: str
+    dimensions: str | None = None
+    file_format: str | None = None
+    file_size: str | None = None
+    safe_zones: str | None = None
+    text_coverage: str | None = None
+    contrast_ratio: str | None = None
+    mobile_optimization: str | None = None
+    font: str | None = None
+    colors: dict[str, str] | None = None
 
 
 class TestingVariant(BaseModel):
@@ -239,9 +241,11 @@ class SuccessMetrics(BaseModel):
 class ProductionNotes(BaseModel):
     """Production notes for image ads."""
 
-    tools: str
+    tools: str | None = None
     assets_needed: list[str] = Field(default_factory=list)
-    time_estimate: str
+    time_estimate: str | None = None
+    talent: str | None = None
+    notes: str | None = None
 
 
 class RecommendationConcept(BaseModel):
@@ -261,7 +265,7 @@ class AdRecommendation(BaseModel):
     duration: str | None = None
     objective: str
 
-    concept: RecommendationConcept
+    concept: RecommendationConcept | None = None
     visual_direction: VisualDirection | None = None
 
     # Video-specific
@@ -316,6 +320,22 @@ class RecommendationCreate(BaseModel):
     focus_areas: list[str] | None = Field(
         None,
         description="Specific areas to focus on (e.g., 'video', 'engagement', 'brand_awareness')",
+    )
+    num_video_ideas: int = Field(
+        default=2,
+        ge=0,
+        le=10,
+        description="Number of video content ideas to generate",
+    )
+    num_image_ideas: int = Field(
+        default=1,
+        ge=0,
+        le=10,
+        description="Number of image content ideas to generate",
+    )
+    user_ad_id: UUID | None = Field(
+        None,
+        description="Optional user's own ad ID to analyze and use as reference",
     )
 
 

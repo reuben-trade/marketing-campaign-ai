@@ -263,6 +263,79 @@ Generate comprehensive recommendations following this EXACT JSON structure:
         "primary": "main KPI",
         "secondary": ["other KPIs"],
         "optimization": "when to iterate"
+      }},
+
+      "content_breakdown": {{
+        "left_side_problem": {{
+          "visual": "visual description of problem side",
+          "text": "text content",
+          "style": "bold/regular/italic"
+        }},
+        "right_side_solution": {{
+          "visual": "visual description of solution side",
+          "text": "text content",
+          "style": "bold/regular/italic"
+        }},
+        "center_divider": "divider description or null"
+      }},
+
+      "copywriting": {{
+        "headline": {{
+          "text": "headline text",
+          "placement": "top/center/bottom",
+          "font": "font name",
+          "color": "#hex",
+          "size": "large/medium/small",
+          "style": "bold/regular"
+        }},
+        "subheadline": {{
+          "text": "subheadline text",
+          "placement": "below headline",
+          "font": "font name",
+          "color": "#hex",
+          "size": "medium/small",
+          "style": "regular"
+        }},
+        "body_copy": {{
+          "text": "body text content",
+          "placement": "center/bottom",
+          "font": "font name",
+          "color": "#hex",
+          "size": "small",
+          "style": "regular"
+        }},
+        "cta_button": {{
+          "text": "CTA text",
+          "placement": "bottom/center",
+          "font": "font name",
+          "color": "#hex",
+          "size": "medium",
+          "style": "bold"
+        }}
+      }},
+
+      "design_specifications": {{
+        "dimensions": "1080x1080 or 1080x1920",
+        "file_format": "PNG/JPG",
+        "file_size": "max size",
+        "safe_zones": "margin requirements",
+        "text_coverage": "percentage of image with text",
+        "contrast_ratio": "minimum contrast",
+        "mobile_optimization": "mobile-specific notes",
+        "font": "primary font",
+        "colors": {{
+          "primary": "#hex",
+          "secondary": "#hex",
+          "accent": "#hex"
+        }}
+      }},
+
+      "production_notes": {{
+        "tools": "recommended design tools",
+        "assets_needed": ["asset 1", "asset 2"],
+        "time_estimate": "production time",
+        "talent": "if models/actors needed",
+        "notes": "additional production notes"
       }}
     }}
   ],
@@ -288,7 +361,14 @@ Generate comprehensive recommendations following this EXACT JSON structure:
   }}
 }}
 
-Generate 2-3 high-quality recommendations. For image ads, use content_breakdown, copywriting, design_specifications, and production_notes instead of video-specific fields.
+Generate recommendations based on the content requirements specified below.
+
+FOR VIDEO ADS use: script_breakdown, caption_strategy, filming_requirements, audio_design
+FOR IMAGE ADS use: content_breakdown, copywriting, design_specifications, production_notes
+
+CRITICAL SCHEMA NOTES:
+- For copywriting fields (headline, subheadline, body_copy, cta_button), ALWAYS use the object format with "text" and "placement" fields, NOT plain strings
+- For content_breakdown fields (left_side_problem, right_side_solution), ALWAYS use the object format with "visual", "text", and "style" fields
 
 IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting.
 """

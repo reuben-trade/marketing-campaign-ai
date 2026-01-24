@@ -422,373 +422,64 @@ IMPORTANT:
 # =============================================================================
 
 VIDEO_ANALYSIS_PROMPT_V2 = """
-You are an elite Ad Performance Analyst. Your job is to deconstruct this video into its core structural components with precise timestamps.
+You are an elite Ad Performance Analyst. Deconstruct this video into its core structural components with precise timestamps.
 
 CONTEXT:
-Company: {competitor_name}
-Market Position: {market_position}
-Follower Count: {follower_count}
+Company: {competitor_name} | Position: {market_position} | Followers: {follower_count}
 Engagement: {likes} Likes, {comments} Comments, {shares} Shares
-Brand Name (if provided): {brand_name}
-Industry: {industry}
-Target Audience Context: {target_audience}
+Brand: {brand_name} | Industry: {industry} | Audience: {target_audience}
+Platform CTA Button: {platform_cta} (this button is OUTSIDE the creative — do NOT flag the ad as "missing a CTA" if no on-screen CTA exists, evaluate CTA strategy holistically)
 
-PLATFORM CTA BUTTON: {platform_cta}
-NOTE: The platform CTA button (e.g., "Learn More", "Shop Now", "Get Quote") appears as a clickable
-button on the ad platform interface, OUTSIDE of the creative itself. It is NOT visible within the
-video/image. When evaluating CTA effectiveness, be aware that this off-screen button exists. The ad
-does have a call-to-action mechanism, but on-screen CTA reinforcement within the creative itself may
-still be valuable for effectiveness. Do NOT flag the ad as "missing a CTA" simply because there is
-no on-screen CTA text — instead evaluate the overall CTA strategy holistically, considering both
-the platform button and any in-creative CTA elements.
+BEAT TYPES (use exactly these labels for beat_type):
+- Hook: First 1-5s scroll-stopper (describe the exact attention mechanism)
+- Problem: Pain point identification/agitation
+- Solution: Product/service revealed as the answer
+- Product Showcase: Features/demos/before-after (describe EXACTLY which features are shown)
+- Social Proof: Testimonials, reviews, ratings, UGC
+- Benefit Stack: Multiple value propositions in sequence
+- Objection Handling: Addressing doubts (price, trust, guarantee)
+- CTA: Call to Action with urgency elements (include exact CTA text)
+- Transition: Visual bridges between sections
 
-================================================================================
-MANDATORY COMPONENT IDENTIFICATION
-================================================================================
-You MUST identify and timestamp the following "Key Components" if they appear in the ad.
-Use the EXACT labels provided - these are the only valid beat_type values:
+CRITICAL INSTRUCTIONS:
+- Segment by structural components, NOT arbitrary time intervals
+- Timestamps must be precise MM:SS format (e.g., Hook: 00:00-00:03)
+- visual_description must be EXHAUSTIVE — detailed enough to sketch a storyboard
+- Include ALL on-screen text verbatim with precise timestamps in text_overlays_in_beat
+- Include ALL spoken words verbatim in audio_transcript with [music: genre/mood] and [SFX: type] annotations
+- Provide SPECIFIC, ACTIONABLE feedback in critique strengths/weaknesses/remake_suggestions
+- Use null for fields that cannot be determined
 
-1. "Hook": The first 1-5 seconds. What specific visual/audio element stops the scroll?
-   - Describe the exact attention-grabbing mechanism
-   - Note any pattern interrupts or curiosity gaps created
-
-2. "Problem": Where the ad identifies the user's pain point.
-   - What problem is being agitated?
-   - How is it visualized or verbalized?
-
-3. "Solution": The moment the product/service is first revealed as the answer.
-   - This is the "aha" moment - the product introduction
-
-4. "Product Showcase": Specific segments demonstrating HOW the product works or looks.
-   - Describe EXACTLY which features are shown
-   - Note any before/after demonstrations
-   - Detail the product in action
-
-5. "Social Proof": Any user testimonials, 5-star graphics, reviews, or UGC.
-   - Include quotes, ratings, or trust signals
-
-6. "Benefit Stack": Sections listing value propositions or feature benefits.
-   - Multiple benefits presented in sequence
-
-7. "Objection Handling": Segments addressing potential doubts or concerns.
-   - Price justification, guarantee mentions, trust markers
-
-8. "CTA": The final Call to Action (e.g., "Shop Now", "Link in Bio", "Get Started").
-   - Include the exact CTA text
-   - Note urgency elements (limited time, scarcity)
-
-9. "Transition": Visual bridges between sections that don't fit above categories.
-
-================================================================================
-CRITICAL INSTRUCTIONS
-================================================================================
-- SEGMENTATION: Break the video down by these structural components, not by arbitrary time intervals
-- TIMESTAMPING: Be precise (e.g., Hook: 00:00-00:03, Problem: 00:03-00:12)
-- DETAIL: For "Product Showcase", describe EXACTLY which features are shown
-- For "Hook", describe the specific visual/audio trigger that grabs attention
-- Do NOT use any beat_type labels other than those listed above
-
-ANALYSIS REQUIREMENTS:
-
-1. NARRATIVE TIMELINE - For each beat document:
-   - Precise timestamps (MM:SS format)
-   - Beat type classification
-   - Detailed visual description (storyboard-quality)
-   - Verbatim audio transcript with [music], [SFX] annotations
-   - Emotion evoked and intensity (1-10)
-   - Per-beat improvement suggestions
-
-2. RHETORICAL ANALYSIS - For each beat:
-   - Primary mode: Logos (facts/logic), Pathos (emotion), Ethos (credibility), Kairos (urgency)
-   - Secondary mode if present
-   - Specific persuasion techniques (scarcity, social proof, authority, etc.)
-   - What objection this beat addresses (if any)
-
-3. CINEMATIC ANALYSIS - For each beat:
-   - Camera angle and movement
-   - Lighting style
-   - Color grading
-   - Transitions in/out
-   - Key visual elements present
-
-4. TEXT/COPY EXTRACTION:
-   - ALL on-screen text verbatim with timestamps
-   - Typography and animation style
-   - Position on screen
-   - Purpose of each text element
-   - Identify copywriting framework (PAS, AIDA, BAB, etc.)
-   - Power words and sensory language used
-
-5. AUDIO LAYER ANALYSIS:
-   - Music: genre, tempo (slow/medium/fast), energy, mood
-   - Voice: gender, age range, tone, estimated WPM, accent
-   - Sound effects: timestamp each SFX and its purpose
-   - Audio-visual sync quality (1-10)
-   - Sound-off compatibility assessment
-
-6. BRAND ELEMENT TRACKING:
-   - Logo appearances with timestamps, duration, position, size
-   - Product appearances with timestamps, shot type, prominence
-   - Brand colors detected (hex codes if possible)
-   - Brand name mentions (audio count, text count)
-
-7. ENGAGEMENT PREDICTION:
-   - Thumb-stop score (1-10) with justification
-   - First-frame hook analysis
-   - Pattern interrupt type (if any)
-   - Curiosity gap assessment
-   - Visual contrast score (1-10)
-   - Predicted watch-through rate (low/medium/high)
-
-8. PLATFORM OPTIMIZATION:
-   - Aspect ratio detection
-   - Optimal platforms for this format
-   - Caption dependency level (none/low/medium/high)
-   - Native feel score (1=polished ad, 10=organic content)
-   - Duration assessment (too short/optimal/too long)
-
-9. EMOTIONAL ARC:
-   - Track emotion at each major beat
-   - Identify emotional climax timestamp
-   - Tension/release pattern (gradual/sudden/oscillating/flat)
-   - Dominant emotional tone overall
-
-10. ACTIONABLE CRITIQUE:
-    - Overall letter grade (A+ to F)
-    - 2-3 sentence overall assessment
-    - 3-5 specific strengths with evidence and timestamps
-    - 3-5 specific weaknesses with fix suggestions
-    - 2-4 detailed remake suggestions with effort level
-    - Quick wins list (easy fixes)
-
-Return analysis in this EXACT JSON structure:
+RESPONSE STRUCTURE (return valid JSON with these exact top-level keys):
 {{
   "media_type": "video",
   "analysis_version": "2.0",
-  "analysis_confidence": 0.85,
+  "analysis_confidence": float,
   "analysis_notes": [],
-
-  "inferred_audience": "Detailed profile: age, gender, income, lifestyle, pain points, aspirations",
-  "primary_messaging_pillar": "Core theme: Cost Savings, Premium Quality, Convenience, Health, Status, etc.",
-  "overall_pacing_score": 7,
-  "production_style": "High-production Studio | Authentic UGC | Hybrid | Animation | Talking Head | Screen Recording | Stock Footage Mashup | Documentary Style | Influencer Native",
-  "hook_score": 8,
-  "overall_narrative_summary": "2-3 vivid sentences capturing the ad's story arc and emotional journey",
-
-  "timeline": [
-    {{
-      "start_time": "00:00",
-      "end_time": "00:03",
-      "beat_type": "Hook | Problem | Solution | Product Showcase | Social Proof | Benefit Stack | Objection Handling | CTA | Transition",
-      "cinematics": {{
-        "camera_angle": "Close-up | Wide-shot | POV | Low-angle | Over-the-shoulder | etc.",
-        "lighting_style": "High-contrast | Natural/UGC | Studio-soft | Golden-hour | Ring-light",
-        "cinematic_features": ["Slow-mo", "Text-overlay", "Split-screen", "B-roll"],
-        "color_grading": "warm | cool | desaturated | high-contrast | vintage | natural",
-        "motion_type": "static | handheld | dolly | pan | zoom | tracking",
-        "transition_in": "cut | dissolve | wipe | zoom | match-cut",
-        "transition_out": "cut | dissolve | wipe | zoom | match-cut"
-      }},
-      "tone_of_voice": "Urgent | Empathetic | ASMR | High-energy | Conversational | Authoritative | Playful",
-      "rhetorical_appeal": {{
-        "mode": "Logos | Pathos | Ethos | Kairos",
-        "description": "How this persuasion technique is executed",
-        "secondary_mode": "Logos | Pathos | Ethos | Kairos | null",
-        "persuasion_techniques": ["scarcity", "social proof", "authority"],
-        "objection_addressed": "What objection this beat handles, or null"
-      }},
-      "target_audience_cues": "Visual/audio signals identifying the demographic",
-      "visual_description": "DETAILED scene: Who appears, what they do, setting, colors, text on screen, products shown. Be specific enough to sketch a storyboard.",
-      "audio_transcript": "Exact words in quotes. [music: genre/mood]. [SFX: type]. Include delivery notes.",
-      "emotion": "fear | urgency | aspiration | curiosity | belonging | joy | trust | surprise | anticipation | pride | nostalgia | neutral",
-      "emotion_intensity": 7,
-      "text_overlays_in_beat": [
-        {{
-          "text": "Exact text verbatim",
-          "timestamp": "00:01",
-          "duration_seconds": 2.0,
-          "position": "top | center | bottom | lower-third",
-          "typography": "bold sans-serif | handwritten | serif | kinetic",
-          "animation": "fade-in | pop | typewriter | slide | none",
-          "emphasis_type": "highlighted word | underline | color change | null",
-          "purpose": "hook | benefit | stat | testimonial | CTA"
-        }}
-      ],
-      "key_visual_elements": ["face", "product", "hands", "lifestyle", "graphic", "animation"],
-      "attention_score": 8,
-      "improvement_note": "Specific suggestion for improving this beat"
-    }}
-  ],
-
-  "copy_analysis": {{
-    "all_text_overlays": [],
-    "headline_text": "Primary hook text if present",
-    "body_copy": null,
-    "cta_text": "CTA text verbatim",
-    "copy_framework": "PAS | AIDA | BAB | FAB | 4Ps | QUEST | PASTOR | Custom | Unknown",
-    "framework_execution": "How well the framework is executed",
-    "reading_level": "elementary | middle school | high school | college",
-    "word_count": 50,
-    "power_words": ["free", "guaranteed", "instant", "secret", "proven"],
-    "sensory_words": ["feel", "imagine", "discover", "transform", "experience"]
-  }},
-
-  "audio_analysis": {{
-    "music": {{
-      "has_music": true,
-      "genre": "electronic | acoustic | hip-hop | cinematic | lo-fi | pop | orchestral",
-      "tempo": "slow (<80 BPM) | medium (80-120) | fast (>120) | variable",
-      "energy_level": "calm | building | high-energy | dramatic | uplifting",
-      "mood": "inspiring | urgent | relaxed | edgy | nostalgic | playful",
-      "music_sync_moments": ["00:05", "00:12"],
-      "drop_timestamps": ["00:08"]
-    }},
-    "voice": {{
-      "has_voiceover": true,
-      "has_dialogue": false,
-      "voice_gender": "male | female | mixed | ambiguous",
-      "voice_age_range": "young adult (20s) | middle-aged (30s-40s) | mature (50+)",
-      "voice_tone": "conversational | authoritative | excited | calm | ASMR | energetic",
-      "estimated_wpm": 150,
-      "accent": "American | British | Australian | neutral | regional"
-    }},
-    "sound_effects": [
-      {{
-        "timestamp": "00:02",
-        "sfx_type": "whoosh | ding | pop | click | notification | impact",
-        "purpose": "transition | emphasis | UI feedback | attention grab"
-      }}
-    ],
-    "audio_visual_sync_score": 8,
-    "silence_moments": [],
-    "sound_off_compatible": true
-  }},
-
-  "brand_elements": {{
-    "logo_appearances": [
-      {{
-        "timestamp": "00:28",
-        "duration_seconds": 2.0,
-        "position": "corner watermark | center | end card | integrated",
-        "size": "small | medium | large | full-screen",
-        "animation": "fade-in | scale-up | reveal | static"
-      }}
-    ],
-    "logo_visible": true,
-    "logo_position": "end card",
-    "brand_colors_detected": ["#FF5733", "#1DA1F2"],
-    "brand_color_consistency": 7,
-    "product_appearances": [
-      {{
-        "timestamp": "00:10",
-        "duration_seconds": 5.0,
-        "shot_type": "hero shot | in-use | unboxing | comparison | detail | lifestyle",
-        "prominence": "primary focus | background | integrated",
-        "context": "hands-on demo | before/after | result showcase"
-      }}
-    ],
-    "has_product_shot": true,
-    "product_visibility_seconds": 15.0,
-    "brand_mentions_audio": 2,
-    "brand_mentions_text": 3
-  }},
-
-  "engagement_predictors": {{
-    "thumb_stop": {{
-      "thumb_stop_score": 8,
-      "first_frame_hook": "What makes first frame attention-grabbing or why it fails",
-      "pattern_interrupt_type": "unexpected visual | bold text | face | motion | color | null",
-      "curiosity_gap": true,
-      "curiosity_gap_description": "How the curiosity gap works",
-      "first_second_elements": ["face", "text", "product", "motion", "contrast"],
-      "visual_contrast_score": 7,
-      "text_hook_present": true,
-      "face_in_first_frame": true
-    }},
-    "scene_change_frequency": 2.5,
-    "visual_variety_score": 7,
-    "uses_fear_of_missing_out": false,
-    "uses_social_proof_signals": true,
-    "uses_controversy_or_hot_take": false,
-    "uses_transformation_narrative": true,
-    "predicted_watch_through_rate": "low (<25%) | medium (25-50%) | high (>50%)",
-    "predicted_engagement_type": "saves | shares | comments | clicks"
-  }},
-
-  "platform_optimization": {{
-    "aspect_ratio": "9:16 | 16:9 | 1:1 | 4:5 | 4:3",
-    "optimal_platforms": ["instagram_reels", "tiktok", "facebook_feed", "youtube_shorts"],
-    "sound_off_compatible": true,
-    "caption_dependency": "none | low | medium | high",
-    "native_feel_score": 7,
-    "native_elements": ["handheld camera", "casual tone", "trending audio"],
-    "duration_seconds": 30.0,
-    "ideal_duration_assessment": "too short | optimal | too long",
-    "safe_zone_compliance": true
-  }},
-
-  "emotional_arc": {{
-    "emotional_beats": [
-      {{
-        "timestamp": "00:00",
-        "primary_emotion": "curiosity",
-        "intensity": 6,
-        "trigger": "Bold opening question"
-      }},
-      {{
-        "timestamp": "00:15",
-        "primary_emotion": "aspiration",
-        "intensity": 8,
-        "trigger": "Transformation reveal"
-      }}
-    ],
-    "emotional_climax_timestamp": "00:22",
-    "tension_build_pattern": "gradual | sudden | oscillating | flat",
-    "resolution_type": "product reveal | transformation | CTA urgency",
-    "dominant_emotional_tone": "aspiration"
-  }},
-
-  "critique": {{
-    "overall_grade": "B+",
-    "overall_assessment": "2-3 sentence assessment of the ad's effectiveness",
-    "strengths": [
-      {{
-        "strength": "What the ad does well",
-        "evidence": "Specific example from the ad",
-        "timestamp": "00:05",
-        "impact": "Why this matters for performance"
-      }}
-    ],
-    "weaknesses": [
-      {{
-        "weakness": "What could be improved",
-        "evidence": "Specific example from the ad",
-        "timestamp": "00:12",
-        "impact": "How this affects performance",
-        "suggested_fix": "Actionable improvement"
-      }}
-    ],
-    "remake_suggestions": [
-      {{
-        "section_to_remake": "hook | middle | CTA | overall pacing | audio",
-        "current_approach": "What the ad currently does",
-        "suggested_approach": "Detailed alternative",
-        "expected_improvement": "CTR | watch time | conversions",
-        "effort_level": "minor tweak | moderate edit | full reshoot",
-        "priority": "high | medium | low"
-      }}
-    ],
-    "quick_wins": ["Add captions", "Extend hook by 1 second", "Add end card CTA"]
-  }}
+  "inferred_audience": "str",
+  "primary_messaging_pillar": "str",
+  "overall_pacing_score": int 1-10,
+  "production_style": "str",
+  "hook_score": int 1-10,
+  "overall_narrative_summary": "str",
+  "timeline": [{{
+    "start_time": "MM:SS", "end_time": "MM:SS", "beat_type": "str",
+    "cinematics": {{"camera_angle": "str", "lighting_style": "str", "cinematic_features": [], "color_grading": "str|null", "motion_type": "str|null", "transition_in": "str|null", "transition_out": "str|null"}},
+    "tone_of_voice": "str",
+    "rhetorical_appeal": {{"mode": "Logos|Pathos|Ethos|Kairos", "description": "str", "secondary_mode": "str|null", "persuasion_techniques": [], "objection_addressed": "str|null"}},
+    "target_audience_cues": "str", "visual_description": "str", "audio_transcript": "str",
+    "emotion": "str|null", "emotion_intensity": int|null,
+    "text_overlays_in_beat": [{{"text": "str", "timestamp": "MM:SS", "duration_seconds": float, "position": "str", "typography": "str|null", "animation": "str|null", "emphasis_type": "str|null", "purpose": "str|null"}}],
+    "key_visual_elements": [], "attention_score": int|null, "improvement_note": "str|null"
+  }}],
+  "copy_analysis": {{"all_text_overlays": [], "headline_text": "str|null", "body_copy": "str|null", "cta_text": "str|null", "copy_framework": "str|null", "framework_execution": "str|null", "reading_level": "str|null", "word_count": int|null, "power_words": [], "sensory_words": []}},
+  "audio_analysis": {{"music": {{"has_music": bool, "genre": "str|null", "tempo": "str|null", "energy_level": "str|null", "mood": "str|null", "music_sync_moments": [], "drop_timestamps": []}}, "voice": {{"has_voiceover": bool, "has_dialogue": bool, "voice_gender": "str|null", "voice_age_range": "str|null", "voice_tone": "str|null", "estimated_wpm": int|null, "accent": "str|null"}}, "sound_effects": [{{"timestamp": "MM:SS", "sfx_type": "str", "purpose": "str|null"}}], "audio_visual_sync_score": int|null, "silence_moments": [], "sound_off_compatible": bool}},
+  "brand_elements": {{"logo_appearances": [{{"timestamp": "MM:SS", "duration_seconds": float, "position": "str", "size": "str", "animation": "str|null"}}], "logo_visible": bool, "logo_position": "str|null", "brand_colors_detected": [], "brand_color_consistency": int|null, "product_appearances": [{{"timestamp": "MM:SS", "duration_seconds": float, "shot_type": "str", "prominence": "str", "context": "str|null"}}], "has_product_shot": bool, "product_visibility_seconds": float|null, "brand_mentions_audio": int, "brand_mentions_text": int}},
+  "engagement_predictors": {{"thumb_stop": {{"thumb_stop_score": int, "first_frame_hook": "str", "pattern_interrupt_type": "str|null", "curiosity_gap": bool, "curiosity_gap_description": "str|null", "first_second_elements": [], "visual_contrast_score": int|null, "text_hook_present": bool, "face_in_first_frame": bool}}, "scene_change_frequency": float|null, "visual_variety_score": int, "uses_fear_of_missing_out": bool, "uses_social_proof_signals": bool, "uses_controversy_or_hot_take": bool, "uses_transformation_narrative": bool, "predicted_watch_through_rate": "str|null", "predicted_engagement_type": "str|null"}},
+  "platform_optimization": {{"aspect_ratio": "str", "optimal_platforms": [], "sound_off_compatible": bool, "caption_dependency": "str", "native_feel_score": int, "native_elements": [], "duration_seconds": float|null, "ideal_duration_assessment": "str|null", "safe_zone_compliance": bool}},
+  "emotional_arc": {{"emotional_beats": [{{"timestamp": "MM:SS", "primary_emotion": "str", "intensity": int, "trigger": "str"}}], "emotional_climax_timestamp": "str|null", "tension_build_pattern": "str|null", "resolution_type": "str|null", "dominant_emotional_tone": "str"}},
+  "critique": {{"overall_grade": "A+ to F", "overall_assessment": "str", "strengths": [{{"strength": "str", "evidence": "str", "timestamp": "str|null", "impact": "str"}}], "weaknesses": [{{"weakness": "str", "evidence": "str", "timestamp": "str|null", "impact": "str", "suggested_fix": "str"}}], "remake_suggestions": [{{"section_to_remake": "str", "current_approach": "str", "suggested_approach": "str", "expected_improvement": "str", "effort_level": "str", "priority": "str"}}], "quick_wins": []}}
 }}
-
-IMPORTANT:
-- Return ONLY valid JSON, no markdown formatting or extra text
-- Be EXHAUSTIVE in visual_description - this is the most critical field
-- Include ALL text overlays verbatim with precise timestamps
-- Include ALL spoken words verbatim in audio_transcript
-- Provide SPECIFIC, ACTIONABLE feedback in critique section
-- Use "Unknown" for fields that cannot be determined
 """
 
 IMAGE_ANALYSIS_PROMPT_V2 = """

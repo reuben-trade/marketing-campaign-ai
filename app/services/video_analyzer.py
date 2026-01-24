@@ -204,14 +204,6 @@ class VideoAnalyzer:
             if not result_text:
                 raise VideoAnalysisError("Empty response from Gemini")
 
-            result_text = result_text.strip()
-            if result_text.startswith("```json"):
-                result_text = result_text[7:]
-            if result_text.startswith("```"):
-                result_text = result_text[3:]
-            if result_text.endswith("```"):
-                result_text = result_text[:-3]
-
             result = json.loads(result_text.strip())
 
             # Handle multi-encoded JSON (Gemini sometimes returns a JSON string
@@ -342,9 +334,11 @@ class VideoAnalyzer:
 
         Returns:
             EnhancedAdAnalysisV2 object with validated structure
-        """
-        try:
-            print("RAW ANALYSIS: ", raw_analysis, "\n")
+        """    
+        try:           
+
+            print(raw_analysis) 
+    
             # Handle case where raw_analysis is a string (multi-encoded JSON).
             # Gemini can return triple+ encoded JSON, so loop until we get a dict.
             max_decode_depth = 5
@@ -361,6 +355,7 @@ class VideoAnalyzer:
 
             # Parse timeline beats
             timeline = []
+            print("[DEBUG] About to .get('timeline')")
             for beat_data in raw_analysis.get("timeline", []):
                 beat = self._parse_enhanced_beat(beat_data)
                 timeline.append(beat)
@@ -369,33 +364,50 @@ class VideoAnalyzer:
             self._validate_ad_components(timeline)
 
             # Parse copy analysis
+            print("[DEBUG] About to .get('copy_analysis')")
             copy_data = raw_analysis.get("copy_analysis", {})
             copy_analysis = self._parse_copy_analysis(copy_data)
 
             # Parse audio analysis (video only)
+            print("[DEBUG] About to .get('audio_analysis')")
             audio_data = raw_analysis.get("audio_analysis")
             audio_analysis = self._parse_audio_analysis(audio_data) if audio_data else None
 
             # Parse brand elements
+            print("[DEBUG] About to .get('brand_elements')")
             brand_data = raw_analysis.get("brand_elements", {})
             brand_elements = self._parse_brand_elements(brand_data)
 
             # Parse engagement predictors
+            print("[DEBUG] About to .get('engagement_predictors')")
             engagement_data = raw_analysis.get("engagement_predictors", {})
             engagement_predictors = self._parse_engagement_predictors(engagement_data)
 
             # Parse platform optimization
+            print("[DEBUG] About to .get('platform_optimization')")
             platform_data = raw_analysis.get("platform_optimization", {})
             platform_optimization = self._parse_platform_optimization(platform_data)
 
             # Parse emotional arc (video only)
+            print("[DEBUG] About to .get('emotional_arc')")
             emotional_data = raw_analysis.get("emotional_arc")
             emotional_arc = self._parse_emotional_arc(emotional_data) if emotional_data else None
 
             # Parse critique
+            print("[DEBUG] About to .get('critique')")
             critique_data = raw_analysis.get("critique", {})
             critique = self._parse_critique(critique_data)
 
+            print("[DEBUG] About to .get('media_type')")
+            print("[DEBUG] About to .get('analysis_version')")
+            print("[DEBUG] About to .get('analysis_confidence')")
+            print("[DEBUG] About to .get('analysis_notes')")
+            print("[DEBUG] About to .get('inferred_audience')")
+            print("[DEBUG] About to .get('primary_messaging_pillar')")
+            print("[DEBUG] About to .get('overall_pacing_score')")
+            print("[DEBUG] About to .get('production_style')")
+            print("[DEBUG] About to .get('hook_score')")
+            print("[DEBUG] About to .get('overall_narrative_summary')")
             return EnhancedAdAnalysisV2(
                 media_type=raw_analysis.get("media_type", "video"),
                 analysis_version=raw_analysis.get("analysis_version", "2.0"),
@@ -406,7 +418,7 @@ class VideoAnalyzer:
                 overall_pacing_score=self._clamp_score(
                     raw_analysis.get("overall_pacing_score", 5)
                 ),
-                production_style=raw_analysis.get("production_style", "Unknown"),
+                production_style=self._sanitize_literal(raw_analysis.get("production_style"), self._VALID_PRODUCTION_STYLES),
                 hook_score=self._clamp_score(raw_analysis.get("hook_score", 5)),
                 timeline=timeline,
                 overall_narrative_summary=raw_analysis.get("overall_narrative_summary", ""),
@@ -435,6 +447,18 @@ class VideoAnalyzer:
         if value is None or value == "null" or value == "None" or value == "":
             return None
         return value
+
+    _VALID_COPY_FRAMEWORKS = {"PAS", "AIDA", "BAB", "FAB", "4Ps", "QUEST", "PASTOR", "SLAP", "STAR", "Custom", "Unknown"}
+    _VALID_PRODUCTION_STYLES = {"High-production Studio", "Authentic UGC", "Hybrid", "Animation", "Stock Footage Mashup", "Screen Recording", "Talking Head", "Documentary Style", "Influencer Native", "Unknown"}
+
+    def _sanitize_literal(self, value: Any, valid_set: set[str], fallback: str = "Unknown") -> str:
+        """Validate a value against allowed literals, returning fallback if not matched."""
+        value = self._sanitize_nullable(value)
+        if value is None:
+            return fallback
+        if value in valid_set:
+            return value
+        return fallback
 
     def _normalize_beat_type(self, beat_type: str) -> str:
         """
@@ -562,26 +586,29 @@ class VideoAnalyzer:
 
     def _parse_copy_analysis(self, data: dict[str, Any]) -> CopyAnalysis:
         """Parse copy analysis section."""
-        text_overlays = [
-            TextOverlay(
-                text=t.get("text", ""),
-                timestamp=t.get("timestamp", "00:00"),
-                duration_seconds=t.get("duration_seconds", 0),
-                position=t.get("position", "center"),
-                typography=t.get("typography"),
-                animation=t.get("animation"),
-                emphasis_type=t.get("emphasis_type"),
-                purpose=t.get("purpose"),
-            )
-            for t in data.get("all_text_overlays", [])
-        ]
+        raw_overlays = data.get("all_text_overlays", [])
+        text_overlays = []
+        for t in raw_overlays:
+            if isinstance(t, str):
+                text_overlays.append(TextOverlay(text=t))
+            elif isinstance(t, dict):
+                text_overlays.append(TextOverlay(
+                    text=t.get("text", ""),
+                    timestamp=t.get("timestamp", "00:00"),
+                    duration_seconds=t.get("duration_seconds", 0),
+                    position=t.get("position", "center"),
+                    typography=t.get("typography"),
+                    animation=t.get("animation"),
+                    emphasis_type=t.get("emphasis_type"),
+                    purpose=t.get("purpose"),
+                ))
 
         return CopyAnalysis(
             all_text_overlays=text_overlays,
             headline_text=self._sanitize_nullable(data.get("headline_text")),
             body_copy=self._sanitize_nullable(data.get("body_copy")),
             cta_text=self._sanitize_nullable(data.get("cta_text")),
-            copy_framework=self._sanitize_nullable(data.get("copy_framework")),
+            copy_framework=self._sanitize_literal(data.get("copy_framework"), self._VALID_COPY_FRAMEWORKS),
             framework_execution=self._sanitize_nullable(data.get("framework_execution")),
             reading_level=self._sanitize_nullable(data.get("reading_level")),
             word_count=data.get("word_count"),

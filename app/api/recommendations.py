@@ -20,6 +20,7 @@ from app.schemas.recommendation import (
 )
 from app.services.recommendation_engine import RecommendationEngine, RecommendationError
 from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
+from app.services.semantic_search_service import SemanticSearchService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -159,33 +160,59 @@ async def generate_recommendations(
             detail="No business strategy found. Please create a strategy first.",
         )
 
-    # Fetch competitor ads with all related data
-    ads_query = (
-        select(Ad)
-        .options(
-            selectinload(Ad.competitor),
-            selectinload(Ad.elements),
-            selectinload(Ad.creative_analysis),
+    # Fetch competitor ads with optional semantic relevance filtering
+    if request.relevance_description:
+        # Use semantic search to filter relevant ads
+        search_service = SemanticSearchService()
+        relevant_ads = await search_service.filter_relevant_ads(
+            db=db,
+            intent_description=request.relevance_description,
+            intent_themes=request.relevance_themes or [],
+            min_similarity=request.min_similarity,
         )
-        .where(
-            and_(
-                Ad.analyzed == True,
-                Ad.analysis_status == "completed",
+
+        # Apply additional filters and sorting
+        ads = []
+        for ad in relevant_ads:
+            # Check date range filters
+            if request.date_range_start and ad.publication_date < request.date_range_start:
+                continue
+            if request.date_range_end and ad.publication_date > request.date_range_end:
+                continue
+            ads.append(ad)
+
+        # Sort by engagement and limit
+        ads.sort(key=lambda ad: ad.total_engagement, reverse=True)
+        ads = ads[:request.top_n_ads]
+
+    else:
+        # Traditional filtering by engagement
+        ads_query = (
+            select(Ad)
+            .options(
+                selectinload(Ad.competitor),
+                selectinload(Ad.elements),
+                selectinload(Ad.creative_analysis),
+            )
+            .where(
+                and_(
+                    Ad.analyzed == True,  # noqa: E712
+                    Ad.analysis_status == "completed",
+                )
             )
         )
-    )
 
-    if request.date_range_start:
-        ads_query = ads_query.where(Ad.publication_date >= request.date_range_start)
-    if request.date_range_end:
-        ads_query = ads_query.where(Ad.publication_date <= request.date_range_end)
+        if request.date_range_start:
+            ads_query = ads_query.where(Ad.publication_date >= request.date_range_start)
+        if request.date_range_end:
+            ads_query = ads_query.where(Ad.publication_date <= request.date_range_end)
 
-    ads_query = ads_query.order_by(
-        (Ad.likes + Ad.comments + Ad.shares).desc()
-    ).limit(request.top_n_ads)
+        ads_query = ads_query.order_by(
+            (Ad.likes + Ad.comments + Ad.shares).desc()
+        ).limit(request.top_n_ads)
 
-    result = await db.execute(ads_query)
-    ads = result.scalars().all()
+        result = await db.execute(ads_query)
+        ads = result.scalars().all()
 
     if not ads:
         raise HTTPException(

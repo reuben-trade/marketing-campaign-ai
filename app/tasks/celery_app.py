@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.tasks.discovery_tasks",
         "app.tasks.retrieval_tasks",
         "app.tasks.analysis_tasks",
+        "app.tasks.scoring_tasks",
     ],
 )
 
@@ -48,6 +49,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour="4", minute="0"),
         "options": {"queue": "analysis"},
     },
+    "recalculate-percentiles-daily": {
+        "task": "recalculate_percentiles",
+        "schedule": crontab(hour="3", minute="30"),
+        "options": {"queue": "scoring"},
+    },
 }
 
 celery_app.conf.task_queues = {
@@ -55,10 +61,12 @@ celery_app.conf.task_queues = {
     "discovery": {},
     "retrieval": {},
     "analysis": {},
+    "scoring": {},
 }
 
 celery_app.conf.task_routes = {
     "app.tasks.discovery_tasks.*": {"queue": "discovery"},
     "app.tasks.retrieval_tasks.*": {"queue": "retrieval"},
     "app.tasks.analysis_tasks.*": {"queue": "analysis"},
+    "app.tasks.scoring_tasks.*": {"queue": "scoring"},
 }

@@ -25,6 +25,7 @@ import {
   useLatestRecommendation,
   useGenerateRecommendation,
 } from '@/hooks/useRecommendations';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Lightbulb,
   Loader2,
@@ -46,6 +47,8 @@ import {
   Zap,
   Calendar,
   DollarSign,
+  X,
+  Plus,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type {
@@ -65,6 +68,9 @@ export default function IdeasPage() {
   const [focusAreas, setFocusAreas] = useState<string[]>(['video', 'engagement']);
   const [numVideoIdeas, setNumVideoIdeas] = useState(2);
   const [numImageIdeas, setNumImageIdeas] = useState(1);
+  const [relevanceDescription, setRelevanceDescription] = useState('');
+  const [relevanceThemes, setRelevanceThemes] = useState<string[]>([]);
+  const [themeInput, setThemeInput] = useState('');
 
   const { data: recommendationsData } = useRecommendations({ page_size: 10 });
   const { data: latestRecommendation, isLoading: latestLoading } = useLatestRecommendation();
@@ -78,6 +84,18 @@ export default function IdeasPage() {
     );
   };
 
+  const addTheme = () => {
+    const trimmed = themeInput.trim();
+    if (trimmed && !relevanceThemes.includes(trimmed)) {
+      setRelevanceThemes((prev) => [...prev, trimmed]);
+      setThemeInput('');
+    }
+  };
+
+  const removeTheme = (theme: string) => {
+    setRelevanceThemes((prev) => prev.filter((t) => t !== theme));
+  };
+
   const onGenerate = async () => {
     await generateRecommendation.mutateAsync({
       request: {
@@ -85,6 +103,8 @@ export default function IdeasPage() {
         focus_areas: focusAreas,
         num_video_ideas: numVideoIdeas,
         num_image_ideas: numImageIdeas,
+        relevance_description: relevanceDescription || undefined,
+        relevance_themes: relevanceThemes.length > 0 ? relevanceThemes : undefined,
       },
     });
   };
@@ -111,6 +131,65 @@ export default function IdeasPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            {/* Content Description */}
+            <div className="space-y-2">
+              <Label>What do you want to advertise?</Label>
+              <Textarea
+                placeholder="Describe what you're advertising - e.g. 'A new protein powder targeting gym-goers aged 20-35, emphasizing natural ingredients and fast recovery'"
+                value={relevanceDescription}
+                onChange={(e) => setRelevanceDescription(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-gray-500">
+                This helps filter competitor ads to find the most relevant examples for your content
+              </p>
+            </div>
+
+            {/* Themes */}
+            <div className="space-y-2">
+              <Label>Themes or angles to explore</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g. before/after transformation, social proof, urgency..."
+                  value={themeInput}
+                  onChange={(e) => setThemeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTheme();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={addTheme}
+                  disabled={!themeInput.trim()}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {relevanceThemes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {relevanceThemes.map((theme) => (
+                    <Badge key={theme} variant="secondary" className="flex items-center gap-1 pr-1">
+                      {theme}
+                      <button
+                        onClick={() => removeTheme(theme)}
+                        className="ml-1 rounded-full hover:bg-gray-300 p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Analysis Settings */}
             <div className="flex flex-wrap items-end gap-6">
               <div className="space-y-2">
                 <Label>Analyze top ads</Label>
@@ -155,6 +234,7 @@ export default function IdeasPage() {
               </div>
             </div>
 
+            {/* Idea counts and generate button */}
             <div className="flex flex-wrap items-end gap-6">
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">

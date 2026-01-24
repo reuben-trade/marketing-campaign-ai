@@ -99,86 +99,6 @@ class VideoAnalyzer:
             video_analysis=video_analysis,
         )
 
-    def parse_enhanced_analysis(self, raw_analysis: dict[str, Any]) -> EnhancedAdAnalysis:
-        """
-        Parse raw analysis into an EnhancedAdAnalysis schema with narrative beats.
-
-        Args:
-            raw_analysis: Raw analysis dictionary from the AI (new format)
-
-        Returns:
-            EnhancedAdAnalysis object with validated structure
-
-        Raises:
-            VideoAnalysisError: If the response doesn't match expected schema
-        """
-        try:
-            # Parse timeline beats
-            timeline = []
-            for beat_data in raw_analysis.get("timeline", []):
-                cinematics_data = beat_data.get("cinematics", {})
-                rhetorical_data = beat_data.get("rhetorical_appeal", {})
-
-                cinematics = CinematicDetails(
-                    camera_angle=cinematics_data.get("camera_angle", "Unknown"),
-                    lighting_style=cinematics_data.get("lighting_style", "Unknown"),
-                    cinematic_features=cinematics_data.get("cinematic_features", []),
-                )
-
-                rhetorical_appeal = RhetoricalAppeal(
-                    mode=rhetorical_data.get("mode", "Unknown"),
-                    description=rhetorical_data.get("description", ""),
-                )
-
-                beat = NarrativeBeat(
-                    start_time=beat_data.get("start_time", "00:00"),
-                    end_time=beat_data.get("end_time", "00:00"),
-                    beat_type=beat_data.get("beat_type", "Unknown"),
-                    cinematics=cinematics,
-                    tone_of_voice=beat_data.get("tone_of_voice", ""),
-                    rhetorical_appeal=rhetorical_appeal,
-                    target_audience_cues=beat_data.get("target_audience_cues", ""),
-                    visual_description=beat_data.get("visual_description", ""),
-                    audio_transcript=beat_data.get("audio_transcript", ""),
-                )
-                timeline.append(beat)
-
-            # Derive hook_score from first beat if not provided
-            hook_score = raw_analysis.get("hook_score")
-            if hook_score is None and timeline:
-                # Default to overall_pacing_score if hook_score not explicitly set
-                hook_score = raw_analysis.get("overall_pacing_score", 5)
-
-            return EnhancedAdAnalysis(
-                inferred_audience=raw_analysis.get("inferred_audience", ""),
-                primary_messaging_pillar=raw_analysis.get("primary_messaging_pillar", ""),
-                overall_pacing_score=raw_analysis.get("overall_pacing_score", 5),
-                production_style=raw_analysis.get("production_style", "Unknown"),
-                hook_score=hook_score if hook_score is not None else 5,
-                timeline=timeline,
-                overall_narrative_summary=raw_analysis.get("overall_narrative_summary", ""),
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to parse enhanced analysis: {e}")
-            raise VideoAnalysisError(f"Failed to parse enhanced analysis: {e}") from e
-
-    def get_video_intelligence(self, raw_analysis: dict[str, Any]) -> dict[str, Any]:
-        """
-        Extract video intelligence data for persistence in JSONB column.
-
-        This returns the validated and structured Creative DNA that can be
-        stored directly in the video_intelligence column for future AI critiques.
-
-        Args:
-            raw_analysis: Raw analysis dictionary from the AI
-
-        Returns:
-            Validated video intelligence dictionary ready for JSONB storage
-        """
-        enhanced = self.parse_enhanced_analysis(raw_analysis)
-        return enhanced.model_dump()
-
     def extract_hook_score(self, raw_analysis: dict[str, Any]) -> int:
         """
         Extract hook score from the analysis.
@@ -294,6 +214,20 @@ class VideoAnalyzer:
 
             result = json.loads(result_text.strip())
 
+            # Handle multi-encoded JSON (Gemini sometimes returns a JSON string
+            # containing a JSON string instead of a JSON object)
+            max_decode_depth = 5
+            decode_attempts = 0
+            while isinstance(result, str) and decode_attempts < max_decode_depth:
+                result = json.loads(result)
+                decode_attempts += 1
+
+            if not isinstance(result, dict):
+                raise VideoAnalysisError(
+                    f"Gemini response is not a JSON object after decoding. "
+                    f"Got type: {type(result).__name__}"
+                )
+
             self.client.files.delete(name=video_file.name)
 
             return result
@@ -394,7 +328,7 @@ class VideoAnalyzer:
         logger.info(f"Ad components found: {found_components}")
 
     def parse_enhanced_analysis_v2(
-        self, raw_analysis: dict[str, Any]
+        self, raw_analysis: dict[str, Any] | str
     ) -> EnhancedAdAnalysisV2:
         """
         Parse raw V2 analysis into an EnhancedAdAnalysisV2 schema.
@@ -403,12 +337,28 @@ class VideoAnalyzer:
         ensuring the analysis is always valid even if some fields are missing.
 
         Args:
-            raw_analysis: Raw analysis dictionary from the AI (V2 format)
+            raw_analysis: Raw analysis dictionary from the AI (V2 format),
+                or a JSON string that will be parsed first.
 
         Returns:
             EnhancedAdAnalysisV2 object with validated structure
         """
         try:
+            print("RAW ANALYSIS: ", raw_analysis, "\n")
+            # Handle case where raw_analysis is a string (multi-encoded JSON).
+            # Gemini can return triple+ encoded JSON, so loop until we get a dict.
+            max_decode_depth = 5
+            decode_attempts = 0
+            while isinstance(raw_analysis, str) and decode_attempts < max_decode_depth:
+                raw_analysis = json.loads(raw_analysis)
+                decode_attempts += 1
+
+            if not isinstance(raw_analysis, dict):
+                raise VideoAnalysisError(
+                    f"Analysis result is not a JSON object after {decode_attempts} decode attempts. "
+                    f"Got type: {type(raw_analysis).__name__}"
+                )
+
             # Parse timeline beats
             timeline = []
             for beat_data in raw_analysis.get("timeline", []):
@@ -603,10 +553,10 @@ class VideoAnalyzer:
             visual_description=beat_data.get("visual_description", ""),
             audio_transcript=beat_data.get("audio_transcript", ""),
             emotion=self._sanitize_nullable(beat_data.get("emotion")),
-            emotion_intensity=beat_data.get("emotion_intensity"),
+            emotion_intensity=self._clamp_score(beat_data["emotion_intensity"]) if beat_data.get("emotion_intensity") else None,
             text_overlays_in_beat=text_overlays,
             key_visual_elements=beat_data.get("key_visual_elements", []),
-            attention_score=beat_data.get("attention_score"),
+            attention_score=self._clamp_score(beat_data["attention_score"]) if beat_data.get("attention_score") else None,
             improvement_note=self._sanitize_nullable(beat_data.get("improvement_note")),
         )
 
@@ -679,7 +629,7 @@ class VideoAnalyzer:
             music=music,
             voice=voice,
             sound_effects=sound_effects,
-            audio_visual_sync_score=data.get("audio_visual_sync_score"),
+            audio_visual_sync_score=self._clamp_score(data["audio_visual_sync_score"]) if data.get("audio_visual_sync_score") else None,
             silence_moments=data.get("silence_moments", []),
             sound_off_compatible=data.get("sound_off_compatible", False),
         )
@@ -715,7 +665,7 @@ class VideoAnalyzer:
             logo_visible=data.get("logo_visible", False),
             logo_position=data.get("logo_position"),
             brand_colors_detected=data.get("brand_colors_detected", []),
-            brand_color_consistency=data.get("brand_color_consistency"),
+            brand_color_consistency=self._clamp_score(data["brand_color_consistency"]) if data.get("brand_color_consistency") else None,
             product_appearances=product_appearances,
             has_product_shot=data.get("has_product_shot", False),
             product_visibility_seconds=data.get("product_visibility_seconds"),
@@ -734,7 +684,7 @@ class VideoAnalyzer:
             curiosity_gap=thumb_data.get("curiosity_gap", False),
             curiosity_gap_description=thumb_data.get("curiosity_gap_description"),
             first_second_elements=thumb_data.get("first_second_elements", []),
-            visual_contrast_score=thumb_data.get("visual_contrast_score"),
+            visual_contrast_score=self._clamp_score(thumb_data["visual_contrast_score"]) if thumb_data.get("visual_contrast_score") else None,
             text_hook_present=thumb_data.get("text_hook_present", False),
             face_in_first_frame=thumb_data.get("face_in_first_frame", False),
         )
@@ -834,7 +784,7 @@ class VideoAnalyzer:
             competitive_position=data.get("competitive_position"),
         )
 
-    def get_video_intelligence_v2(
+    def get_video_intelligence(
         self, analysis: dict[str, Any] | EnhancedAdAnalysisV2
     ) -> dict[str, Any]:
         """

@@ -27,7 +27,9 @@ from app.services.creative_downloader import CreativeDownloader, CreativeDownloa
 from app.services.duplicate_detection import DuplicateDetector
 from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
 from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
+from app.services.composite_scoring_service import CompositeScoreCalculator
 from app.api.notifications import create_new_ads_notification
+from app.schemas.search import ScoreCalculationResponse, PercentileRecalculationResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,6 +54,8 @@ async def list_ads(
     analyzed: bool | None = None,
     creative_type: str | None = None,
     min_engagement: int | None = None,
+    min_overall_score: float | None = Query(None, ge=0, le=10, description="Minimum overall marketing score (1-10)"),
+    min_composite_score: float | None = Query(None, ge=0, le=1, description="Minimum composite score (0-1)"),
 ) -> AdListResponse:
     """List ads with filtering and pagination."""
     query = select(Ad).options(selectinload(Ad.competitor))
@@ -65,6 +69,10 @@ async def list_ads(
         filters.append(Ad.creative_type == creative_type)
     if min_engagement:
         filters.append((Ad.likes + Ad.comments + Ad.shares) >= min_engagement)
+    if min_composite_score is not None:
+        filters.append(Ad.composite_score >= min_composite_score)
+    # For overall_score, we need to filter using JSON path since it's nested in analysis
+    # Note: We'll filter this in Python after query for simplicity, or use JSON operators
 
     if filters:
         query = query.where(and_(*filters))
@@ -80,6 +88,12 @@ async def list_ads(
 
     items = []
     for ad in ads:
+        # Apply overall_score filter in Python (since it's nested in JSONB)
+        if min_overall_score is not None:
+            ad_overall_score = ad.overall_score
+            if ad_overall_score is None or ad_overall_score < min_overall_score:
+                continue
+
         ad_response = AdResponse(
             id=ad.id,
             competitor_id=ad.competitor_id,
@@ -113,6 +127,12 @@ async def list_ads(
             analysis_status=ad.analysis_status,
             total_engagement=ad.total_engagement,
             overall_score=ad.overall_score,
+            composite_score=ad.composite_score,
+            engagement_rate_percentile=ad.engagement_rate_percentile,
+            survivorship_score=ad.survivorship_score,
+            ad_summary=ad.ad_summary,
+            original_ad_id=ad.original_ad_id,
+            duplicate_count=ad.duplicate_count,
         )
         items.append(ad_response)
 
@@ -241,6 +261,12 @@ async def get_ad(
         analysis_status=ad.analysis_status,
         total_engagement=ad.total_engagement,
         overall_score=ad.overall_score,
+        composite_score=ad.composite_score,
+        engagement_rate_percentile=ad.engagement_rate_percentile,
+        survivorship_score=ad.survivorship_score,
+        ad_summary=ad.ad_summary,
+        original_ad_id=ad.original_ad_id,
+        duplicate_count=ad.duplicate_count,
     )
 
 
@@ -985,4 +1011,145 @@ async def scrape_ad_details(
         analysis_status=ad.analysis_status,
         total_engagement=ad.total_engagement,
         overall_score=ad.overall_score,
+        composite_score=ad.composite_score,
+        engagement_rate_percentile=ad.engagement_rate_percentile,
+        survivorship_score=ad.survivorship_score,
+        ad_summary=ad.ad_summary,
+        original_ad_id=ad.original_ad_id,
+        duplicate_count=ad.duplicate_count,
     )
+
+@router.post("/calculate-scores", response_model=ScoreCalculationResponse)
+async def calculate_composite_scores(
+    db: DbSession,
+    limit: int = Query(100, ge=1, le=1000),
+) -> ScoreCalculationResponse:
+    """Calculate composite scores for analyzed ads without scores."""
+    try:
+        score_calculator = CompositeScoreCalculator()
+
+        result = await db.execute(
+            select(Ad)
+            .options(selectinload(Ad.competitor), selectinload(Ad.creative_analysis))
+            .where(
+                Ad.analyzed == True,  # noqa: E712
+                Ad.analysis_status == "completed",
+                Ad.composite_score.is_(None),
+            )
+            .limit(limit)
+        )
+        ads = result.scalars().all()
+
+        if not ads:
+            return ScoreCalculationResponse(processed=0, failed=0)
+
+        processed = 0
+        failed = 0
+
+        for ad in ads:
+            try:
+                await score_calculator.calculate_composite_score(db, ad)
+                processed += 1
+                if processed % 10 == 0:
+                    await db.commit()
+            except Exception as e:
+                logger.error(f"Failed to calculate score for ad {ad.id}: {e}")
+                failed += 1
+
+        await db.commit()
+        return ScoreCalculationResponse(processed=processed, failed=failed)
+
+    except Exception as e:
+        logger.error(f"Score calculation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Score calculation failed: {str(e)}",
+        )
+
+
+@router.post("/recalculate-percentiles", response_model=PercentileRecalculationResponse)
+async def recalculate_engagement_percentiles(db: DbSession) -> PercentileRecalculationResponse:
+    """Recalculate engagement percentiles for all ads."""
+    try:
+        score_calculator = CompositeScoreCalculator()
+        result = await score_calculator.recalculate_all_percentiles(db)
+        return PercentileRecalculationResponse(
+            processed=result["processed"],
+            skipped=result["skipped"],
+        )
+    except Exception as e:
+        logger.error(f"Percentile recalculation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Percentile recalculation failed: {str(e)}",
+        )
+
+
+@router.get("/top-performers", response_model=AdListResponse)
+async def get_top_performers(
+    db: DbSession,
+    limit: int = Query(10, ge=1, le=50),
+    min_score: float = Query(0.0, ge=0.0, le=1.0),
+) -> AdListResponse:
+    """Get top-performing ads by composite score."""
+    try:
+        result = await db.execute(
+            select(Ad)
+            .where(Ad.composite_score.isnot(None), Ad.composite_score >= min_score)
+            .order_by(Ad.composite_score.desc())
+            .limit(limit)
+        )
+        ads = result.scalars().all()
+
+        items = [
+            AdResponse(
+                id=ad.id,
+                competitor_id=ad.competitor_id,
+                ad_library_id=ad.ad_library_id,
+                ad_snapshot_url=ad.ad_snapshot_url,
+                creative_type=ad.creative_type,
+                creative_storage_path=ad.creative_storage_path,
+                creative_url=ad.creative_url,
+                ad_copy=ad.ad_copy,
+                ad_headline=ad.ad_headline,
+                ad_description=ad.ad_description,
+                cta_text=ad.cta_text,
+                likes=ad.likes,
+                comments=ad.comments,
+                shares=ad.shares,
+                impressions=ad.impressions,
+                publication_date=ad.publication_date,
+                started_running_date=ad.started_running_date,
+                total_active_time=ad.total_active_time,
+                platforms=ad.platforms,
+                link_headline=ad.link_headline,
+                link_description=ad.link_description,
+                additional_links=ad.additional_links,
+                form_fields=ad.form_fields,
+                analysis=ad.analysis,
+                video_intelligence=ad.video_intelligence,
+                retrieved_date=ad.retrieved_date,
+                analyzed_date=ad.analyzed_date,
+                analyzed=ad.analyzed,
+                download_status=ad.download_status,
+                analysis_status=ad.analysis_status,
+                total_engagement=ad.total_engagement,
+                overall_score=ad.overall_score,
+                composite_score=ad.composite_score,
+                engagement_rate_percentile=ad.engagement_rate_percentile,
+                survivorship_score=ad.survivorship_score,
+                ad_summary=ad.ad_summary,
+                original_ad_id=ad.original_ad_id,
+                duplicate_count=ad.duplicate_count,
+            )
+            for ad in ads
+        ]
+
+        return AdListResponse(items=items, total=len(items), page=1, page_size=limit)
+
+    except Exception as e:
+        logger.error(f"Getting top performers failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Getting top performers failed: {str(e)}",
+        )

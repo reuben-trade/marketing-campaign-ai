@@ -214,6 +214,21 @@ export default function CritiquePage() {
     onBeatChange: () => {},
   });
 
+  // Spacebar to play/pause video
+  useEffect(() => {
+    if (!isVideo || !effectiveVideoUrl) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        togglePlayPause();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isVideo, effectiveVideoUrl, togglePlayPause]);
+
   // Cleanup object URL on unmount
   useEffect(() => {
     return () => {
@@ -653,18 +668,103 @@ function CritiqueResults({
               </Button>
             </div>
 
-            {/* Current Beat Indicator */}
+            {/* Current Beat Feedback */}
             {currentBeat && (
-              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge className={BEAT_COLORS[currentBeat.beat_type]}>{currentBeat.beat_type}</Badge>
-                  <span className="text-sm text-gray-500">
-                    {currentBeat.start_time} - {currentBeat.end_time}
-                  </span>
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-3">
+                {/* Beat header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${BEAT_COLORS[currentBeat.beat_type]} text-white`}>
+                      {currentBeat.beat_type}
+                    </Badge>
+                    <span className="text-sm text-gray-500 font-mono">
+                      {currentBeat.start_time} - {currentBeat.end_time}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {currentBeat.attention_score != null && (
+                      <div className="flex items-center gap-1">
+                        <Target className="h-3.5 w-3.5 text-blue-500" />
+                        <span className="text-xs font-medium text-blue-700">
+                          Attention: {currentBeat.attention_score}/10
+                        </span>
+                      </div>
+                    )}
+                    {currentBeat.emotion && (
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="h-3.5 w-3.5 text-purple-500" />
+                        <span className="text-xs font-medium text-purple-700 capitalize">
+                          {currentBeat.emotion}
+                          {currentBeat.emotion_intensity != null && ` (${currentBeat.emotion_intensity}/10)`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-gray-700">
-                  {currentBeat.audio_transcript || currentBeat.visual_description}
-                </p>
+
+                {/* Transcript / Visual description */}
+                {(currentBeat.audio_transcript || currentBeat.visual_description) && (
+                  <p className="text-sm text-gray-700">
+                    {currentBeat.audio_transcript || currentBeat.visual_description}
+                  </p>
+                )}
+
+                {/* Cinematics & Rhetorical info */}
+                <div className="flex flex-wrap gap-1.5">
+                  {currentBeat.cinematics?.camera_angle && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {currentBeat.cinematics.camera_angle}
+                    </Badge>
+                  )}
+                  {currentBeat.cinematics?.lighting_style && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {currentBeat.cinematics.lighting_style}
+                    </Badge>
+                  )}
+                  {currentBeat.cinematics?.motion_type && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {currentBeat.cinematics.motion_type}
+                    </Badge>
+                  )}
+                  {currentBeat.rhetorical_appeal?.mode && currentBeat.rhetorical_appeal.mode !== 'Unknown' && (
+                    <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700">
+                      {currentBeat.rhetorical_appeal.mode}
+                    </Badge>
+                  )}
+                  {currentBeat.rhetorical_appeal?.persuasion_techniques?.map((tech, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px] border-indigo-300 text-indigo-700">
+                      {tech}
+                    </Badge>
+                  ))}
+                  {currentBeat.tone_of_voice && (
+                    <Badge variant="outline" className="text-[10px] border-gray-300">
+                      {currentBeat.tone_of_voice}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Improvement note */}
+                {currentBeat.improvement_note && (
+                  <div className="flex items-start gap-2 p-2.5 bg-orange-50 border border-orange-200 rounded-md">
+                    <Lightbulb className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-orange-800">{currentBeat.improvement_note}</p>
+                  </div>
+                )}
+
+                {/* Text overlays in this beat */}
+                {currentBeat.text_overlays_in_beat?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentBeat.text_overlays_in_beat.map((overlay, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-white border rounded"
+                      >
+                        <span className="font-medium">&ldquo;{overlay.text}&rdquo;</span>
+                        <span className="text-gray-400">@ {overlay.timestamp}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

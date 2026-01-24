@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ads, competitors, critique, notifications, recommendations, strategy
+from app.api import ads, competitors, critique, notifications, recommendations, search, strategy
 from app.config import get_settings
 
 
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(strategy.router, prefix="/api/strategy", tags=["Strategy"])
 app.include_router(competitors.router, prefix="/api/competitors", tags=["Competitors"])
 app.include_router(ads.router, prefix="/api/ads", tags=["Ads"])
+app.include_router(search.router, prefix="/api/search", tags=["Search"])
 app.include_router(recommendations.router, prefix="/api/recommendations", tags=["Recommendations"])
 app.include_router(critique.router, prefix="/api/critique", tags=["Critique"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])

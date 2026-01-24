@@ -168,7 +168,8 @@ async def generate_recommendations(
             db=db,
             intent_description=request.relevance_description,
             intent_themes=request.relevance_themes or [],
-            min_similarity=request.min_similarity,
+            #min_similarity=request.min_similarity,
+            min_similarity=0 #TODO: Give this a dynamic value, will be better with more ads
         )
 
         # Apply additional filters and sorting

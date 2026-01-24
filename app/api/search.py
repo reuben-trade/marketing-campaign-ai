@@ -43,12 +43,13 @@ async def semantic_search(
     try:
         search_service = SemanticSearchService()
 
-        # Perform semantic search (ordered by similarity, no threshold filter)
+        # Perform semantic search
         results = await search_service.search_ads(
             db=db,
             query=request.query,
             filters=request.filters,
             limit=request.limit,
+            min_similarity=request.min_similarity,
         )
 
         # Convert to AdWithSimilarity objects

@@ -532,23 +532,7 @@ async def analyze_single_file(
         # Analyze the file
         segments = await analyzer.analyze_project_file(db, project_file)
 
-        return [
-            UserVideoSegmentResponse(
-                id=s.id,
-                project_id=s.project_id,
-                source_file_id=s.source_file_id,
-                source_file_name=s.source_file_name,
-                source_file_url=s.source_file_url,
-                timestamp_start=s.timestamp_start,
-                timestamp_end=s.timestamp_end,
-                duration_seconds=s.duration_seconds,
-                visual_description=s.visual_description,
-                action_tags=s.action_tags,
-                thumbnail_url=s.thumbnail_url,
-                created_at=s.created_at,
-            )
-            for s in segments
-        ]
+        return [UserVideoSegmentResponse.model_validate(s) for s in segments]
     except UserContentAnalyzerError as e:
         logger.error(f"Analysis failed for file {file_id}: {e}")
         raise HTTPException(
@@ -585,21 +569,5 @@ async def list_project_segments(
     return ProjectSegmentsResponse(
         project_id=project_id,
         total_segments=len(segments),
-        segments=[
-            UserVideoSegmentResponse(
-                id=s.id,
-                project_id=s.project_id,
-                source_file_id=s.source_file_id,
-                source_file_name=s.source_file_name,
-                source_file_url=s.source_file_url,
-                timestamp_start=s.timestamp_start,
-                timestamp_end=s.timestamp_end,
-                duration_seconds=s.duration_seconds,
-                visual_description=s.visual_description,
-                action_tags=s.action_tags,
-                thumbnail_url=s.thumbnail_url,
-                created_at=s.created_at,
-            )
-            for s in segments
-        ],
+        segments=[UserVideoSegmentResponse.model_validate(s) for s in segments],
     )

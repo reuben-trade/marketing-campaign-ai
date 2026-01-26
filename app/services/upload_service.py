@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import UploadFile
 from sqlalchemy import func, select
@@ -10,23 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
 from app.models.project_file import ProjectFile
+from app.utils.media_types import (
+    MAX_VIDEO_SIZE_BYTES,
+    VIDEO_EXTENSIONS,
+    get_video_content_type,
+    is_video_file,
+)
 from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
 
 logger = logging.getLogger(__name__)
 
-# Supported video file types
-VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "avi", "m4v", "mkv"}
-VIDEO_MIME_TYPES = {
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-    "video/x-msvideo",
-    "video/x-m4v",
-    "video/x-matroska",
-}
-
-# File size limits
-MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100MB per file
 MB_TO_BYTES = 1024 * 1024
 
 
@@ -40,6 +33,15 @@ class UploadValidationError(UploadError):
     """Exception raised for upload validation errors."""
 
     pass
+
+
+@dataclass
+class ValidatedFile:
+    """A file that has been validated and its content cached."""
+
+    file: UploadFile
+    content: bytes
+    size: int
 
 
 @dataclass
@@ -60,33 +62,10 @@ class UploadSummary:
     """Summary of upload operation."""
 
     project_id: uuid.UUID
-    uploaded_files: list[UploadResult]
-    total_files: int
-    total_size_bytes: int
-    failed_files: list[dict]
-
-
-def is_video_file(filename: str, content_type: str | None) -> bool:
-    """Check if file is a supported video format."""
-    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    return extension in VIDEO_EXTENSIONS or content_type in VIDEO_MIME_TYPES
-
-
-def get_content_type(filename: str, provided_content_type: str | None) -> str:
-    """Get the content type for a file."""
-    if provided_content_type and provided_content_type in VIDEO_MIME_TYPES:
-        return provided_content_type
-
-    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    extension_to_mime = {
-        "mp4": "video/mp4",
-        "mov": "video/quicktime",
-        "webm": "video/webm",
-        "avi": "video/x-msvideo",
-        "m4v": "video/x-m4v",
-        "mkv": "video/x-matroska",
-    }
-    return extension_to_mime.get(extension, "video/mp4")
+    uploaded_files: list[UploadResult] = field(default_factory=list)
+    total_files: int = 0
+    total_size_bytes: int = 0
+    failed_files: list[dict] = field(default_factory=list)
 
 
 class UploadService:
@@ -115,18 +94,27 @@ class UploadService:
         row = result.one()
         return int(row[0]), int(row[1])
 
-    async def validate_upload(
+    async def validate_and_read_files(
         self,
         project: Project,
         files: list[UploadFile],
-    ) -> None:
+    ) -> list[ValidatedFile]:
         """
-        Validate upload request against project constraints.
+        Validate upload request and read file contents.
+
+        This reads each file once and caches the content for later upload,
+        avoiding double reads.
+
+        Args:
+            project: The project to upload to
+            files: List of files to validate
+
+        Returns:
+            List of ValidatedFile with cached content
 
         Raises:
             UploadValidationError: If validation fails
         """
-        # Check if any files provided
         if not files:
             raise UploadValidationError("No files provided")
 
@@ -137,7 +125,9 @@ class UploadService:
         new_file_count = current_count + len(files)
         new_total_size = current_size
 
-        # Validate each file
+        validated_files: list[ValidatedFile] = []
+
+        # Validate and read each file
         for file in files:
             if not file.filename:
                 raise UploadValidationError("File without filename provided")
@@ -149,17 +139,15 @@ class UploadService:
                     f"Supported formats: {', '.join(sorted(VIDEO_EXTENSIONS))}"
                 )
 
-            # Read file to get size (we need to do this anyway for upload)
+            # Read file content once and cache it
             content = await file.read()
-            await file.seek(0)  # Reset for later reading
-
             file_size = len(content)
 
             # Check individual file size
-            if file_size > MAX_FILE_SIZE_BYTES:
+            if file_size > MAX_VIDEO_SIZE_BYTES:
                 raise UploadValidationError(
                     f"File '{file.filename}' exceeds maximum size of "
-                    f"{MAX_FILE_SIZE_BYTES // MB_TO_BYTES}MB"
+                    f"{MAX_VIDEO_SIZE_BYTES // MB_TO_BYTES}MB"
                 )
 
             # Check for empty file
@@ -167,6 +155,7 @@ class UploadService:
                 raise UploadValidationError(f"File '{file.filename}' is empty")
 
             new_total_size += file_size
+            validated_files.append(ValidatedFile(file=file, content=content, size=file_size))
 
         # Check file count limit
         if new_file_count > project.max_videos:
@@ -183,6 +172,8 @@ class UploadService:
                 f"Current: {current_size / MB_TO_BYTES:.1f}MB, "
                 f"After upload: {new_total_size / MB_TO_BYTES:.1f}MB"
             )
+
+        return validated_files
 
     async def upload_files(
         self,
@@ -202,22 +193,22 @@ class UploadService:
         Raises:
             UploadValidationError: If validation fails
         """
-        # Validate first
-        await self.validate_upload(project, files)
+        # Validate and read files once
+        validated_files = await self.validate_and_read_files(project, files)
 
         uploaded_files: list[UploadResult] = []
         failed_files: list[dict] = []
         total_size = 0
 
-        for file in files:
+        for validated in validated_files:
             try:
-                result = await self._upload_single_file(project.id, file)
+                result = await self._upload_validated_file(project.id, validated)
                 uploaded_files.append(result)
                 total_size += result.file_size_bytes
             except Exception as e:
-                logger.error(f"Failed to upload file {file.filename}: {e}")
+                logger.error(f"Failed to upload file {validated.file.filename}: {e}")
                 failed_files.append({
-                    "filename": file.filename,
+                    "filename": validated.file.filename,
                     "error": str(e),
                 })
 
@@ -236,28 +227,22 @@ class UploadService:
             failed_files=failed_files,
         )
 
-    async def _upload_single_file(
+    async def _upload_validated_file(
         self,
         project_id: uuid.UUID,
-        file: UploadFile,
+        validated: ValidatedFile,
     ) -> UploadResult:
-        """Upload a single file."""
+        """Upload a validated file using cached content."""
         file_id = uuid.uuid4()
-        content = await file.read()
-        file_size = len(content)
-        content_type = get_content_type(file.filename, file.content_type)
+        content_type = get_video_content_type(validated.file.filename, validated.file.content_type)
 
-        # Generate storage filename (sanitized)
-        extension = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "mp4"
-        storage_filename = f"{file_id}.{extension}"
-
-        # Upload to Supabase
+        # Upload to Supabase using cached content
         try:
             storage_path = await self.storage.upload_project_file(
                 project_id=project_id,
                 file_id=file_id,
-                content=content,
-                filename=file.filename,
+                content=validated.content,
+                filename=validated.file.filename,
                 content_type=content_type,
             )
         except SupabaseStorageError as e:
@@ -268,15 +253,18 @@ class UploadService:
             storage_path, bucket=self.storage.user_uploads_bucket
         )
 
+        # Generate storage filename from the path
+        storage_filename = storage_path.split("/")[-1]
+
         # Create database record
         project_file = ProjectFile(
             id=file_id,
             project_id=project_id,
             filename=storage_filename,
-            original_filename=file.filename,
+            original_filename=validated.file.filename,
             storage_path=storage_path,
             file_url=file_url,
-            file_size_bytes=file_size,
+            file_size_bytes=validated.size,
             content_type=content_type,
             status=ProjectFile.STATUS_PENDING,
         )
@@ -286,8 +274,8 @@ class UploadService:
         return UploadResult(
             file_id=file_id,
             filename=storage_filename,
-            original_filename=file.filename,
-            file_size_bytes=file_size,
+            original_filename=validated.file.filename,
+            file_size_bytes=validated.size,
             storage_path=storage_path,
             file_url=file_url,
             status=ProjectFile.STATUS_PENDING,

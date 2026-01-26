@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ interface VideoSegmentListProps {
 export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
 
   const { data: segmentsData, isLoading, refetch } = useProjectSegments(projectId);
   const analyzeMutation = useAnalyzeProject();
@@ -86,7 +87,34 @@ export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps)
     0
   );
 
-  const handleAnalyze = async (forceReanalyze: boolean = false) => {
+  // Polling effect with proper cleanup to avoid memory leaks
+  useEffect(() => {
+    if (!isPolling) return;
+
+    // Poll for segment updates every 5 seconds
+    const interval = setInterval(async () => {
+      const result = await refetch();
+      if (result.data && result.data.total_segments > 0) {
+        setIsPolling(false);
+        setAnalysisProgress(null);
+        toast.success('Analysis complete!');
+      }
+    }, 5000);
+
+    // Stop polling after 5 minutes
+    const timeout = setTimeout(() => {
+      setIsPolling(false);
+      toast.error('Analysis is taking longer than expected. Please check back later.');
+    }, 300000);
+
+    // Cleanup on unmount or when isPolling changes
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [isPolling, refetch]);
+
+  const handleAnalyze = useCallback(async (forceReanalyze: boolean = false) => {
     try {
       const progress = await analyzeMutation.mutateAsync({
         projectId,
@@ -101,29 +129,13 @@ export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps)
         toast.error(progress.error_message || 'Analysis failed');
       } else {
         toast.success('Analysis started. This may take a few minutes.');
-        // Poll for updates
-        pollAnalysisStatus();
+        // Start polling via state (will be handled by useEffect)
+        setIsPolling(true);
       }
     } catch {
       toast.error('Failed to start analysis');
     }
-  };
-
-  const pollAnalysisStatus = async () => {
-    // In a real implementation, you'd poll an endpoint for status updates
-    // For now, just refetch segments periodically
-    const interval = setInterval(async () => {
-      const result = await refetch();
-      if (result.data && result.data.total_segments > 0) {
-        clearInterval(interval);
-        setAnalysisProgress(null);
-        toast.success('Analysis complete!');
-      }
-    }, 5000);
-
-    // Stop polling after 5 minutes
-    setTimeout(() => clearInterval(interval), 300000);
-  };
+  }, [analyzeMutation, projectId, refetch]);
 
   if (isLoading) {
     return (

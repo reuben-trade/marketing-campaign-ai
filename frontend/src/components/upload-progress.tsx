@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useUploadProjectFiles } from '@/hooks/useProjects';
+import { formatFileSize } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   Upload,
@@ -210,12 +211,6 @@ export function UploadProgress({
       toast.error('Upload failed. Please try again.');
     }
   }, [selectedFiles, projectId, uploadMutation, onUploadComplete]);
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   const pendingFiles = selectedFiles.filter((f) => f.status === 'pending');
   const isUploading = uploadMutation.isPending;

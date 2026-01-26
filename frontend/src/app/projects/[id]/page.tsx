@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProject, useProjectFiles, useDeleteProjectFile } from '@/hooks/useProjects';
 import { UploadProgress } from '@/components/upload-progress';
 import { VideoSegmentList } from '@/components/video-segment-list';
+import { formatFileSize } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -77,12 +78,6 @@ export default function ProjectDetailPage({ params }: PageProps) {
     refetchProject();
     refetchFiles();
   }, [refetchProject, refetchFiles]);
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
 
   if (isLoading) {
     return (

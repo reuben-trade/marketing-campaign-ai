@@ -12,6 +12,7 @@ from app.models.cross_platform_ad import CrossPlatformAd
 from app.models.landing_page import LandingPage
 from app.models.notification import Notification
 from app.models.project import Project
+from app.models.project_file import ProjectFile
 from app.models.recipe import Recipe
 from app.models.recommendation import Recommendation
 from app.models.rendered_video import RenderedVideo
@@ -31,6 +32,7 @@ __all__ = [
     "LandingPage",
     "Notification",
     "Project",
+    "ProjectFile",
     "Recipe",
     "Recommendation",
     "RenderedVideo",

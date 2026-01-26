@@ -202,7 +202,13 @@ def mock_ad_library_scraper():
 
         # Mock batch_search_page_ids - batch search for multiple companies
         async def batch_search_side_effect(company_names):
-            return {name: (f"{hash(name) % 1000000000}", f"https://facebook.com/{name.lower().replace(' ', '')}") for name in company_names}
+            return {
+                name: (
+                    f"{hash(name) % 1000000000}",
+                    f"https://facebook.com/{name.lower().replace(' ', '')}",
+                )
+                for name in company_names
+            }
 
         mock_instance.batch_search_page_ids = AsyncMock(side_effect=batch_search_side_effect)
 

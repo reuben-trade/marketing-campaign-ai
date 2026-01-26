@@ -1,10 +1,11 @@
 """Tests for competitor discovery service."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.competitor_discovery import CompetitorDiscovery, CompetitorDiscoveryError
+import pytest
+
 from app.services.ad_library_scraper import AdLibraryScraper
+from app.services.competitor_discovery import CompetitorDiscovery
 
 
 class TestCompetitorDiscoveryUnit:
@@ -66,7 +67,9 @@ class TestCompetitorDiscoveryUnit:
             )
         ]
 
-        with patch.object(discovery.tavily, "search", new_callable=AsyncMock, return_value=mock_tavily_response):
+        with patch.object(
+            discovery.tavily, "search", new_callable=AsyncMock, return_value=mock_tavily_response
+        ):
             with patch.object(
                 discovery.openai_client.chat.completions,
                 "create",
@@ -101,7 +104,9 @@ class TestCompetitorDiscoveryUnit:
             )
         ]
 
-        with patch.object(discovery.tavily, "search", new_callable=AsyncMock, return_value=mock_tavily_response):
+        with patch.object(
+            discovery.tavily, "search", new_callable=AsyncMock, return_value=mock_tavily_response
+        ):
             with patch.object(
                 discovery.openai_client.chat.completions,
                 "create",
@@ -122,9 +127,7 @@ class TestCompetitorDiscoveryUnit:
         """Test that search_for_page_id delegates to AdLibraryScraper."""
         discovery = CompetitorDiscovery()
 
-        with patch(
-            "app.services.ad_library_scraper.AdLibraryScraper"
-        ) as MockScraper:
+        with patch("app.services.ad_library_scraper.AdLibraryScraper") as MockScraper:
             mock_scraper = MockScraper.return_value
             mock_scraper.search_page_id_by_name = AsyncMock(
                 return_value=("123456789012", "https://facebook.com/testcompany")
@@ -141,9 +144,7 @@ class TestCompetitorDiscoveryUnit:
         """Test that search_for_page_id returns URL even when page_id extraction fails."""
         discovery = CompetitorDiscovery()
 
-        with patch(
-            "app.services.ad_library_scraper.AdLibraryScraper"
-        ) as MockScraper:
+        with patch("app.services.ad_library_scraper.AdLibraryScraper") as MockScraper:
             mock_scraper = MockScraper.return_value
             mock_scraper.search_page_id_by_name = AsyncMock(
                 return_value=(None, "https://facebook.com/testcompany")
@@ -159,9 +160,7 @@ class TestCompetitorDiscoveryUnit:
         """Test that search_for_page_id returns None tuple when scraping fails."""
         discovery = CompetitorDiscovery()
 
-        with patch(
-            "app.services.ad_library_scraper.AdLibraryScraper"
-        ) as MockScraper:
+        with patch("app.services.ad_library_scraper.AdLibraryScraper") as MockScraper:
             mock_scraper = MockScraper.return_value
             mock_scraper.search_page_id_by_name = AsyncMock(
                 side_effect=Exception("Scraping failed")
@@ -274,7 +273,9 @@ class TestCompetitorDiscoveryIntegration:
             )
         ]
 
-        with patch.object(discovery.tavily, "search", new_callable=AsyncMock, return_value=mock_tavily_response):
+        with patch.object(
+            discovery.tavily, "search", new_callable=AsyncMock, return_value=mock_tavily_response
+        ):
             with patch.object(
                 discovery.openai_client.chat.completions,
                 "create",
@@ -292,9 +293,7 @@ class TestCompetitorDiscoveryIntegration:
         assert competitors[1]["company_name"] == "Chem-Dry"
 
         # Now test the page ID lookup with mocked return values
-        with patch(
-            "app.services.ad_library_scraper.AdLibraryScraper"
-        ) as MockScraper:
+        with patch("app.services.ad_library_scraper.AdLibraryScraper") as MockScraper:
             mock_scraper = MockScraper.return_value
             mock_scraper.search_page_id_by_name = AsyncMock(
                 side_effect=[
@@ -347,11 +346,13 @@ class TestEndToEndDiscovery:
 
             # Try to find the page ID
             page_id, facebook_url = await scraper.search_page_id_by_name(company_name)
-            results.append({
-                "company_name": company_name,
-                "page_id": page_id,
-                "facebook_url": facebook_url,
-            })
+            results.append(
+                {
+                    "company_name": company_name,
+                    "page_id": page_id,
+                    "facebook_url": facebook_url,
+                }
+            )
 
         # We may not find page IDs for all competitors
         # But we should find at least some Facebook URLs

@@ -42,8 +42,8 @@ async def list_notifications(
     total = total_result.scalar() or 0
 
     # Get unread count
-    unread_count_query = select(func.count()).select_from(Notification).where(
-        Notification.read_at.is_(None)
+    unread_count_query = (
+        select(func.count()).select_from(Notification).where(Notification.read_at.is_(None))
     )
     unread_result = await db.execute(unread_count_query)
     unread_count = unread_result.scalar() or 0
@@ -95,9 +95,7 @@ async def get_unread_count(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
     """Get count of unread notifications."""
-    query = select(func.count()).select_from(Notification).where(
-        Notification.read_at.is_(None)
-    )
+    query = select(func.count()).select_from(Notification).where(Notification.read_at.is_(None))
     result = await db.execute(query)
     count = result.scalar() or 0
 

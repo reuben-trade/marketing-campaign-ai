@@ -188,13 +188,11 @@ class TestUserContentAnalyzer:
         assert result.segments[0].visual_description == "Valid segment"
 
     @pytest.mark.asyncio
-    async def test_generate_segment_embedding(
-        self, mock_embedding_service, sample_embedding
-    ):
+    async def test_generate_segment_embedding(self, mock_embedding_service, sample_embedding):
         """Test generating embedding for a segment."""
-        with patch("app.services.user_content_analyzer.EmbeddingService") as mock_emb_class, \
-             patch("app.services.user_content_analyzer.genai.Client"), \
-             patch("app.services.user_content_analyzer.SupabaseStorage"):
+        with patch("app.services.user_content_analyzer.EmbeddingService") as mock_emb_class, patch(
+            "app.services.user_content_analyzer.genai.Client"
+        ), patch("app.services.user_content_analyzer.SupabaseStorage"):
             mock_emb_class.return_value = mock_embedding_service
 
             analyzer = UserContentAnalyzer()
@@ -250,10 +248,11 @@ class TestUserContentAnalyzer:
         await db_session.commit()
 
         # Set up mocks
-        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, \
-             patch("app.services.user_content_analyzer.EmbeddingService") as mock_emb_class, \
-             patch("app.services.user_content_analyzer.SupabaseStorage") as mock_storage_class:
-
+        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ) as mock_emb_class, patch(
+            "app.services.user_content_analyzer.SupabaseStorage"
+        ) as mock_storage_class:
             mock_genai.return_value = mock_gemini_client
             mock_emb_class.return_value = mock_embedding_service
             mock_storage_class.return_value = mock_storage
@@ -282,9 +281,7 @@ class TestUserContentAnalyzer:
             assert project_file.status == ProjectFile.STATUS_COMPLETED
 
     @pytest.mark.asyncio
-    async def test_analyze_project_file_failure(
-        self, db_session, mock_gemini_client, mock_storage
-    ):
+    async def test_analyze_project_file_failure(self, db_session, mock_gemini_client, mock_storage):
         """Test handling of analysis failure."""
         # Create test project
         project = Project(
@@ -311,10 +308,9 @@ class TestUserContentAnalyzer:
         # Make download fail
         mock_storage.download_file = AsyncMock(side_effect=Exception("Download failed"))
 
-        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, \
-             patch("app.services.user_content_analyzer.EmbeddingService"), \
-             patch("app.services.user_content_analyzer.SupabaseStorage") as mock_storage_class:
-
+        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ), patch("app.services.user_content_analyzer.SupabaseStorage") as mock_storage_class:
             mock_genai.return_value = mock_gemini_client
             mock_storage_class.return_value = mock_storage
 
@@ -361,10 +357,11 @@ class TestUserContentAnalyzer:
 
         await db_session.commit()
 
-        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, \
-             patch("app.services.user_content_analyzer.EmbeddingService") as mock_emb_class, \
-             patch("app.services.user_content_analyzer.SupabaseStorage") as mock_storage_class:
-
+        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ) as mock_emb_class, patch(
+            "app.services.user_content_analyzer.SupabaseStorage"
+        ) as mock_storage_class:
             mock_genai.return_value = mock_gemini_client
             mock_emb_class.return_value = mock_embedding_service
             mock_storage_class.return_value = mock_storage
@@ -389,10 +386,9 @@ class TestUserContentAnalyzer:
     @pytest.mark.asyncio
     async def test_analyze_project_not_found(self, db_session):
         """Test analyzing non-existent project."""
-        with patch("app.services.user_content_analyzer.genai.Client"), \
-             patch("app.services.user_content_analyzer.EmbeddingService"), \
-             patch("app.services.user_content_analyzer.SupabaseStorage"):
-
+        with patch("app.services.user_content_analyzer.genai.Client"), patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ), patch("app.services.user_content_analyzer.SupabaseStorage"):
             analyzer = UserContentAnalyzer()
 
             with pytest.raises(UserContentAnalyzerError) as exc_info:
@@ -438,10 +434,11 @@ class TestUserContentAnalyzer:
         db_session.add(pending_file)
         await db_session.commit()
 
-        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, \
-             patch("app.services.user_content_analyzer.EmbeddingService") as mock_emb_class, \
-             patch("app.services.user_content_analyzer.SupabaseStorage") as mock_storage_class:
-
+        with patch("app.services.user_content_analyzer.genai.Client") as mock_genai, patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ) as mock_emb_class, patch(
+            "app.services.user_content_analyzer.SupabaseStorage"
+        ) as mock_storage_class:
             mock_genai.return_value = mock_gemini_client
             mock_emb_class.return_value = mock_embedding_service
             mock_storage_class.return_value = mock_storage
@@ -482,10 +479,9 @@ class TestUserContentAnalyzer:
 
         await db_session.commit()
 
-        with patch("app.services.user_content_analyzer.genai.Client"), \
-             patch("app.services.user_content_analyzer.EmbeddingService"), \
-             patch("app.services.user_content_analyzer.SupabaseStorage"):
-
+        with patch("app.services.user_content_analyzer.genai.Client"), patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ), patch("app.services.user_content_analyzer.SupabaseStorage"):
             analyzer = UserContentAnalyzer()
             segments = await analyzer.get_project_segments(db_session, project.id)
 
@@ -533,10 +529,9 @@ class TestUserContentAnalyzer:
 
         await db_session.commit()
 
-        with patch("app.services.user_content_analyzer.genai.Client"), \
-             patch("app.services.user_content_analyzer.EmbeddingService"), \
-             patch("app.services.user_content_analyzer.SupabaseStorage"):
-
+        with patch("app.services.user_content_analyzer.genai.Client"), patch(
+            "app.services.user_content_analyzer.EmbeddingService"
+        ), patch("app.services.user_content_analyzer.SupabaseStorage"):
             analyzer = UserContentAnalyzer()
 
             # Delete segments for file 1

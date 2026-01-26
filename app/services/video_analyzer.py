@@ -16,19 +16,15 @@ from app.schemas.ad_analysis import (
     AdCritique,
     AudioAnalysis,
     BrandElements,
-    CinematicDetails,
     CopyAnalysis,
     EmotionalArc,
     EngagementPredictors,
-    EnhancedAdAnalysis,
     EnhancedAdAnalysisV2,
     EnhancedCinematicDetails,
     EnhancedNarrativeBeat,
     EnhancedRhetoricalAppeal,
     MusicAnalysis,
-    NarrativeBeat,
     PlatformOptimization,
-    RhetoricalAppeal,
     TextOverlay,
     ThumbStopAnalysis,
     VoiceAnalysis,
@@ -54,7 +50,6 @@ class VideoAnalyzer:
         self.client = genai.Client(api_key=settings.google_api_key)
         self.model_name = "gemini-2.0-flash"
         self.storage = SupabaseStorage()
-
 
     def parse_analysis(self, raw_analysis: dict[str, Any]) -> AdAnalysis:
         """
@@ -166,9 +161,7 @@ class VideoAnalyzer:
             tmp_path = tmp.name
 
         try:
-            video_file = self.client.files.upload(
-                file=tmp_path, config={"mime_type": mime_type}
-            )
+            video_file = self.client.files.upload(file=tmp_path, config={"mime_type": mime_type})
 
             while video_file.state == types.FileState.PROCESSING:
                 time.sleep(2)
@@ -334,11 +327,10 @@ class VideoAnalyzer:
 
         Returns:
             EnhancedAdAnalysisV2 object with validated structure
-        """    
-        try:           
+        """
+        try:
+            print(raw_analysis)
 
-            print(raw_analysis) 
-    
             # Handle case where raw_analysis is a string (multi-encoded JSON).
             # Gemini can return triple+ encoded JSON, so loop until we get a dict.
             max_decode_depth = 5
@@ -415,10 +407,10 @@ class VideoAnalyzer:
                 analysis_notes=raw_analysis.get("analysis_notes", []),
                 inferred_audience=raw_analysis.get("inferred_audience", ""),
                 primary_messaging_pillar=raw_analysis.get("primary_messaging_pillar", ""),
-                overall_pacing_score=self._clamp_score(
-                    raw_analysis.get("overall_pacing_score", 5)
+                overall_pacing_score=self._clamp_score(raw_analysis.get("overall_pacing_score", 5)),
+                production_style=self._sanitize_literal(
+                    raw_analysis.get("production_style"), self._VALID_PRODUCTION_STYLES
                 ),
-                production_style=self._sanitize_literal(raw_analysis.get("production_style"), self._VALID_PRODUCTION_STYLES),
                 hook_score=self._clamp_score(raw_analysis.get("hook_score", 5)),
                 timeline=timeline,
                 overall_narrative_summary=raw_analysis.get("overall_narrative_summary", ""),
@@ -448,8 +440,31 @@ class VideoAnalyzer:
             return None
         return value
 
-    _VALID_COPY_FRAMEWORKS = {"PAS", "AIDA", "BAB", "FAB", "4Ps", "QUEST", "PASTOR", "SLAP", "STAR", "Custom", "Unknown"}
-    _VALID_PRODUCTION_STYLES = {"High-production Studio", "Authentic UGC", "Hybrid", "Animation", "Stock Footage Mashup", "Screen Recording", "Talking Head", "Documentary Style", "Influencer Native", "Unknown"}
+    _VALID_COPY_FRAMEWORKS = {
+        "PAS",
+        "AIDA",
+        "BAB",
+        "FAB",
+        "4Ps",
+        "QUEST",
+        "PASTOR",
+        "SLAP",
+        "STAR",
+        "Custom",
+        "Unknown",
+    }
+    _VALID_PRODUCTION_STYLES = {
+        "High-production Studio",
+        "Authentic UGC",
+        "Hybrid",
+        "Animation",
+        "Stock Footage Mashup",
+        "Screen Recording",
+        "Talking Head",
+        "Documentary Style",
+        "Influencer Native",
+        "Unknown",
+    }
 
     def _sanitize_literal(self, value: Any, valid_set: set[str], fallback: str = "Unknown") -> str:
         """Validate a value against allowed literals, returning fallback if not matched."""
@@ -474,9 +489,16 @@ class VideoAnalyzer:
         """
         # Valid component types
         valid_types = {
-            "Hook", "Problem", "Solution", "Product Showcase",
-            "Social Proof", "Benefit Stack", "Objection Handling",
-            "CTA", "Transition", "Unknown"
+            "Hook",
+            "Problem",
+            "Solution",
+            "Product Showcase",
+            "Social Proof",
+            "Benefit Stack",
+            "Objection Handling",
+            "CTA",
+            "Transition",
+            "Unknown",
         }
 
         # Direct match
@@ -577,10 +599,14 @@ class VideoAnalyzer:
             visual_description=beat_data.get("visual_description", ""),
             audio_transcript=beat_data.get("audio_transcript", ""),
             emotion=self._sanitize_nullable(beat_data.get("emotion")),
-            emotion_intensity=self._clamp_score(beat_data["emotion_intensity"]) if beat_data.get("emotion_intensity") else None,
+            emotion_intensity=self._clamp_score(beat_data["emotion_intensity"])
+            if beat_data.get("emotion_intensity")
+            else None,
             text_overlays_in_beat=text_overlays,
             key_visual_elements=beat_data.get("key_visual_elements", []),
-            attention_score=self._clamp_score(beat_data["attention_score"]) if beat_data.get("attention_score") else None,
+            attention_score=self._clamp_score(beat_data["attention_score"])
+            if beat_data.get("attention_score")
+            else None,
             improvement_note=self._sanitize_nullable(beat_data.get("improvement_note")),
         )
 
@@ -592,23 +618,27 @@ class VideoAnalyzer:
             if isinstance(t, str):
                 text_overlays.append(TextOverlay(text=t))
             elif isinstance(t, dict):
-                text_overlays.append(TextOverlay(
-                    text=t.get("text", ""),
-                    timestamp=t.get("timestamp", "00:00"),
-                    duration_seconds=t.get("duration_seconds", 0),
-                    position=t.get("position", "center"),
-                    typography=t.get("typography"),
-                    animation=t.get("animation"),
-                    emphasis_type=t.get("emphasis_type"),
-                    purpose=t.get("purpose"),
-                ))
+                text_overlays.append(
+                    TextOverlay(
+                        text=t.get("text", ""),
+                        timestamp=t.get("timestamp", "00:00"),
+                        duration_seconds=t.get("duration_seconds", 0),
+                        position=t.get("position", "center"),
+                        typography=t.get("typography"),
+                        animation=t.get("animation"),
+                        emphasis_type=t.get("emphasis_type"),
+                        purpose=t.get("purpose"),
+                    )
+                )
 
         return CopyAnalysis(
             all_text_overlays=text_overlays,
             headline_text=self._sanitize_nullable(data.get("headline_text")),
             body_copy=self._sanitize_nullable(data.get("body_copy")),
             cta_text=self._sanitize_nullable(data.get("cta_text")),
-            copy_framework=self._sanitize_literal(data.get("copy_framework"), self._VALID_COPY_FRAMEWORKS),
+            copy_framework=self._sanitize_literal(
+                data.get("copy_framework"), self._VALID_COPY_FRAMEWORKS
+            ),
             framework_execution=self._sanitize_nullable(data.get("framework_execution")),
             reading_level=self._sanitize_nullable(data.get("reading_level")),
             word_count=data.get("word_count"),
@@ -656,7 +686,9 @@ class VideoAnalyzer:
             music=music,
             voice=voice,
             sound_effects=sound_effects,
-            audio_visual_sync_score=self._clamp_score(data["audio_visual_sync_score"]) if data.get("audio_visual_sync_score") else None,
+            audio_visual_sync_score=self._clamp_score(data["audio_visual_sync_score"])
+            if data.get("audio_visual_sync_score")
+            else None,
             silence_moments=data.get("silence_moments", []),
             sound_off_compatible=data.get("sound_off_compatible", False),
         )
@@ -667,13 +699,13 @@ class VideoAnalyzer:
 
         logo_appearances = [
             LogoAppearance(
-                timestamp=l.get("timestamp", "00:00"),
-                duration_seconds=l.get("duration_seconds", 0),
-                position=l.get("position", "corner"),
-                size=l.get("size", "small"),
-                animation=l.get("animation"),
+                timestamp=logo.get("timestamp", "00:00"),
+                duration_seconds=logo.get("duration_seconds", 0),
+                position=logo.get("position", "corner"),
+                size=logo.get("size", "small"),
+                animation=logo.get("animation"),
             )
-            for l in data.get("logo_appearances", [])
+            for logo in data.get("logo_appearances", [])
         ]
 
         product_appearances = [
@@ -692,7 +724,9 @@ class VideoAnalyzer:
             logo_visible=data.get("logo_visible", False),
             logo_position=data.get("logo_position"),
             brand_colors_detected=data.get("brand_colors_detected", []),
-            brand_color_consistency=self._clamp_score(data["brand_color_consistency"]) if data.get("brand_color_consistency") else None,
+            brand_color_consistency=self._clamp_score(data["brand_color_consistency"])
+            if data.get("brand_color_consistency")
+            else None,
             product_appearances=product_appearances,
             has_product_shot=data.get("has_product_shot", False),
             product_visibility_seconds=data.get("product_visibility_seconds"),
@@ -711,7 +745,9 @@ class VideoAnalyzer:
             curiosity_gap=thumb_data.get("curiosity_gap", False),
             curiosity_gap_description=thumb_data.get("curiosity_gap_description"),
             first_second_elements=thumb_data.get("first_second_elements", []),
-            visual_contrast_score=self._clamp_score(thumb_data["visual_contrast_score"]) if thumb_data.get("visual_contrast_score") else None,
+            visual_contrast_score=self._clamp_score(thumb_data["visual_contrast_score"])
+            if thumb_data.get("visual_contrast_score")
+            else None,
             text_hook_present=thumb_data.get("text_hook_present", False),
             face_in_first_frame=thumb_data.get("face_in_first_frame", False),
         )
@@ -758,7 +794,9 @@ class VideoAnalyzer:
 
         return EmotionalArc(
             emotional_beats=emotional_beats,
-            emotional_climax_timestamp=self._sanitize_nullable(data.get("emotional_climax_timestamp")),
+            emotional_climax_timestamp=self._sanitize_nullable(
+                data.get("emotional_climax_timestamp")
+            ),
             tension_build_pattern=self._sanitize_nullable(data.get("tension_build_pattern")),
             resolution_type=self._sanitize_nullable(data.get("resolution_type")),
             dominant_emotional_tone=data.get("dominant_emotional_tone", "neutral"),

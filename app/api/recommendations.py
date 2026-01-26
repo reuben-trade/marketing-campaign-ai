@@ -1,7 +1,6 @@
 """Recommendations API endpoints."""
 
 import logging
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -19,8 +18,8 @@ from app.schemas.recommendation import (
     RecommendationResponse,
 )
 from app.services.recommendation_engine import RecommendationEngine, RecommendationError
-from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
 from app.services.semantic_search_service import SemanticSearchService
+from app.services.video_analyzer import VideoAnalysisError, VideoAnalyzer
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -168,8 +167,8 @@ async def generate_recommendations(
             db=db,
             intent_description=request.relevance_description,
             intent_themes=request.relevance_themes or [],
-            #min_similarity=request.min_similarity,
-            min_similarity=0 #TODO: Give this a dynamic value, will be better with more ads
+            # min_similarity=request.min_similarity,
+            min_similarity=0,  # TODO: Give this a dynamic value, will be better with more ads
         )
 
         # Apply additional filters and sorting
@@ -184,7 +183,7 @@ async def generate_recommendations(
 
         # Sort by engagement and limit
         ads.sort(key=lambda ad: ad.total_engagement, reverse=True)
-        ads = ads[:request.top_n_ads]
+        ads = ads[: request.top_n_ads]
 
     else:
         # Traditional filtering by engagement
@@ -208,9 +207,9 @@ async def generate_recommendations(
         if request.date_range_end:
             ads_query = ads_query.where(Ad.publication_date <= request.date_range_end)
 
-        ads_query = ads_query.order_by(
-            (Ad.likes + Ad.comments + Ad.shares).desc()
-        ).limit(request.top_n_ads)
+        ads_query = ads_query.order_by((Ad.likes + Ad.comments + Ad.shares).desc()).limit(
+            request.top_n_ads
+        )
 
         result = await db.execute(ads_query)
         ads = result.scalars().all()
@@ -317,7 +316,9 @@ async def generate_recommendations(
                     market_position=strategy.market_position,
                     brand_name=strategy.business_name,
                     industry=strategy.industry,
-                    target_audience=str(strategy.target_audience) if strategy.target_audience else None,
+                    target_audience=str(strategy.target_audience)
+                    if strategy.target_audience
+                    else None,
                     likes=user_ad.likes or 0,
                     comments=user_ad.comments or 0,
                     shares=user_ad.shares or 0,
@@ -466,9 +467,7 @@ async def get_recommendation(
     recommendation_id: UUID,
 ) -> RecommendationResponse:
     """Get a recommendation by ID."""
-    result = await db.execute(
-        select(Recommendation).where(Recommendation.id == recommendation_id)
-    )
+    result = await db.execute(select(Recommendation).where(Recommendation.id == recommendation_id))
     recommendation = result.scalar_one_or_none()
 
     if not recommendation:
@@ -539,9 +538,7 @@ async def delete_recommendation(
     recommendation_id: UUID,
 ) -> None:
     """Delete a recommendation."""
-    result = await db.execute(
-        select(Recommendation).where(Recommendation.id == recommendation_id)
-    )
+    result = await db.execute(select(Recommendation).where(Recommendation.id == recommendation_id))
     recommendation = result.scalar_one_or_none()
 
     if not recommendation:

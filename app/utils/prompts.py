@@ -810,7 +810,7 @@ Industry: {industry}
 Target Audience Context: {target_audience}
 
 PLATFORM CTA BUTTON: {platform_cta}
-NOTE: The platform CTA button appears as a clickable button on the ad platform interface, OUTSIDE of the creative itself. 
+NOTE: The platform CTA button appears as a clickable button on the ad platform interface, OUTSIDE of the creative itself.
 
 ANALYSIS REQUIREMENTS:
 

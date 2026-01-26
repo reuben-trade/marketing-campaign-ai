@@ -27,7 +27,9 @@ class ProjectUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=200)
     brand_profile_id: UUID | None = None
-    status: str | None = Field(None, description="Project status: draft, processing, ready, rendered")
+    status: str | None = Field(
+        None, description="Project status: draft, processing, ready, rendered"
+    )
     inspiration_ads: list[UUID] | None = Field(None, description="Array of ad IDs for inspiration")
     user_prompt: str | None = None
     max_videos: int | None = Field(None, ge=1, le=20)

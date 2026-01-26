@@ -3,13 +3,14 @@
 import logging
 from uuid import UUID
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.database import async_session
 from app.models.ad import Ad
 from app.services.composite_scoring_service import CompositeScoreCalculator
 from app.services.embedding_service import EmbeddingService
 from app.tasks.celery_app import celery_app
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +89,7 @@ def embed_ad_task(ad_id: str) -> dict[str, any]:
         async with async_session() as db:
             try:
                 # Get ad
-                result = await db.execute(
-                    select(Ad).where(Ad.id == UUID(ad_id))
-                )
+                result = await db.execute(select(Ad).where(Ad.id == UUID(ad_id)))
                 ad = result.scalar_one_or_none()
 
                 if not ad:
@@ -207,7 +206,9 @@ def embed_ads_batch_task(limit: int = 100) -> dict[str, int]:
 
                 result = await embedding_service.embed_batch(db=db, limit=limit)
 
-                logger.info(f"Batch embedding: {result['processed']} processed, {result['failed']} failed")
+                logger.info(
+                    f"Batch embedding: {result['processed']} processed, {result['failed']} failed"
+                )
 
                 return result
 

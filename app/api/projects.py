@@ -46,9 +46,7 @@ async def _get_project_stats(db: DbSession, project_id: UUID) -> ProjectStats:
     """Calculate project statistics."""
     # Count segments
     segments_count = (
-        await db.execute(
-            select(func.count()).where(UserVideoSegment.project_id == project_id)
-        )
+        await db.execute(select(func.count()).where(UserVideoSegment.project_id == project_id))
     ).scalar() or 0
 
     # Get file stats
@@ -169,9 +167,7 @@ async def get_project(
     project_id: UUID,
 ) -> ProjectResponse:
     """Get a project by ID."""
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
@@ -190,9 +186,7 @@ async def update_project(
     project_update: ProjectUpdate,
 ) -> ProjectResponse:
     """Update a project."""
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     db_project = result.scalar_one_or_none()
 
     if not db_project:
@@ -229,9 +223,7 @@ async def delete_project(
     project_id: UUID,
 ) -> None:
     """Delete a project and all its associated data."""
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     db_project = result.scalar_one_or_none()
 
     if not db_project:
@@ -264,7 +256,9 @@ async def delete_project(
 async def upload_project_files(
     db: DbSession,
     project_id: UUID,
-    files: list[UploadFile] = File(..., description="Video files to upload (max 10, max 100MB each)"),
+    files: list[UploadFile] = File(
+        ..., description="Video files to upload (max 10, max 100MB each)"
+    ),
 ) -> ProjectUploadResponse:
     """
     Upload video files to a project.
@@ -280,9 +274,7 @@ async def upload_project_files(
     - Any files that failed to upload
     """
     # Get project
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
@@ -326,8 +318,7 @@ async def upload_project_files(
         total_size_bytes=summary.total_size_bytes,
         total_size_mb=round(summary.total_size_bytes / (1024 * 1024), 2),
         failed_files=[
-            UploadFailure(filename=f["filename"], error=f["error"])
-            for f in summary.failed_files
+            UploadFailure(filename=f["filename"], error=f["error"]) for f in summary.failed_files
         ],
     )
 
@@ -342,9 +333,7 @@ async def list_project_files(
 ) -> ProjectFilesListResponse:
     """List all uploaded files for a project."""
     # Verify project exists
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
@@ -458,9 +447,7 @@ async def analyze_project_files(
     **Note:** Analysis can take 1-2 minutes per video file.
     """
     # Verify project exists
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
@@ -551,9 +538,7 @@ async def list_project_segments(
 ) -> ProjectSegmentsResponse:
     """List all extracted segments for a project."""
     # Verify project exists
-    result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
+    result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:

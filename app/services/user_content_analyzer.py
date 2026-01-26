@@ -374,9 +374,7 @@ class UserContentAnalyzer:
             project_file.status = ProjectFile.STATUS_COMPLETED
             await db.commit()
 
-            logger.info(
-                f"Created {len(created_segments)} segments for file {project_file.id}"
-            )
+            logger.info(f"Created {len(created_segments)} segments for file {project_file.id}")
             return created_segments
 
         except Exception as e:
@@ -406,9 +404,7 @@ class UserContentAnalyzer:
             UserContentAnalyzerError: If project not found or analysis fails
         """
         # Get project
-        project_result = await db.execute(
-            select(Project).where(Project.id == project_id)
-        )
+        project_result = await db.execute(select(Project).where(Project.id == project_id))
         project = project_result.scalar_one_or_none()
 
         if not project:
@@ -419,10 +415,12 @@ class UserContentAnalyzer:
 
         if not force_reanalyze:
             file_query = file_query.where(
-                ProjectFile.status.in_([
-                    ProjectFile.STATUS_PENDING,
-                    ProjectFile.STATUS_FAILED,
-                ])
+                ProjectFile.status.in_(
+                    [
+                        ProjectFile.STATUS_PENDING,
+                        ProjectFile.STATUS_FAILED,
+                    ]
+                )
             )
 
         file_result = await db.execute(file_query)
@@ -529,9 +527,7 @@ class UserContentAnalyzer:
             Number of deleted segments
         """
         result = await db.execute(
-            select(UserVideoSegment).where(
-                UserVideoSegment.source_file_id == project_file_id
-            )
+            select(UserVideoSegment).where(UserVideoSegment.source_file_id == project_file_id)
         )
         segments = result.scalars().all()
 

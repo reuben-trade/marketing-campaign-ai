@@ -49,7 +49,7 @@ def analyze_pending_ads_task(self, batch_size: int = 50):
         pending_ads = (
             session.query(Ad)
             .filter(
-                Ad.analyzed == False,
+                Ad.analyzed.is_(False),
                 Ad.download_status == "completed",
                 Ad.analysis_status == "pending",
             )
@@ -116,17 +116,13 @@ def analyze_single_ad_task(self, ad_id: str):
     """
     from app.models.ad import Ad
     from app.models.competitor import Competitor
-    from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
-    from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
+    from app.services.image_analyzer import ImageAnalysisError, ImageAnalyzer
+    from app.services.video_analyzer import VideoAnalysisError, VideoAnalyzer
 
     session = get_sync_session()
 
     try:
-        ad = (
-            session.query(Ad)
-            .filter(Ad.id == UUID(ad_id))
-            .first()
-        )
+        ad = session.query(Ad).filter(Ad.id == UUID(ad_id)).first()
 
         if not ad:
             return {"error": "Ad not found"}
@@ -134,11 +130,7 @@ def analyze_single_ad_task(self, ad_id: str):
         if ad.download_status != "completed":
             return {"error": "Ad creative not downloaded"}
 
-        competitor = (
-            session.query(Competitor)
-            .filter(Competitor.id == ad.competitor_id)
-            .first()
-        )
+        competitor = session.query(Competitor).filter(Competitor.id == ad.competitor_id).first()
 
         if not competitor:
             return {"error": "Competitor not found"}
@@ -190,9 +182,7 @@ def analyze_single_ad_task(self, ad_id: str):
                 "status": "completed",
                 "ad_id": ad_id,
                 "creative_type": ad.creative_type,
-                "overall_score": analysis.get("marketing_effectiveness", {}).get(
-                    "overall_score"
-                ),
+                "overall_score": analysis.get("marketing_effectiveness", {}).get("overall_score"),
             }
 
         except (ImageAnalysisError, VideoAnalysisError) as e:

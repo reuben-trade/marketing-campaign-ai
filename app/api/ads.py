@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbSession
+from app.api.notifications import create_new_ads_notification
 from app.config import get_settings
 from app.models.ad import Ad
 from app.models.competitor import Competitor
@@ -21,15 +22,14 @@ from app.schemas.ad import (
     AdRetrieveResponse,
     AdStats,
 )
+from app.schemas.search import PercentileRecalculationResponse, ScoreCalculationResponse
 from app.services.ad_library_scraper import AdLibraryScraper, AdLibraryScraperError
+from app.services.composite_scoring_service import CompositeScoreCalculator
 from app.services.creative_analysis_service import populate_from_video_intelligence
 from app.services.creative_downloader import CreativeDownloader, CreativeDownloadError
 from app.services.duplicate_detection import DuplicateDetector
-from app.services.image_analyzer import ImageAnalyzer, ImageAnalysisError
-from app.services.video_analyzer import VideoAnalyzer, VideoAnalysisError
-from app.services.composite_scoring_service import CompositeScoreCalculator
-from app.api.notifications import create_new_ads_notification
-from app.schemas.search import ScoreCalculationResponse, PercentileRecalculationResponse
+from app.services.image_analyzer import ImageAnalysisError, ImageAnalyzer
+from app.services.video_analyzer import VideoAnalysisError, VideoAnalyzer
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -54,8 +54,12 @@ async def list_ads(
     analyzed: bool | None = None,
     creative_type: str | None = None,
     min_engagement: int | None = None,
-    min_overall_score: float | None = Query(None, ge=0, le=10, description="Minimum overall marketing score (1-10)"),
-    min_composite_score: float | None = Query(None, ge=0, le=1, description="Minimum composite score (0-1)"),
+    min_overall_score: float | None = Query(
+        None, ge=0, le=10, description="Minimum overall marketing score (1-10)"
+    ),
+    min_composite_score: float | None = Query(
+        None, ge=0, le=1, description="Minimum composite score (0-1)"
+    ),
 ) -> AdListResponse:
     """List ads with filtering and pagination."""
     query = select(Ad).options(selectinload(Ad.competitor))
@@ -154,30 +158,39 @@ async def get_ad_stats(
     if competitor_id:
         base_query = base_query.where(Ad.competitor_id == competitor_id)
 
-    total = (await db.execute(
-        select(func.count()).select_from(base_query.subquery())
-    )).scalar() or 0
+    total = (
+        await db.execute(select(func.count()).select_from(base_query.subquery()))
+    ).scalar() or 0
 
-    analyzed = (await db.execute(
-        select(func.count()).where(
-            and_(Ad.analyzed == True, Ad.competitor_id == competitor_id) if competitor_id
-            else Ad.analyzed == True
+    analyzed = (
+        await db.execute(
+            select(func.count()).where(
+                and_(Ad.analyzed.is_(True), Ad.competitor_id == competitor_id)
+                if competitor_id
+                else Ad.analyzed.is_(True)
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
-    pending = (await db.execute(
-        select(func.count()).where(
-            and_(Ad.analysis_status == "pending", Ad.competitor_id == competitor_id) if competitor_id
-            else Ad.analysis_status == "pending"
+    pending = (
+        await db.execute(
+            select(func.count()).where(
+                and_(Ad.analysis_status == "pending", Ad.competitor_id == competitor_id)
+                if competitor_id
+                else Ad.analysis_status == "pending"
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
-    failed = (await db.execute(
-        select(func.count()).where(
-            and_(Ad.analysis_status == "failed", Ad.competitor_id == competitor_id) if competitor_id
-            else Ad.analysis_status == "failed"
+    failed = (
+        await db.execute(
+            select(func.count()).where(
+                and_(Ad.analysis_status == "failed", Ad.competitor_id == competitor_id)
+                if competitor_id
+                else Ad.analysis_status == "failed"
+            )
         )
-    )).scalar() or 0
+    ).scalar() or 0
 
     type_counts_query = select(Ad.creative_type, func.count().label("count"))
     if competitor_id:
@@ -191,7 +204,7 @@ async def get_ad_stats(
         avg_eng_query = avg_eng_query.where(Ad.competitor_id == competitor_id)
     avg_engagement = (await db.execute(avg_eng_query)).scalar() or 0.0
 
-    top_performer_query = select(Ad.id).where(Ad.analyzed == True)
+    top_performer_query = select(Ad.id).where(Ad.analyzed.is_(True))
     if competitor_id:
         top_performer_query = top_performer_query.where(Ad.competitor_id == competitor_id)
     top_performer_query = top_performer_query.order_by(
@@ -217,9 +230,7 @@ async def get_ad(
     ad_id: UUID,
 ) -> AdResponse:
     """Get a single ad by ID."""
-    result = await db.execute(
-        select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad_id)
-    )
+    result = await db.execute(select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad_id))
     ad = result.scalar_one_or_none()
 
     if not ad:
@@ -280,9 +291,7 @@ async def retrieve_ads(
 
     This downloads new ads and stores them in the database.
     """
-    result = await db.execute(
-        select(Competitor).where(Competitor.id == request.competitor_id)
-    )
+    result = await db.execute(select(Competitor).where(Competitor.id == request.competitor_id))
     competitor = result.scalar_one_or_none()
 
     if not competitor:
@@ -324,9 +333,7 @@ async def retrieve_ads(
         ad_library_id = str(ad_library_id)
 
         # Check if we already have this ad (by ad_library_id)
-        existing = await db.execute(
-            select(Ad).where(Ad.ad_library_id == ad_library_id)
-        )
+        existing = await db.execute(select(Ad).where(Ad.ad_library_id == ad_library_id))
         if existing.scalar_one_or_none():
             skipped += 1
             continue
@@ -389,10 +396,18 @@ async def retrieve_ads(
                     creative_url=creative_url,
                     original_ad_id=original_ad.id,  # Link to original
                     # Text fields (may differ from original)
-                    ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
-                    ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),
-                    ad_description=sanitize_unicode(ad_details.get("link_description") or ad_data.get("ad_description")),
-                    cta_text=sanitize_unicode(ad_details.get("cta_text") or ad_data.get("cta_text")),
+                    ad_copy=sanitize_unicode(
+                        ad_details.get("primary_text") or ad_data.get("ad_copy")
+                    ),
+                    ad_headline=sanitize_unicode(
+                        ad_details.get("link_headline") or ad_data.get("ad_headline")
+                    ),
+                    ad_description=sanitize_unicode(
+                        ad_details.get("link_description") or ad_data.get("ad_description")
+                    ),
+                    cta_text=sanitize_unicode(
+                        ad_details.get("cta_text") or ad_data.get("cta_text")
+                    ),
                     publication_date=ad_data.get("publication_date"),
                     download_status="completed",  # Nothing to download
                     is_carousel=ad_data.get("is_carousel", False),
@@ -448,10 +463,18 @@ async def retrieve_ads(
                     creative_url=creative_url,
                     perceptual_hash=perceptual_hash,  # Store hash for future dedup
                     duplicate_count=1,  # This is an original
-                    ad_copy=sanitize_unicode(ad_details.get("primary_text") or ad_data.get("ad_copy")),
-                    ad_headline=sanitize_unicode(ad_details.get("link_headline") or ad_data.get("ad_headline")),
-                    ad_description=sanitize_unicode(ad_details.get("link_description") or ad_data.get("ad_description")),
-                    cta_text=sanitize_unicode(ad_details.get("cta_text") or ad_data.get("cta_text")),
+                    ad_copy=sanitize_unicode(
+                        ad_details.get("primary_text") or ad_data.get("ad_copy")
+                    ),
+                    ad_headline=sanitize_unicode(
+                        ad_details.get("link_headline") or ad_data.get("ad_headline")
+                    ),
+                    ad_description=sanitize_unicode(
+                        ad_details.get("link_description") or ad_data.get("ad_description")
+                    ),
+                    cta_text=sanitize_unicode(
+                        ad_details.get("cta_text") or ad_data.get("cta_text")
+                    ),
                     publication_date=ad_data.get("publication_date"),
                     download_status=download_status,
                     is_carousel=ad_data.get("is_carousel", False),
@@ -517,7 +540,9 @@ async def retrieve_ads(
 async def run_analysis(
     db: DbSession,
     limit: int = Query(10, ge=1, le=100),
-    skip_duplicate_check: bool = Query(False, description="Skip the original_ad_id check to process all unanalyzed ads"),
+    skip_duplicate_check: bool = Query(
+        False, description="Skip the original_ad_id check to process all unanalyzed ads"
+    ),
 ) -> dict:
     """
     Run analysis on unanalyzed ads using V2 Enhanced Analysis.
@@ -536,7 +561,7 @@ async def run_analysis(
     """
     # Build filter conditions
     filters = [
-        Ad.analyzed == False,
+        Ad.analyzed.is_(False),
         Ad.download_status == "completed",
         Ad.analysis_status.in_(["pending", "failed"]),
     ]
@@ -546,10 +571,7 @@ async def run_analysis(
         filters.append(Ad.original_ad_id.is_(None))  # Only originals, not duplicates
 
     result = await db.execute(
-        select(Ad)
-        .options(selectinload(Ad.competitor))
-        .where(and_(*filters))
-        .limit(limit)
+        select(Ad).options(selectinload(Ad.competitor)).where(and_(*filters)).limit(limit)
     )
     ads = result.scalars().all()
 
@@ -621,7 +643,9 @@ async def run_analysis(
                     "overall_score": pacing_score,
                 },
                 "strategic_insights": f"Production Style: {video_intelligence.get('production_style', 'Unknown')}",
-                "reasoning": critique.get("overall_assessment", video_intelligence.get("overall_narrative_summary", "")),
+                "reasoning": critique.get(
+                    "overall_assessment", video_intelligence.get("overall_narrative_summary", "")
+                ),
                 "video_analysis": {
                     "pacing": f"Pacing score: {pacing_score}/10",
                     "audio_strategy": "",
@@ -651,9 +675,7 @@ async def run_analysis(
             }
 
             update_result = await db.execute(
-                Ad.__table__.update()
-                .where(Ad.original_ad_id == ad.id)
-                .values(**update_values)
+                Ad.__table__.update().where(Ad.original_ad_id == ad.id).values(**update_values)
             )
             duplicates_updated += update_result.rowcount
 
@@ -694,7 +716,9 @@ async def analyze_ad(
     - Timestamped narrative beats (video only)
     """
     result = await db.execute(
-        select(Ad).options(selectinload(Ad.competitor), selectinload(Ad.original_ad)).where(Ad.id == ad_id)
+        select(Ad)
+        .options(selectinload(Ad.competitor), selectinload(Ad.original_ad))
+        .where(Ad.id == ad_id)
     )
     ad = result.scalar_one_or_none()
 
@@ -810,7 +834,9 @@ async def analyze_ad(
                 "overall_score": pacing_score,
             },
             "strategic_insights": f"Production Style: {video_intelligence.get('production_style', 'Unknown')}",
-            "reasoning": critique.get("overall_assessment", video_intelligence.get("overall_narrative_summary", "")),
+            "reasoning": critique.get(
+                "overall_assessment", video_intelligence.get("overall_narrative_summary", "")
+            ),
             "video_analysis": {
                 "pacing": f"Pacing score: {pacing_score}/10",
                 "audio_strategy": "",
@@ -924,9 +950,7 @@ async def scrape_ad_details(
     - Additional links
     - Form fields (for lead gen ads)
     """
-    result = await db.execute(
-        select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad_id)
-    )
+    result = await db.execute(select(Ad).options(selectinload(Ad.competitor)).where(Ad.id == ad_id))
     ad = result.scalar_one_or_none()
 
     if not ad:
@@ -1018,6 +1042,7 @@ async def scrape_ad_details(
         original_ad_id=ad.original_ad_id,
         duplicate_count=ad.duplicate_count,
     )
+
 
 @router.post("/calculate-scores", response_model=ScoreCalculationResponse)
 async def calculate_composite_scores(

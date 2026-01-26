@@ -1,7 +1,6 @@
 """Competitors API endpoints."""
 
 import logging
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -36,7 +35,7 @@ async def list_competitors(
     """List all competitors with pagination."""
     query = select(Competitor)
     if active_only:
-        query = query.where(Competitor.active == True)
+        query = query.where(Competitor.active.is_(True))
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
@@ -50,9 +49,7 @@ async def list_competitors(
     items = []
     for comp in competitors:
         ad_count = (
-            await db.execute(
-                select(func.count()).where(Ad.competitor_id == comp.id)
-            )
+            await db.execute(select(func.count()).where(Ad.competitor_id == comp.id))
         ).scalar() or 0
 
         comp_response = CompetitorResponse.model_validate(comp)
@@ -103,9 +100,7 @@ async def add_competitor(
             )
 
     # Check if competitor with this page_id already exists
-    existing = await db.execute(
-        select(Competitor).where(Competitor.page_id == page_id)
-    )
+    existing = await db.execute(select(Competitor).where(Competitor.page_id == page_id))
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -143,9 +138,7 @@ async def get_competitor(
     competitor_id: UUID,
 ) -> CompetitorResponse:
     """Get a competitor by ID."""
-    result = await db.execute(
-        select(Competitor).where(Competitor.id == competitor_id)
-    )
+    result = await db.execute(select(Competitor).where(Competitor.id == competitor_id))
     competitor = result.scalar_one_or_none()
 
     if not competitor:
@@ -155,9 +148,7 @@ async def get_competitor(
         )
 
     ad_count = (
-        await db.execute(
-            select(func.count()).where(Ad.competitor_id == competitor.id)
-        )
+        await db.execute(select(func.count()).where(Ad.competitor_id == competitor.id))
     ).scalar() or 0
 
     response = CompetitorResponse.model_validate(competitor)
@@ -173,9 +164,7 @@ async def update_competitor(
     competitor_update: CompetitorUpdate,
 ) -> CompetitorResponse:
     """Update a competitor."""
-    result = await db.execute(
-        select(Competitor).where(Competitor.id == competitor_id)
-    )
+    result = await db.execute(select(Competitor).where(Competitor.id == competitor_id))
     db_competitor = result.scalar_one_or_none()
 
     if not db_competitor:
@@ -200,9 +189,7 @@ async def deactivate_competitor(
     competitor_id: UUID,
 ) -> None:
     """Deactivate a competitor (soft delete)."""
-    result = await db.execute(
-        select(Competitor).where(Competitor.id == competitor_id)
-    )
+    result = await db.execute(select(Competitor).where(Competitor.id == competitor_id))
     db_competitor = result.scalar_one_or_none()
 
     if not db_competitor:
@@ -268,17 +255,17 @@ async def discover_competitors(
 
         # If no page_id found, add to pending review list with URL if available
         if not page_id:
-            pending_manual_review.append({
-                "company_name": company_name,
-                "facebook_url": facebook_url,
-                "relevance_reason": comp_data.get("reason"),
-                "description": comp_data.get("description"),
-            })
+            pending_manual_review.append(
+                {
+                    "company_name": company_name,
+                    "facebook_url": facebook_url,
+                    "relevance_reason": comp_data.get("reason"),
+                    "description": comp_data.get("description"),
+                }
+            )
             continue
 
-        existing = await db.execute(
-            select(Competitor).where(Competitor.page_id == page_id)
-        )
+        existing = await db.execute(select(Competitor).where(Competitor.page_id == page_id))
         if existing.scalar_one_or_none():
             already_tracked += 1
             continue

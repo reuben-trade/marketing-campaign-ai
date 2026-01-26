@@ -60,9 +60,7 @@ class SegmentAnalysis(BaseModel):
     timestamp_start: float = Field(..., ge=0, description="Start time in seconds")
     timestamp_end: float = Field(..., ge=0, description="End time in seconds")
     visual_description: str = Field(..., description="Detailed visual description")
-    action_tags: list[str] = Field(
-        default_factory=list, description="Tags describing the action"
-    )
+    action_tags: list[str] = Field(default_factory=list, description="Tags describing the action")
     scene_type: str | None = Field(
         None,
         description="Type of scene (e.g., 'product_demo', 'testimonial', 'b-roll')",
@@ -82,9 +80,7 @@ class SegmentAnalysis(BaseModel):
 class VideoAnalysisResult(BaseModel):
     """Schema for the full video analysis result from Gemini."""
 
-    video_level_summary: str = Field(
-        ..., description="Overall summary of the video content"
-    )
+    video_level_summary: str = Field(..., description="Overall summary of the video content")
     video_level_tags: list[str] = Field(
         default_factory=list, description="Tags describing the overall video"
     )

@@ -16,7 +16,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import re
 import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -24,7 +23,7 @@ from urllib.parse import parse_qs, urlparse
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.services.ad_library_scraper import AdLibraryScraper
+from app.services.ad_library_scraper import AdLibraryScraper  # noqa: E402
 
 
 def parse_ad_library_url(url: str) -> tuple[str | None, str | None]:
@@ -59,7 +58,7 @@ async def test_scrape_ad_details(
     scraper = AdLibraryScraper()
 
     print(f"\n{'='*60}")
-    print(f"Testing Ad Details Scraper")
+    print("Testing Ad Details Scraper")
     print(f"{'='*60}")
     print(f"Ad Library ID: {ad_library_id}")
     print(f"Page ID: {page_id}")
@@ -168,19 +167,25 @@ async def test_multiple_ads(ad_ids: list[tuple[str, str]], country: str = "AU") 
                 page_id=page_id,
                 country=country,
             )
-            results.append({
-                "ad_library_id": ad_library_id,
-                "success": True,
-                "details": details,
-            })
-            print(f"  ✓ Success - Found: {len(details.get('additional_links', []))} links, "
-                  f"form_fields: {'Yes' if details.get('form_fields') else 'No'}")
+            results.append(
+                {
+                    "ad_library_id": ad_library_id,
+                    "success": True,
+                    "details": details,
+                }
+            )
+            print(
+                f"  ✓ Success - Found: {len(details.get('additional_links', []))} links, "
+                f"form_fields: {'Yes' if details.get('form_fields') else 'No'}"
+            )
         except Exception as e:
-            results.append({
-                "ad_library_id": ad_library_id,
-                "success": False,
-                "error": str(e),
-            })
+            results.append(
+                {
+                    "ad_library_id": ad_library_id,
+                    "success": False,
+                    "error": str(e),
+                }
+            )
             print(f"  ✗ Failed: {e}")
 
     # Summary
@@ -251,12 +256,14 @@ def main():
         sys.exit(1)
 
     # Run the test
-    asyncio.run(test_scrape_ad_details(
-        ad_library_id=ad_id,
-        page_id=page_id,
-        country=args.country,
-        verbose=not args.quiet,
-    ))
+    asyncio.run(
+        test_scrape_ad_details(
+            ad_library_id=ad_id,
+            page_id=page_id,
+            country=args.country,
+            verbose=not args.quiet,
+        )
+    )
 
 
 if __name__ == "__main__":

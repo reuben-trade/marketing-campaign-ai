@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.ad import Ad
 from app.models.ad_creative_analysis import AdCreativeAnalysis
@@ -57,7 +58,9 @@ class CompositeScoreCalculator:
         # Get thumb_stop_score from engagement_predictors
         engagement_predictors = ad.video_intelligence.get("engagement_predictors", {})
         thumb_stop = engagement_predictors.get("thumb_stop", {}) if engagement_predictors else {}
-        thumb_stop_score = thumb_stop.get("thumb_stop_score") if isinstance(thumb_stop, dict) else None
+        thumb_stop_score = (
+            thumb_stop.get("thumb_stop_score") if isinstance(thumb_stop, dict) else None
+        )
 
         scores = []
         if hook_score is not None:
@@ -107,9 +110,7 @@ class CompositeScoreCalculator:
         """
         # Get competitor if not provided
         if competitor is None:
-            result = await db.execute(
-                select(Competitor).where(Competitor.id == ad.competitor_id)
-            )
+            result = await db.execute(select(Competitor).where(Competitor.id == ad.competitor_id))
             competitor = result.scalar_one_or_none()
 
         if competitor is None:
@@ -141,7 +142,7 @@ class CompositeScoreCalculator:
                 Ad.analysis_status == "completed",
             )
         )
-        total_ads = result.scalar() or 1
+        _total_ads = result.scalar() or 1  # noqa: F841 - reserved for future percentile calc
 
         # For simplicity, calculate percentile based on current ad's engagement rate
         # In a full implementation, this would query all ads' engagement rates
@@ -164,9 +165,7 @@ class CompositeScoreCalculator:
 
         return percentile
 
-    async def calculate_production_quality_score(
-        self, db: AsyncSession, ad: Ad
-    ) -> float:
+    async def calculate_production_quality_score(self, db: AsyncSession, ad: Ad) -> float:
         """
         Extract from creative_analysis.production_quality_score.
         Normalize from 1-10 to 0-1 scale.

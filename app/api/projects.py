@@ -21,10 +21,19 @@ from app.schemas.project import (
     ProjectUploadResponse,
     UploadFailure,
 )
+from app.schemas.user_video_segment import (
+    AnalysisProgress,
+    ProjectSegmentsResponse,
+    UserVideoSegmentResponse,
+)
 from app.services.upload_service import (
     UploadError,
     UploadService,
     UploadValidationError,
+)
+from app.services.user_content_analyzer import (
+    UserContentAnalyzer,
+    UserContentAnalyzerError,
 )
 from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
 
@@ -408,6 +417,189 @@ async def delete_project_file(
     except SupabaseStorageError as e:
         logger.warning(f"Failed to delete file from storage: {e}")
 
+    # Delete associated segments
+    analyzer = UserContentAnalyzer()
+    await analyzer.delete_file_segments(db, file_id)
+
     # Delete from database
     await db.delete(project_file)
     await db.commit()
+
+
+# =============================================================================
+# CONTENT ANALYSIS ENDPOINTS
+# =============================================================================
+
+
+@router.post(
+    "/{project_id}/analyze",
+    response_model=AnalysisProgress,
+    responses={
+        404: {"description": "Project not found"},
+        500: {"description": "Analysis failed"},
+    },
+)
+async def analyze_project_files(
+    db: DbSession,
+    project_id: UUID,
+    force_reanalyze: bool = Query(
+        False,
+        description="Re-analyze already completed files",
+    ),
+) -> AnalysisProgress:
+    """
+    Analyze all uploaded video files in a project.
+
+    This endpoint:
+    1. Sends each video to Gemini for segment extraction
+    2. Generates embeddings for each segment
+    3. Stores segments in the database for semantic search
+
+    **Note:** Analysis can take 1-2 minutes per video file.
+    """
+    # Verify project exists
+    result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    try:
+        analyzer = UserContentAnalyzer()
+        progress = await analyzer.analyze_project(
+            db,
+            project_id,
+            force_reanalyze=force_reanalyze,
+        )
+        return progress
+    except UserContentAnalyzerError as e:
+        logger.error(f"Analysis failed for project {project_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.post(
+    "/{project_id}/files/{file_id}/analyze",
+    response_model=list[UserVideoSegmentResponse],
+    responses={
+        404: {"description": "Project or file not found"},
+        500: {"description": "Analysis failed"},
+    },
+)
+async def analyze_single_file(
+    db: DbSession,
+    project_id: UUID,
+    file_id: UUID,
+) -> list[UserVideoSegmentResponse]:
+    """
+    Analyze a single video file in a project.
+
+    This endpoint:
+    1. Sends the video to Gemini for segment extraction
+    2. Generates embeddings for each segment
+    3. Stores segments in the database for semantic search
+
+    **Note:** Analysis can take 1-2 minutes.
+    """
+    # Get file
+    result = await db.execute(
+        select(ProjectFile).where(
+            ProjectFile.id == file_id,
+            ProjectFile.project_id == project_id,
+        )
+    )
+    project_file = result.scalar_one_or_none()
+
+    if not project_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    try:
+        analyzer = UserContentAnalyzer()
+
+        # Delete existing segments for this file first
+        await analyzer.delete_file_segments(db, file_id)
+
+        # Analyze the file
+        segments = await analyzer.analyze_project_file(db, project_file)
+
+        return [
+            UserVideoSegmentResponse(
+                id=s.id,
+                project_id=s.project_id,
+                source_file_id=s.source_file_id,
+                source_file_name=s.source_file_name,
+                source_file_url=s.source_file_url,
+                timestamp_start=s.timestamp_start,
+                timestamp_end=s.timestamp_end,
+                duration_seconds=s.duration_seconds,
+                visual_description=s.visual_description,
+                action_tags=s.action_tags,
+                thumbnail_url=s.thumbnail_url,
+                created_at=s.created_at,
+            )
+            for s in segments
+        ]
+    except UserContentAnalyzerError as e:
+        logger.error(f"Analysis failed for file {file_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/{project_id}/segments",
+    response_model=ProjectSegmentsResponse,
+)
+async def list_project_segments(
+    db: DbSession,
+    project_id: UUID,
+) -> ProjectSegmentsResponse:
+    """List all extracted segments for a project."""
+    # Verify project exists
+    result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Get segments
+    analyzer = UserContentAnalyzer()
+    segments = await analyzer.get_project_segments(db, project_id)
+
+    return ProjectSegmentsResponse(
+        project_id=project_id,
+        total_segments=len(segments),
+        segments=[
+            UserVideoSegmentResponse(
+                id=s.id,
+                project_id=s.project_id,
+                source_file_id=s.source_file_id,
+                source_file_name=s.source_file_name,
+                source_file_url=s.source_file_url,
+                timestamp_start=s.timestamp_start,
+                timestamp_end=s.timestamp_end,
+                duration_seconds=s.duration_seconds,
+                visual_description=s.visual_description,
+                action_tags=s.action_tags,
+                thumbnail_url=s.thumbnail_url,
+                created_at=s.created_at,
+            )
+            for s in segments
+        ],
+    )

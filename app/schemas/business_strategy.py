@@ -18,7 +18,9 @@ class BrandVoice(BaseModel):
     """Brand voice characteristics."""
 
     tone: str = Field(..., description="Brand tone (e.g., professional, casual, playful)")
-    personality_traits: list[str] = Field(default_factory=list, description="Brand personality traits")
+    personality_traits: list[str] = Field(
+        default_factory=list, description="Brand personality traits"
+    )
     messaging_guidelines: str = Field(..., description="Guidelines for messaging")
 
 
@@ -81,5 +83,9 @@ class BusinessStrategyExtractResponse(BaseModel):
     """Response after extracting strategy from PDF."""
 
     strategy: BusinessStrategyResponse
-    extraction_confidence: float = Field(..., ge=0, le=1, description="Confidence in extraction quality")
-    missing_fields: list[str] = Field(default_factory=list, description="Fields that couldn't be extracted")
+    extraction_confidence: float = Field(
+        ..., ge=0, le=1, description="Confidence in extraction quality"
+    )
+    missing_fields: list[str] = Field(
+        default_factory=list, description="Fields that couldn't be extracted"
+    )

@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 Platform = Literal["facebook", "tiktok", "google"]
 AdStatus = Literal["active", "inactive"]
 

@@ -9,12 +9,11 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select  # noqa: E402
 
-from app.database import async_session_maker
-from app.models.ad import Ad
-from app.services.creative_analysis_service import backfill_existing_ads
+from app.database import async_session_maker  # noqa: E402
+from app.models.ad import Ad  # noqa: E402
+from app.services.creative_analysis_service import backfill_existing_ads  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,9 +28,7 @@ async def main():
 
     async with async_session_maker() as db:
         # Get all ads that have video_intelligence data
-        result = await db.execute(
-            select(Ad).where(Ad.video_intelligence.isnot(None))
-        )
+        result = await db.execute(select(Ad).where(Ad.video_intelligence.isnot(None)))
         ads = result.scalars().all()
 
         logger.info(f"Found {len(ads)} ads with video_intelligence data")

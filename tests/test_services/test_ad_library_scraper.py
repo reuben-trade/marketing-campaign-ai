@@ -33,14 +33,14 @@ class TestAdLibraryScraper:
         scraper = AdLibraryScraper()
 
         # Sample HTML with embedded ad data (simplified)
-        html_content = '''
+        html_content = """
         <html>
         <script>
         {"ad_archive_id":"123456789","collation_id":"987654321","page_id":"144068198941502",
         "snapshot":{"body":"Test ad copy here","link_url":"http://example.com","start_date":1704067200}}
         </script>
         </html>
-        '''
+        """
 
         seen_ids = set()
         ads = scraper._extract_ads_from_html(html_content, seen_ids)
@@ -53,9 +53,9 @@ class TestAdLibraryScraper:
         """Test that duplicate ads are not extracted twice."""
         scraper = AdLibraryScraper()
 
-        html_content = '''
+        html_content = """
         {"ad_archive_id":"123456789","collation_id":"987654321","page_id":"144068198941502"}
-        '''
+        """
 
         # Pre-populate seen_ids
         seen_ids = {"123456789"}
@@ -84,9 +84,7 @@ class TestAdLibraryScraperAsync:
         scraper = AdLibraryScraper()
 
         # Test with the known working page
-        page_id = await scraper.extract_page_id_from_profile(
-            "https://www.facebook.com/thegroutguy"
-        )
+        page_id = await scraper.extract_page_id_from_profile("https://www.facebook.com/thegroutguy")
 
         # The Grout Guy's Page ID
         assert page_id == "100064364122244"

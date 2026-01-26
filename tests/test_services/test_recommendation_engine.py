@@ -1,6 +1,5 @@
 """Tests for recommendation engine service."""
 
-import pytest
 
 from app.services.recommendation_engine import RecommendationEngine
 

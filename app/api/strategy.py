@@ -5,7 +5,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import DbSession
 from app.models.business_strategy import BusinessStrategy
@@ -59,7 +58,9 @@ async def upload_and_extract_strategy(
         business_name=strategy_data.business_name,
         business_description=strategy_data.business_description,
         industry=strategy_data.industry,
-        target_audience=strategy_data.target_audience.model_dump() if strategy_data.target_audience else None,
+        target_audience=strategy_data.target_audience.model_dump()
+        if strategy_data.target_audience
+        else None,
         brand_voice=strategy_data.brand_voice.model_dump() if strategy_data.brand_voice else None,
         market_position=strategy_data.market_position,
         price_point=strategy_data.price_point,
@@ -127,9 +128,7 @@ async def get_strategy(
     strategy_id: UUID,
 ) -> BusinessStrategyResponse:
     """Get a business strategy by ID."""
-    result = await db.execute(
-        select(BusinessStrategy).where(BusinessStrategy.id == strategy_id)
-    )
+    result = await db.execute(select(BusinessStrategy).where(BusinessStrategy.id == strategy_id))
     strategy = result.scalar_one_or_none()
 
     if not strategy:
@@ -148,9 +147,7 @@ async def update_strategy(
     strategy_update: BusinessStrategyUpdate,
 ) -> BusinessStrategyResponse:
     """Update a business strategy."""
-    result = await db.execute(
-        select(BusinessStrategy).where(BusinessStrategy.id == strategy_id)
-    )
+    result = await db.execute(select(BusinessStrategy).where(BusinessStrategy.id == strategy_id))
     db_strategy = result.scalar_one_or_none()
 
     if not db_strategy:
@@ -181,9 +178,7 @@ async def delete_strategy(
     strategy_id: UUID,
 ) -> None:
     """Delete a business strategy."""
-    result = await db.execute(
-        select(BusinessStrategy).where(BusinessStrategy.id == strategy_id)
-    )
+    result = await db.execute(select(BusinessStrategy).where(BusinessStrategy.id == strategy_id))
     db_strategy = result.scalar_one_or_none()
 
     if not db_strategy:

@@ -269,9 +269,7 @@ class EmbeddingService:
 
         return results
 
-    async def embed_batch(
-        self, db: AsyncSession, limit: int = 100
-    ) -> dict[str, int]:
+    async def embed_batch(self, db: AsyncSession, limit: int = 100) -> dict[str, int]:
         """
         Generate embeddings for ads without them.
 

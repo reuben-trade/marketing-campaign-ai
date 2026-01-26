@@ -5,12 +5,12 @@ import json
 import logging
 import random
 import re
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
 
 from openai import AsyncOpenAI
-from playwright.async_api import Browser, Page, async_playwright
+from playwright.async_api import Page, async_playwright
 from tavily import AsyncTavilyClient
 
 from app.config import get_settings
@@ -138,7 +138,9 @@ class AdLibraryScraper:
                     result["platforms"] = await self._extract_platforms_from_modal(target_modal)
 
                     # Step 3: Click "See ad details" within this modal to expand/open full details
-                    see_details = await target_modal.query_selector('span:has-text("See ad details")')
+                    see_details = await target_modal.query_selector(
+                        'span:has-text("See ad details")'
+                    )
                     if see_details:
                         logger.debug("Clicking 'See ad details' in modal")
                         await see_details.evaluate("el => el.click()")
@@ -158,15 +160,21 @@ class AdLibraryScraper:
 
                         if details_modal:
                             # Expand the "Additional assets" dropdown within the details modal
-                            add_assets = await details_modal.query_selector(':has-text("Additional assets from this ad")')
+                            add_assets = await details_modal.query_selector(
+                                ':has-text("Additional assets from this ad")'
+                            )
                             if add_assets:
                                 logger.debug("Clicking 'Additional assets from this ad' dropdown")
                                 await add_assets.evaluate("el => el.click()")
                                 await asyncio.sleep(1.5)
 
                             # Extract additional links ONLY from within this modal
-                            result["additional_links"] = await self._extract_additional_links_from_modal(details_modal)
-                            result["form_fields"] = await self._extract_form_fields_from_modal(details_modal)
+                            result[
+                                "additional_links"
+                            ] = await self._extract_additional_links_from_modal(details_modal)
+                            result["form_fields"] = await self._extract_form_fields_from_modal(
+                                details_modal
+                            )
                 else:
                     # Fallback: No modal found, try the original approach
                     logger.debug("No modal with ad ID found, using fallback extraction")
@@ -222,7 +230,7 @@ class AdLibraryScraper:
         }
 
         # Parse "Started running on" date
-        date_match = re.search(r'Started running on (\d{1,2} \w+ \d{4})', text)
+        date_match = re.search(r"Started running on (\d{1,2} \w+ \d{4})", text)
         if date_match:
             date_str = date_match.group(1)
             try:
@@ -232,7 +240,7 @@ class AdLibraryScraper:
                 logger.debug(f"Could not parse date: {date_str}")
 
         # Extract "Total active time"
-        time_match = re.search(r'Total active time[:\s·]+([^\n]+)', text)
+        time_match = re.search(r"Total active time[:\s·]+([^\n]+)", text)
         if time_match:
             result["total_active_time"] = time_match.group(1).strip()
 
@@ -269,7 +277,11 @@ class AdLibraryScraper:
                     text = await el.inner_text()
                     text = text.strip()
                     # Primary text should be substantive and not a navigation item
-                    if text and len(text) > 40 and not text.lower().startswith(("sponsored", "fb.me", "http")):
+                    if (
+                        text
+                        and len(text) > 40
+                        and not text.lower().startswith(("sponsored", "fb.me", "http"))
+                    ):
                         # Skip if it looks like a CTA or short label
                         if text.lower() not in ["get offer", "learn more", "shop now", "sign up"]:
                             result["primary_text"] = text
@@ -286,11 +298,14 @@ class AdLibraryScraper:
                 text = await el.inner_text()
                 text = text.strip()
                 # Skip empty, primary text, "Sponsored", and domain labels
-                if (text and len(text) > 3 and
-                    text.lower() not in ["sponsored", "fb.me", ""] and
-                    text != result.get("primary_text") and
-                    not text.startswith("http") and
-                    not text.startswith("www.")):
+                if (
+                    text
+                    and len(text) > 3
+                    and text.lower() not in ["sponsored", "fb.me", ""]
+                    and text != result.get("primary_text")
+                    and not text.startswith("http")
+                    and not text.startswith("www.")
+                ):
                     link_texts.append(text)
 
             # Assign headline and description based on order and characteristics
@@ -303,10 +318,21 @@ class AdLibraryScraper:
 
             # Extract CTA button text
             cta_keywords = {
-                "get offer", "learn more", "shop now", "sign up",
-                "get quote", "book now", "contact us", "apply now",
-                "download", "subscribe", "get started", "see more",
-                "buy now", "order now", "call now",
+                "get offer",
+                "learn more",
+                "shop now",
+                "sign up",
+                "get quote",
+                "book now",
+                "contact us",
+                "apply now",
+                "download",
+                "subscribe",
+                "get started",
+                "see more",
+                "buy now",
+                "order now",
+                "call now",
             }
 
             # Look in the modal for CTA elements
@@ -315,7 +341,7 @@ class AdLibraryScraper:
                 if keyword in all_text_in_modal.lower():
                     # Find the exact casing from the modal
                     idx = all_text_in_modal.lower().find(keyword)
-                    result["cta_text"] = all_text_in_modal[idx:idx + len(keyword)].strip()
+                    result["cta_text"] = all_text_in_modal[idx : idx + len(keyword)].strip()
                     # Capitalize properly
                     result["cta_text"] = result["cta_text"].title()
                     break
@@ -366,7 +392,7 @@ class AdLibraryScraper:
         try:
             # Look for timing text - typically in format:
             # "Started running on 19 Jan 2026 · Total active time 4 hrs"
-            timing_elements = await page.query_selector_all('span')
+            timing_elements = await page.query_selector_all("span")
 
             for element in timing_elements:
                 text = await element.inner_text()
@@ -376,7 +402,7 @@ class AdLibraryScraper:
                 if "Started running on" in text:
                     # Extract date portion
                     date_match = re.search(
-                        r'Started running on (\d{1,2} \w+ \d{4})',
+                        r"Started running on (\d{1,2} \w+ \d{4})",
                         text,
                     )
                     if date_match:
@@ -389,7 +415,7 @@ class AdLibraryScraper:
 
                     # Extract "Total active time" if in same element
                     time_match = re.search(
-                        r'Total active time[:\s]+([^·\n]+)',
+                        r"Total active time[:\s]+([^·\n]+)",
                         text,
                     )
                     if time_match:
@@ -401,7 +427,7 @@ class AdLibraryScraper:
                 for element in timing_elements:
                     text = await element.inner_text()
                     if "Total active time" in text:
-                        time_match = re.search(r'Total active time[:\s]+(.+)', text)
+                        time_match = re.search(r"Total active time[:\s]+(.+)", text)
                         if time_match:
                             result["total_active_time"] = time_match.group(1).strip()
                         break
@@ -430,22 +456,30 @@ class AdLibraryScraper:
                         platforms.append("facebook")
 
             # Check for platform icons/links
-            fb_icon = await page.query_selector('a[aria-label*="Facebook"], svg[aria-label*="Facebook"]')
+            fb_icon = await page.query_selector(
+                'a[aria-label*="Facebook"], svg[aria-label*="Facebook"]'
+            )
             if fb_icon and "facebook" not in platforms:
                 platforms.append("facebook")
 
-            ig_icon = await page.query_selector('a[aria-label*="Instagram"], svg[aria-label*="Instagram"]')
+            ig_icon = await page.query_selector(
+                'a[aria-label*="Instagram"], svg[aria-label*="Instagram"]'
+            )
             if ig_icon:
                 platforms.append("instagram")
 
-            messenger_icon = await page.query_selector('a[aria-label*="Messenger"], svg[aria-label*="Messenger"]')
+            messenger_icon = await page.query_selector(
+                'a[aria-label*="Messenger"], svg[aria-label*="Messenger"]'
+            )
             if messenger_icon:
                 platforms.append("messenger")
 
             # Fallback: check for platform letters/icons in Platforms section
             # Facebook uses F, Instagram uses camera icon, Messenger uses lightning
             if not platforms:
-                platforms_section = await page.query_selector('div:has(> span:has-text("Platforms"))')
+                platforms_section = await page.query_selector(
+                    'div:has(> span:has-text("Platforms"))'
+                )
                 if platforms_section:
                     section_html = await platforms_section.inner_html()
                     # Simple heuristic based on common patterns
@@ -486,7 +520,7 @@ class AdLibraryScraper:
             #   - CTA button (Get offer)
 
             # Get all text content from the modal to understand structure
-            modal = page.locator('div[role="dialog"]').first
+            _modal = page.locator('div[role="dialog"]').first  # noqa: F841
 
             # Primary text - the ad copy/description shown above the media
             # Look for the specific style pattern from screenshots
@@ -540,10 +574,22 @@ class AdLibraryScraper:
 
             # CTA button text - look for common CTA button patterns
             cta_keywords = [
-                "get offer", "learn more", "shop now", "sign up",
-                "get quote", "book now", "contact us", "apply now",
-                "download", "subscribe", "get started", "see more",
-                "get offer", "buy now", "order now", "call now",
+                "get offer",
+                "learn more",
+                "shop now",
+                "sign up",
+                "get quote",
+                "book now",
+                "contact us",
+                "apply now",
+                "download",
+                "subscribe",
+                "get started",
+                "see more",
+                "get offer",
+                "buy now",
+                "order now",
+                "call now",
             ]
 
             # Look in buttons and clickable divs
@@ -557,7 +603,7 @@ class AdLibraryScraper:
 
             # If no CTA found, try looking for span with CTA text
             if not result["cta_text"]:
-                spans = await page.query_selector_all('span')
+                spans = await page.query_selector_all("span")
                 for span in spans:
                     text = await span.inner_text()
                     text = text.strip()
@@ -587,7 +633,9 @@ class AdLibraryScraper:
                     if await element.count() > 0:
                         # Use JavaScript click to bypass overlay issues
                         await element.evaluate("el => el.click()")
-                        logger.debug(f"Clicked 'Additional assets' dropdown using selector: {selector}")
+                        logger.debug(
+                            f"Clicked 'Additional assets' dropdown using selector: {selector}"
+                        )
                         await asyncio.sleep(1.5)  # Wait for content to expand
                         return
                 except Exception as e:
@@ -617,7 +665,7 @@ class AdLibraryScraper:
                 parent = await heading.evaluate_handle("el => el.closest('div')")
                 if parent:
                     # Find the next ul sibling or links in the same container
-                    parent_html = await parent.inner_html()
+                    _parent_html = await parent.inner_html()  # noqa: F841
                     # Look for anchor tags in nearby elements
                     sibling_links = await page.query_selector_all('ul li a[href^="http"]')
                     for link_el in sibling_links:
@@ -627,9 +675,14 @@ class AdLibraryScraper:
                             if not any(
                                 domain in href.lower()
                                 for domain in [
-                                    "facebook.com", "fb.com", "instagram.com",
-                                    "meta.com", "metastatus.com", "/ads/library",
-                                    "/policies", "/privacy"
+                                    "facebook.com",
+                                    "fb.com",
+                                    "instagram.com",
+                                    "meta.com",
+                                    "metastatus.com",
+                                    "/ads/library",
+                                    "/policies",
+                                    "/privacy",
                                 ]
                             ):
                                 if href not in seen_urls:
@@ -641,15 +694,20 @@ class AdLibraryScraper:
                 all_links = await page.query_selector_all('div[role="dialog"] a[href^="http"]')
                 for link_el in all_links:
                     href = await link_el.get_attribute("href")
-                    link_text = await link_el.inner_text()
+                    _link_text = await link_el.inner_text()  # noqa: F841
                     if href and href.startswith("http"):
                         # Skip internal Facebook URLs and navigation links
                         if not any(
                             domain in href.lower()
                             for domain in [
-                                "facebook.com", "fb.com", "instagram.com",
-                                "meta.com", "metastatus.com", "/ads/",
-                                "/policies", "/privacy"
+                                "facebook.com",
+                                "fb.com",
+                                "instagram.com",
+                                "meta.com",
+                                "metastatus.com",
+                                "/ads/",
+                                "/policies",
+                                "/privacy",
                             ]
                         ):
                             if href not in seen_urls:
@@ -687,7 +745,7 @@ class AdLibraryScraper:
 
             # Find the ul that follows the Text heading (contains form field info)
             # The ul should be within the same container section
-            text_container = await text_heading.evaluate_handle("el => el.closest('div[class]')")
+            _text_container = await text_heading.evaluate_handle("el => el.closest('div[class]')")  # noqa: F841
 
             # Look for list items specifically within the Additional assets section
             # We need to find the ul that's part of the "Text" subsection
@@ -697,7 +755,7 @@ class AdLibraryScraper:
             all_uls = await page.query_selector_all('div[role="dialog"] ul')
             for ul in all_uls:
                 # Get the list items from this ul
-                items = await ul.query_selector_all('li')
+                items = await ul.query_selector_all("li")
                 for item in items:
                     text = await item.inner_text()
                     text = text.strip()
@@ -708,8 +766,13 @@ class AdLibraryScraper:
 
                     # Skip items that are clearly site navigation (Ad Library API, Privacy, Terms, Cookies)
                     skip_patterns = [
-                        "ad library api", "about ads", "privacy", "terms",
-                        "cookies", "report ad", "why am i seeing"
+                        "ad library api",
+                        "about ads",
+                        "privacy",
+                        "terms",
+                        "cookies",
+                        "report ad",
+                        "why am i seeing",
                     ]
                     if any(skip in text.lower() for skip in skip_patterns):
                         continue
@@ -728,10 +791,12 @@ class AdLibraryScraper:
                         domain in href.lower()
                         for domain in ["facebook.com", "fb.com", "instagram.com", "meta.com"]
                     ):
-                        form_data["terms_links"].append({
-                            "text": text,
-                            "url": href,
-                        })
+                        form_data["terms_links"].append(
+                            {
+                                "text": text,
+                                "url": href,
+                            }
+                        )
                         has_form_content = True
                         continue
 
@@ -739,10 +804,12 @@ class AdLibraryScraper:
                 if text.endswith("?"):
                     # Save previous question if exists
                     if current_question:
-                        form_data["questions"].append({
-                            "question": current_question,
-                            "options": current_options,
-                        })
+                        form_data["questions"].append(
+                            {
+                                "question": current_question,
+                                "options": current_options,
+                            }
+                        )
                         has_form_content = True
 
                     current_question = text
@@ -756,12 +823,26 @@ class AdLibraryScraper:
 
                 # Detect form field names (common patterns)
                 field_patterns = [
-                    "full name", "email", "phone", "phone number",
-                    "post code", "postcode", "zip", "address", "city",
-                    "state", "country", "company", "job title", "website",
+                    "full name",
+                    "email",
+                    "phone",
+                    "phone number",
+                    "post code",
+                    "postcode",
+                    "zip",
+                    "address",
+                    "city",
+                    "state",
+                    "country",
+                    "company",
+                    "job title",
+                    "website",
                 ]
                 # Match exact field names or field names at start of text
-                if any(text.lower() == pattern or text.lower().startswith(pattern) for pattern in field_patterns):
+                if any(
+                    text.lower() == pattern or text.lower().startswith(pattern)
+                    for pattern in field_patterns
+                ):
                     form_data["fields"].append(text)
                     has_form_content = True
                     continue
@@ -769,7 +850,13 @@ class AdLibraryScraper:
                 # Detect intro text (usually first substantial text, often starts with "Fill in")
                 if not form_data["intro_text"] and len(text) > 30 and "?" not in text:
                     # Check for common intro patterns
-                    intro_patterns = ["fill in", "complete", "enter your", "provide your", "get in touch"]
+                    intro_patterns = [
+                        "fill in",
+                        "complete",
+                        "enter your",
+                        "provide your",
+                        "get in touch",
+                    ]
                     if any(pattern in text.lower() for pattern in intro_patterns):
                         form_data["intro_text"] = text
                         has_form_content = True
@@ -784,10 +871,12 @@ class AdLibraryScraper:
 
             # Save last question if exists
             if current_question:
-                form_data["questions"].append({
-                    "question": current_question,
-                    "options": current_options,
-                })
+                form_data["questions"].append(
+                    {
+                        "question": current_question,
+                        "options": current_options,
+                    }
+                )
                 has_form_content = True
 
         except Exception as e:
@@ -812,9 +901,16 @@ class AdLibraryScraper:
 
                 # Skip Meta/Facebook internal URLs
                 skip_domains = [
-                    "facebook.com", "fb.com", "fb.me", "instagram.com",
-                    "meta.com", "metastatus.com", "l.facebook.com",
-                    "/ads/", "/policies", "/privacy"
+                    "facebook.com",
+                    "fb.com",
+                    "fb.me",
+                    "instagram.com",
+                    "meta.com",
+                    "metastatus.com",
+                    "l.facebook.com",
+                    "/ads/",
+                    "/policies",
+                    "/privacy",
                 ]
                 if any(domain in href.lower() for domain in skip_domains):
                     continue
@@ -823,11 +919,13 @@ class AdLibraryScraper:
                 if "l.facebook.com/l.php" in href:
                     # Extract the actual URL from the redirect
                     from urllib.parse import parse_qs, urlparse
+
                     parsed = urlparse(href)
                     params = parse_qs(parsed.query)
                     actual_url = params.get("u", [None])[0]
                     if actual_url:
                         from urllib.parse import unquote
+
                         href = unquote(actual_url)
 
                 if href not in seen_urls:
@@ -861,10 +959,10 @@ class AdLibraryScraper:
 
             # Find list items within the modal
             form_list_items = []
-            all_uls = await modal.query_selector_all('ul')
+            all_uls = await modal.query_selector_all("ul")
 
             for ul in all_uls:
-                items = await ul.query_selector_all('li')
+                items = await ul.query_selector_all("li")
                 for item in items:
                     text = await item.inner_text()
                     text = text.strip()
@@ -874,8 +972,14 @@ class AdLibraryScraper:
                         continue
 
                     skip_patterns = [
-                        "ad library api", "about ads", "privacy", "terms",
-                        "cookies", "report ad", "why am i seeing", "system status"
+                        "ad library api",
+                        "about ads",
+                        "privacy",
+                        "terms",
+                        "cookies",
+                        "report ad",
+                        "why am i seeing",
+                        "system status",
                     ]
                     if any(skip in text.lower() for skip in skip_patterns):
                         continue
@@ -892,31 +996,42 @@ class AdLibraryScraper:
                     href = await link_el.get_attribute("href")
                     if href and not any(
                         domain in href.lower()
-                        for domain in ["facebook.com", "fb.com", "instagram.com", "meta.com", "l.facebook.com"]
+                        for domain in [
+                            "facebook.com",
+                            "fb.com",
+                            "instagram.com",
+                            "meta.com",
+                            "l.facebook.com",
+                        ]
                     ):
                         # Decode Facebook redirect URLs
                         if "l.facebook.com/l.php" in href:
-                            from urllib.parse import parse_qs, urlparse, unquote
+                            from urllib.parse import parse_qs, unquote, urlparse
+
                             parsed = urlparse(href)
                             params = parse_qs(parsed.query)
                             actual_url = params.get("u", [None])[0]
                             if actual_url:
                                 href = unquote(actual_url)
 
-                        form_data["terms_links"].append({
-                            "text": text,
-                            "url": href,
-                        })
+                        form_data["terms_links"].append(
+                            {
+                                "text": text,
+                                "url": href,
+                            }
+                        )
                         has_form_content = True
                         continue
 
                 # Detect question patterns
                 if text.endswith("?"):
                     if current_question:
-                        form_data["questions"].append({
-                            "question": current_question,
-                            "options": current_options,
-                        })
+                        form_data["questions"].append(
+                            {
+                                "question": current_question,
+                                "options": current_options,
+                            }
+                        )
                         has_form_content = True
 
                     current_question = text
@@ -930,18 +1045,38 @@ class AdLibraryScraper:
 
                 # Detect form field names
                 field_patterns = [
-                    "full name", "email", "phone", "phone number",
-                    "post code", "postcode", "zip", "address", "city",
-                    "state", "country", "company", "job title", "website",
+                    "full name",
+                    "email",
+                    "phone",
+                    "phone number",
+                    "post code",
+                    "postcode",
+                    "zip",
+                    "address",
+                    "city",
+                    "state",
+                    "country",
+                    "company",
+                    "job title",
+                    "website",
                 ]
-                if any(text.lower() == pattern or text.lower().startswith(pattern) for pattern in field_patterns):
+                if any(
+                    text.lower() == pattern or text.lower().startswith(pattern)
+                    for pattern in field_patterns
+                ):
                     form_data["fields"].append(text)
                     has_form_content = True
                     continue
 
                 # Detect intro text
                 if not form_data["intro_text"] and len(text) > 30 and "?" not in text:
-                    intro_patterns = ["fill in", "complete", "enter your", "provide your", "get in touch"]
+                    intro_patterns = [
+                        "fill in",
+                        "complete",
+                        "enter your",
+                        "provide your",
+                        "get in touch",
+                    ]
                     if any(pattern in text.lower() for pattern in intro_patterns):
                         form_data["intro_text"] = text
                         has_form_content = True
@@ -956,10 +1091,12 @@ class AdLibraryScraper:
 
             # Save last question if exists
             if current_question:
-                form_data["questions"].append({
-                    "question": current_question,
-                    "options": current_options,
-                })
+                form_data["questions"].append(
+                    {
+                        "question": current_question,
+                        "options": current_options,
+                    }
+                )
                 has_form_content = True
 
         except Exception as e:
@@ -1082,12 +1219,12 @@ class AdLibraryScraper:
             snapshot_start = html_content.find(f'"ad_archive_id":"{ad_archive_id}"')
             if snapshot_start != -1:
                 # Look for body in the next 3000 chars (within the snapshot)
-                snapshot_section = html_content[snapshot_start:snapshot_start + 3000]
+                snapshot_section = html_content[snapshot_start : snapshot_start + 3000]
                 body_pattern = r'"body":"([^"]*)"'
                 body_match = re.search(body_pattern, snapshot_section)
                 if body_match:
                     try:
-                        body_text = body_match.group(1).encode('utf-8').decode('unicode_escape')
+                        body_text = body_match.group(1).encode("utf-8").decode("unicode_escape")
                     except (UnicodeDecodeError, UnicodeEncodeError):
                         # Fallback: just use the raw text with simple replacements
                         body_text = body_match.group(1).replace("\\n", "\n").replace("\\u2022", "•")
@@ -1207,11 +1344,13 @@ class AdLibraryScraper:
                     for i, img in enumerate(images):
                         src = await img.get_attribute("src")
                         if src and not src.startswith("data:"):
-                            details["carousel_items"].append({
-                                "index": i,
-                                "url": src,
-                                "type": "image",
-                            })
+                            details["carousel_items"].append(
+                                {
+                                    "index": i,
+                                    "url": src,
+                                    "type": "image",
+                                }
+                            )
 
                     # Get all videos in carousel
                     videos = await carousel_container.query_selector_all("video")
@@ -1219,12 +1358,14 @@ class AdLibraryScraper:
                         src = await video.get_attribute("src")
                         poster = await video.get_attribute("poster")
                         if src:
-                            details["carousel_items"].append({
-                                "index": len(details["carousel_items"]),
-                                "url": src,
-                                "type": "video",
-                                "poster": poster,
-                            })
+                            details["carousel_items"].append(
+                                {
+                                    "index": len(details["carousel_items"]),
+                                    "url": src,
+                                    "type": "video",
+                                    "poster": poster,
+                                }
+                            )
                 else:
                     # Single creative - determine type from page JSON data
                     # The Ad Library page shows multiple ads, so we need to identify
@@ -1252,34 +1393,34 @@ class AdLibraryScraper:
 
                             # Video URL patterns
                             if not video_url:
-                                video_match = re.search(
-                                    r'"video_sd_url"\s*:\s*"([^"]+)"', window
-                                )
+                                video_match = re.search(r'"video_sd_url"\s*:\s*"([^"]+)"', window)
                                 if video_match:
                                     has_video_url = True
-                                    video_url = video_match.group(1).replace(
-                                        "\\u0025", "%"
-                                    ).replace("\\/", "/")
+                                    video_url = (
+                                        video_match.group(1)
+                                        .replace("\\u0025", "%")
+                                        .replace("\\/", "/")
+                                    )
 
                             if not video_url:
-                                video_match = re.search(
-                                    r'"video_hd_url"\s*:\s*"([^"]+)"', window
-                                )
+                                video_match = re.search(r'"video_hd_url"\s*:\s*"([^"]+)"', window)
                                 if video_match:
                                     has_video_url = True
-                                    video_url = video_match.group(1).replace(
-                                        "\\u0025", "%"
-                                    ).replace("\\/", "/")
+                                    video_url = (
+                                        video_match.group(1)
+                                        .replace("\\u0025", "%")
+                                        .replace("\\/", "/")
+                                    )
 
                             if not video_url:
-                                video_match = re.search(
-                                    r'"playable_url"\s*:\s*"([^"]+)"', window
-                                )
+                                video_match = re.search(r'"playable_url"\s*:\s*"([^"]+)"', window)
                                 if video_match:
                                     has_video_url = True
-                                    video_url = video_match.group(1).replace(
-                                        "\\u0025", "%"
-                                    ).replace("\\/", "/")
+                                    video_url = (
+                                        video_match.group(1)
+                                        .replace("\\u0025", "%")
+                                        .replace("\\/", "/")
+                                    )
 
                             # Image URL patterns
                             if not image_url:
@@ -1288,9 +1429,11 @@ class AdLibraryScraper:
                                 )
                                 if image_match:
                                     has_image_url = True
-                                    image_url = image_match.group(1).replace(
-                                        "\\u0025", "%"
-                                    ).replace("\\/", "/")
+                                    image_url = (
+                                        image_match.group(1)
+                                        .replace("\\u0025", "%")
+                                        .replace("\\/", "/")
+                                    )
 
                             if not image_url:
                                 image_match = re.search(
@@ -1299,9 +1442,11 @@ class AdLibraryScraper:
                                 )
                                 if image_match:
                                     has_image_url = True
-                                    image_url = image_match.group(1).replace(
-                                        "\\u0025", "%"
-                                    ).replace("\\/", "/")
+                                    image_url = (
+                                        image_match.group(1)
+                                        .replace("\\u0025", "%")
+                                        .replace("\\/", "/")
+                                    )
 
                     # Decide based on JSON data - video ads have video URLs
                     if has_video_url and video_url:
@@ -1361,8 +1506,9 @@ class AdLibraryScraper:
             - page_id: The extracted Page ID if found, None otherwise
             - facebook_url: The Facebook page URL found (for manual review if page_id extraction fails)
         """
-        from app.config import get_settings
         from tavily import AsyncTavilyClient
+
+        from app.config import get_settings
 
         settings = get_settings()
         if not settings.tavily_api_key:
@@ -1401,10 +1547,20 @@ class AdLibraryScraper:
             # Find Facebook URL in results
             facebook_link = None
             skip_patterns = [
-                "/login", "/help", "/policies", "/privacy",
-                "business.facebook", "developers.facebook",
-                "/watch", "/groups", "/events", "/marketplace",
-                "/share", "/sharer", "/dialog", "/plugins"
+                "/login",
+                "/help",
+                "/policies",
+                "/privacy",
+                "business.facebook",
+                "developers.facebook",
+                "/watch",
+                "/groups",
+                "/events",
+                "/marketplace",
+                "/share",
+                "/sharer",
+                "/dialog",
+                "/plugins",
             ]
 
             for i, result in enumerate(results, 1):
@@ -1415,9 +1571,9 @@ class AdLibraryScraper:
                 if "facebook.com" in url and not facebook_link:
                     # Skip non-page URLs
                     if any(skip in url.lower() for skip in skip_patterns):
-                        logger.debug(f"    -> SKIPPED (matches exclusion pattern)")
+                        logger.debug("    -> SKIPPED (matches exclusion pattern)")
                         continue
-                    logger.debug(f"    -> SELECTED")
+                    logger.debug("    -> SELECTED")
                     facebook_link = url
 
             if not facebook_link:
@@ -1461,9 +1617,7 @@ class AdLibraryScraper:
                         return page_id, final_url
 
                     # Method 2: Try transparency section
-                    page_id = await self._get_page_id_from_transparency(
-                        page, final_url, timeout_ms
-                    )
+                    page_id = await self._get_page_id_from_transparency(page, final_url, timeout_ms)
                     if page_id:
                         logger.info(f"Found page ID via transparency section: {page_id}")
                         await context.close()
@@ -1550,7 +1704,9 @@ class AdLibraryScraper:
 
         return None
 
-    async def _get_page_id_from_transparency(self, page: Page, profile_url: str, timeout_ms: int) -> str | None:
+    async def _get_page_id_from_transparency(
+        self, page: Page, profile_url: str, timeout_ms: int
+    ) -> str | None:
         """
         Extract Page ID from the Page Transparency section.
 
@@ -1577,7 +1733,7 @@ class AdLibraryScraper:
 
             for i in range(count):
                 span_text = await id_spans.nth(i).inner_text()
-                if re.match(r'^\d{10,}$', span_text.strip()):
+                if re.match(r"^\d{10,}$", span_text.strip()):
                     logger.debug(f"Found Page ID via transparency: {span_text.strip()}")
                     return span_text.strip()
 
@@ -1629,23 +1785,6 @@ class AdLibraryScraper:
                     logger.info(f"Found page ID via transparency section: {page_id}")
                     await context.close()
                     return page_id
-
-                page_id_candidates: dict[str, int] = {}
-                for pattern in patterns:
-                    for match in re.finditer(pattern, content):
-                        pid = match.group(1)
-                        if len(pid) >= 10:
-                            page_id_candidates[pid] = page_id_candidates.get(pid, 0) + 1
-
-                if page_id_candidates:
-                    best_page_id = max(page_id_candidates, key=page_id_candidates.get)
-                    logger.info(
-                        f"Found page ID candidates: {page_id_candidates}. "
-                        f"Selected: {best_page_id} (appeared {page_id_candidates[best_page_id]} times)"
-                    )
-                    await context.close()
-                    return best_page_id
-
 
             finally:
                 await browser.close()
@@ -1710,45 +1849,37 @@ class AdLibraryScraper:
                         window = content[window_start:window_end]
 
                         # Video URL patterns - these indicate a video ad
-                        video_match = re.search(
-                            r'"video_sd_url"\s*:\s*"([^"]+)"', window
-                        )
+                        video_match = re.search(r'"video_sd_url"\s*:\s*"([^"]+)"', window)
                         if video_match:
                             has_video_url = True
-                            video_url = video_match.group(1).replace(
-                                "\\u0025", "%"
-                            ).replace("\\/", "/")
+                            video_url = (
+                                video_match.group(1).replace("\\u0025", "%").replace("\\/", "/")
+                            )
 
                         if not video_url:
-                            video_match = re.search(
-                                r'"video_hd_url"\s*:\s*"([^"]+)"', window
-                            )
+                            video_match = re.search(r'"video_hd_url"\s*:\s*"([^"]+)"', window)
                             if video_match:
                                 has_video_url = True
-                                video_url = video_match.group(1).replace(
-                                    "\\u0025", "%"
-                                ).replace("\\/", "/")
+                                video_url = (
+                                    video_match.group(1).replace("\\u0025", "%").replace("\\/", "/")
+                                )
 
                         if not video_url:
-                            video_match = re.search(
-                                r'"playable_url"\s*:\s*"([^"]+)"', window
-                            )
+                            video_match = re.search(r'"playable_url"\s*:\s*"([^"]+)"', window)
                             if video_match:
                                 has_video_url = True
-                                video_url = video_match.group(1).replace(
-                                    "\\u0025", "%"
-                                ).replace("\\/", "/")
+                                video_url = (
+                                    video_match.group(1).replace("\\u0025", "%").replace("\\/", "/")
+                                )
 
                         # Image URL patterns
-                        image_match = re.search(
-                            r'"resized_image_url"\s*:\s*"([^"]+)"', window
-                        )
+                        image_match = re.search(r'"resized_image_url"\s*:\s*"([^"]+)"', window)
                         if image_match:
                             has_image_url = True
                             if not image_url:
-                                image_url = image_match.group(1).replace(
-                                    "\\u0025", "%"
-                                ).replace("\\/", "/")
+                                image_url = (
+                                    image_match.group(1).replace("\\u0025", "%").replace("\\/", "/")
+                                )
 
                         if not image_url:
                             image_match = re.search(
@@ -1757,9 +1888,9 @@ class AdLibraryScraper:
                             )
                             if image_match:
                                 has_image_url = True
-                                image_url = image_match.group(1).replace(
-                                    "\\u0025", "%"
-                                ).replace("\\/", "/")
+                                image_url = (
+                                    image_match.group(1).replace("\\u0025", "%").replace("\\/", "/")
+                                )
 
                 # Decide based on what we found
                 # Video ads have video URLs; image ads have only image URLs
@@ -1792,7 +1923,7 @@ class AdLibraryScraper:
                 # Try various selectors that Facebook uses
                 image_selectors = [
                     'img[data-testid="ad_creative_image"]',
-                    'img._8jnf',
+                    "img._8jnf",
                     'div[data-testid="ad_creative"] img',
                     'img[alt*="ad"]',
                 ]
@@ -1925,11 +2056,13 @@ class AdLibraryScraper:
 
                     items = []
                     for result in search_result.get("results", []):
-                        items.append({
-                            "url": result.get("url", ""),
-                            "title": result.get("title", ""),
-                            "content": result.get("content", "")[:200],
-                        })
+                        items.append(
+                            {
+                                "url": result.get("url", ""),
+                                "title": result.get("title", ""),
+                                "content": result.get("content", "")[:200],
+                            }
+                        )
 
                     logger.debug(f"Tavily returned {len(items)} results for '{name}'")
                     return name, items
@@ -2046,13 +2179,15 @@ IMPORTANT:
             selected_names = {s["competitor_name"] for s in selections}
             for name in search_results.keys():
                 if name not in selected_names:
-                    selections.append({
-                        "competitor_name": name,
-                        "selected_url": None,
-                        "confidence": "low",
-                        "needs_manual_review": True,
-                        "reason": "No search results found",
-                    })
+                    selections.append(
+                        {
+                            "competitor_name": name,
+                            "selected_url": None,
+                            "confidence": "low",
+                            "needs_manual_review": True,
+                            "reason": "No search results found",
+                        }
+                    )
 
             return selections
 
@@ -2066,10 +2201,20 @@ IMPORTANT:
     ) -> list[dict]:
         """Fallback URL selection when GPT fails."""
         skip_patterns = [
-            "/login", "/help", "/policies", "/privacy",
-            "business.facebook", "developers.facebook",
-            "/watch", "/groups", "/events", "/marketplace",
-            "/share", "/sharer", "/dialog", "/plugins"
+            "/login",
+            "/help",
+            "/policies",
+            "/privacy",
+            "business.facebook",
+            "developers.facebook",
+            "/watch",
+            "/groups",
+            "/events",
+            "/marketplace",
+            "/share",
+            "/sharer",
+            "/dialog",
+            "/plugins",
         ]
 
         selections = []
@@ -2082,13 +2227,15 @@ IMPORTANT:
                         selected_url = self._normalize_facebook_url(url)
                         break
 
-            selections.append({
-                "competitor_name": name,
-                "selected_url": selected_url,
-                "confidence": "low",
-                "needs_manual_review": selected_url is None,
-                "reason": "Fallback selection (GPT unavailable)",
-            })
+            selections.append(
+                {
+                    "competitor_name": name,
+                    "selected_url": selected_url,
+                    "confidence": "low",
+                    "needs_manual_review": selected_url is None,
+                    "reason": "Fallback selection (GPT unavailable)",
+                }
+            )
 
         return selections
 
@@ -2129,11 +2276,13 @@ IMPORTANT:
 
         # Separate URLs that need extraction from manual review cases
         to_extract = [
-            sel for sel in url_selections
+            sel
+            for sel in url_selections
             if sel.get("selected_url") and not sel.get("needs_manual_review")
         ]
         manual_review = [
-            sel for sel in url_selections
+            sel
+            for sel in url_selections
             if not sel.get("selected_url") or sel.get("needs_manual_review")
         ]
 
@@ -2186,7 +2335,9 @@ IMPORTANT:
                                 page, final_url, timeout_ms
                             )
                             if page_id:
-                                logger.debug(f"Found page ID via transparency for '{name}': {page_id}")
+                                logger.debug(
+                                    f"Found page ID via transparency for '{name}': {page_id}"
+                                )
                                 await context.close()
                                 return name, page_id, final_url
 
@@ -2209,11 +2360,15 @@ IMPORTANT:
 
                             if page_id_candidates:
                                 best_page_id = max(page_id_candidates, key=page_id_candidates.get)
-                                logger.debug(f"Found page ID via regex for '{name}': {best_page_id}")
+                                logger.debug(
+                                    f"Found page ID via regex for '{name}': {best_page_id}"
+                                )
                                 await context.close()
                                 return name, best_page_id, final_url
 
-                            logger.warning(f"Could not extract page ID for '{name}' from {final_url}")
+                            logger.warning(
+                                f"Could not extract page ID for '{name}' from {final_url}"
+                            )
                             await context.close()
                             return name, None, final_url
 

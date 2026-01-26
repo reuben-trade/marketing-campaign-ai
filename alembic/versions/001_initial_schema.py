@@ -8,8 +8,9 @@ Create Date: 2026-01-18
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "001"
 down_revision: Union[str, None] = None
@@ -24,7 +25,12 @@ def upgrade() -> None:
     # Create business_strategy table
     op.create_table(
         "business_strategy",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("business_name", sa.String(255), nullable=False),
         sa.Column("business_description", sa.Text, nullable=True),
         sa.Column("industry", sa.String(255), nullable=True),
@@ -38,13 +44,23 @@ def upgrade() -> None:
         sa.Column("marketing_objectives", postgresql.ARRAY(sa.Text), nullable=True),
         sa.Column("raw_pdf_url", sa.Text, nullable=True),
         sa.Column("extracted_date", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("last_updated", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column(
+            "last_updated",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
     )
 
     # Create competitors table
     op.create_table(
         "competitors",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("company_name", sa.String(255), nullable=False),
         sa.Column("ad_library_url", sa.Text, nullable=False, unique=True),
         sa.Column("industry", sa.String(255), nullable=True),
@@ -63,8 +79,18 @@ def upgrade() -> None:
     # Create ads table
     op.create_table(
         "ads",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
-        sa.Column("competitor_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("competitors.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
+        sa.Column(
+            "competitor_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("competitors.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("ad_library_id", sa.String(255), nullable=False, unique=True),
         sa.Column("ad_snapshot_url", sa.Text, nullable=True),
         sa.Column("creative_type", sa.String(20), nullable=False),
@@ -89,12 +115,22 @@ def upgrade() -> None:
     op.create_index("idx_ads_competitor", "ads", ["competitor_id"])
     op.create_index("idx_ads_analyzed", "ads", ["analyzed"])
     op.create_index("idx_ads_creative_type", "ads", ["creative_type"])
-    op.create_index("idx_ads_publication_date", "ads", ["publication_date"], postgresql_ops={"publication_date": "DESC"})
+    op.create_index(
+        "idx_ads_publication_date",
+        "ads",
+        ["publication_date"],
+        postgresql_ops={"publication_date": "DESC"},
+    )
 
     # Create recommendations table
     op.create_table(
         "recommendations",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("generated_date", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("top_n_ads", sa.Integer, nullable=True),
         sa.Column("date_range_start", sa.DateTime(timezone=True), nullable=True),
@@ -111,7 +147,12 @@ def upgrade() -> None:
     # Create analysis_runs table
     op.create_table(
         "analysis_runs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("run_type", sa.String(50), nullable=False),
         sa.Column("status", sa.String(50), server_default=sa.text("'pending'")),
         sa.Column("items_processed", sa.Integer, server_default=sa.text("0")),

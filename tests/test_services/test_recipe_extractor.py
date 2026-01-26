@@ -345,9 +345,9 @@ class TestRecipeExtractor:
     def test_generate_recipe_name_basic(self, extractor: RecipeExtractor) -> None:
         """Test basic recipe name generation."""
         structure = [
-            BeatDefinition(beat_type="Hook", duration_range=[1, 3], purpose=""),
-            BeatDefinition(beat_type="Problem", duration_range=[3, 5], purpose=""),
-            BeatDefinition(beat_type="CTA", duration_range=[2, 4], purpose=""),
+            BeatDefinition(beat_type="Hook", target_duration=3.0, purpose=""),
+            BeatDefinition(beat_type="Problem", target_duration=5.0, purpose=""),
+            BeatDefinition(beat_type="CTA", target_duration=4.0, purpose=""),
         ]
         name = extractor._generate_recipe_name(structure, None)
         assert "Hook" in name
@@ -357,8 +357,8 @@ class TestRecipeExtractor:
     def test_generate_recipe_name_with_ugc_style(self, extractor: RecipeExtractor) -> None:
         """Test recipe name with UGC style."""
         structure = [
-            BeatDefinition(beat_type="Hook", duration_range=[1, 3], purpose=""),
-            BeatDefinition(beat_type="CTA", duration_range=[2, 4], purpose=""),
+            BeatDefinition(beat_type="Hook", target_duration=3.0, purpose=""),
+            BeatDefinition(beat_type="CTA", target_duration=4.0, purpose=""),
         ]
         name = extractor._generate_recipe_name(structure, "ugc")
         assert "UGC" in name
@@ -366,8 +366,8 @@ class TestRecipeExtractor:
     def test_generate_recipe_name_with_polished_style(self, extractor: RecipeExtractor) -> None:
         """Test recipe name with polished style."""
         structure = [
-            BeatDefinition(beat_type="Product Showcase", duration_range=[5, 10], purpose=""),
-            BeatDefinition(beat_type="CTA", duration_range=[2, 4], purpose=""),
+            BeatDefinition(beat_type="Product Showcase", target_duration=10.0, purpose=""),
+            BeatDefinition(beat_type="CTA", target_duration=4.0, purpose=""),
         ]
         name = extractor._generate_recipe_name(structure, "polished")
         assert "Polished" in name
@@ -543,7 +543,7 @@ class TestRecipeExtractor:
         recipe = Recipe(
             id=uuid.uuid4(),
             name="Test Recipe",
-            structure=[{"beat_type": "Hook", "duration_range": [1, 3]}],
+            structure=[{"beat_type": "Hook", "target_duration": 3.0}],
             created_at=datetime.now(timezone.utc),
         )
 
@@ -575,14 +575,14 @@ class TestRecipeExtractor:
             Recipe(
                 id=uuid.uuid4(),
                 name="Recipe 1",
-                structure=[{"beat_type": "Hook", "duration_range": [1, 3]}],
+                structure=[{"beat_type": "Hook", "target_duration": 3.0}],
                 composite_score=0.9,
                 created_at=datetime.now(timezone.utc),
             ),
             Recipe(
                 id=uuid.uuid4(),
                 name="Recipe 2",
-                structure=[{"beat_type": "CTA", "duration_range": [2, 4]}],
+                structure=[{"beat_type": "CTA", "target_duration": 4.0}],
                 composite_score=0.8,
                 created_at=datetime.now(timezone.utc),
             ),
@@ -611,7 +611,7 @@ class TestRecipeExtractor:
         recipe = Recipe(
             id=uuid.uuid4(),
             name="Test Recipe",
-            structure=[{"beat_type": "Hook", "duration_range": [1, 3]}],
+            structure=[{"beat_type": "Hook", "target_duration": 3.0}],
             created_at=datetime.now(timezone.utc),
         )
 
@@ -640,14 +640,14 @@ class TestRecipeExtractor:
         assert result is False
 
     # =========================================================================
-    # Duration Range Tests
+    # Target Duration Tests
     # =========================================================================
 
     @pytest.mark.asyncio
-    async def test_duration_range_flexibility(
+    async def test_target_duration_from_source(
         self, extractor: RecipeExtractor, sample_ad_with_video_intelligence: Ad
     ) -> None:
-        """Test that duration ranges allow +/- 20% flexibility."""
+        """Test that target duration captures source ad timing as a guideline."""
         db = AsyncMock(spec=AsyncSession)
 
         mock_result = MagicMock()
@@ -671,8 +671,10 @@ class TestRecipeExtractor:
 
         result = await extractor.extract_from_ad(db, sample_ad_with_video_intelligence.id)
 
-        # Hook is 3 seconds (00:00 to 00:03)
-        # Expected range: [2.4, 3.6] (3 * 0.8, 3 * 1.2)
+        # Hook is 3 seconds (00:00 to 00:03) - stored as guideline, not enforced
         hook_beat = result.recipe.structure[0]
-        assert hook_beat.duration_range[0] == pytest.approx(2.4, rel=0.1)
-        assert hook_beat.duration_range[1] == pytest.approx(3.6, rel=0.1)
+        assert hook_beat.target_duration == 3.0
+
+        # Problem is 5 seconds (00:03 to 00:08)
+        problem_beat = result.recipe.structure[1]
+        assert problem_beat.target_duration == 5.0

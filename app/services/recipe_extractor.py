@@ -290,13 +290,9 @@ class RecipeExtractor:
                 cinematics = beat.get("cinematics", {})
                 transition_out = cinematics.get("transition_out")
 
-            # Calculate duration range (allow +/- 20% flexibility)
-            min_duration = max(0.5, duration * 0.8)
-            max_duration = duration * 1.2
-
             beat_def = BeatDefinition(
                 beat_type=beat_type,
-                duration_range=[round(min_duration, 1), round(max_duration, 1)],
+                target_duration=round(duration, 1),
                 characteristics=self._extract_characteristics(beat),
                 purpose=self._infer_purpose(beat_type),
                 cinematics=self._extract_cinematics(beat),

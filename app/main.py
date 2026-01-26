@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ads, competitors, critique, notifications, recommendations, search, strategy
+from app.api import ads, competitors, critique, notifications, projects, recommendations, search, strategy
 from app.config import get_settings
 
 
@@ -44,6 +44,7 @@ app.include_router(search.router, prefix="/api/search", tags=["Search"])
 app.include_router(recommendations.router, prefix="/api/recommendations", tags=["Recommendations"])
 app.include_router(critique.router, prefix="/api/critique", tags=["Critique"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 
 
 @app.get("/health")

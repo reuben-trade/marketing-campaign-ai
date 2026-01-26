@@ -13,11 +13,9 @@ class BeatDefinition(BaseModel):
         ...,
         description="Type of beat: Hook, Problem, Solution, Product Showcase, Social Proof, etc.",
     )
-    duration_range: list[float] = Field(
+    target_duration: float = Field(
         ...,
-        min_length=2,
-        max_length=2,
-        description="[min_seconds, max_seconds] duration range for this beat",
+        description="Recommended duration in seconds (guideline, not enforced)",
     )
     characteristics: list[str] = Field(
         default_factory=list,

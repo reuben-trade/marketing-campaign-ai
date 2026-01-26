@@ -207,7 +207,7 @@ class TestContentPlanningAgent:
         with patch("app.services.content_planner.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(openai_api_key="test-key")
             agent = ContentPlanningAgent()
-            assert agent.model == "gpt-4-turbo-preview"
+            assert agent.model == "gpt-4.1-nano"
 
     def test_build_planning_input_basic(self, sample_recipe, sample_project, sample_segments):
         """Test building planning input from basic data."""

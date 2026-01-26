@@ -28,7 +28,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { EnhancedNarrativeBeat, BeatType } from '@/types/analysis';
+import type { EnhancedNarrativeBeat } from '@/types/analysis';
 
 const BEAT_COLORS: Record<string, string> = {
   Hook: 'bg-green-500',

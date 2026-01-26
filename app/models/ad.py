@@ -3,10 +3,11 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, Uuid
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -85,7 +86,24 @@ class Ad(Base):
 
     # Enhanced video analysis - "Creative DNA" for AI critiques
     video_intelligence: Mapped[dict | None] = mapped_column(JSONB)
-   
+
+    # Composite scoring fields (all on 0-1 scale)
+    composite_score: Mapped[float | None] = mapped_column(Float)
+    # Range: 0.0 to 1.0
+    composite_score_calculated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    engagement_rate_percentile: Mapped[float | None] = mapped_column(Float)
+    # Range: 0.0 to 1.0 - percentile rank across all ads
+    survivorship_score: Mapped[float | None] = mapped_column(Float)
+    # Range: 0.2/0.5/0.8/1.0 based on days_active
+
+    # Semantic search fields
+    ad_summary: Mapped[str | None] = mapped_column(Text)
+    # Generated summary for embeddings
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+    # 1536-dim OpenAI embedding using pgvector
+
     # Metadata
     publication_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ad_delivery_stop_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -160,6 +178,9 @@ class Ad(Base):
         Index("idx_ads_is_active", "is_active"),
         Index("idx_ads_perceptual_hash", "perceptual_hash"),
         Index("idx_ads_original_ad_id", "original_ad_id"),
+        Index("idx_ads_composite_score", "composite_score"),
+        Index("idx_ads_engagement_rate_percentile", "engagement_rate_percentile"),
+        # HNSW index for embedding similarity search is created in migration
     )
 
     @property

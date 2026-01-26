@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useUploadCritique, useCritiques, useCritique, useDeleteCritique } from '@/hooks/useCritique';
+import { useVideoPlayer } from '@/hooks/useVideoPlayer';
 import {
   Upload,
   X,
@@ -33,9 +34,26 @@ import {
   Zap,
   History,
   Trash2,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
 } from 'lucide-react';
 import type { CritiqueResponse, CritiqueListItem } from '@/types/critique';
-import type { StrengthItem, WeaknessItem, RemakeSuggestion } from '@/types/analysis';
+import type { StrengthItem, WeaknessItem, RemakeSuggestion, EnhancedNarrativeBeat } from '@/types/analysis';
+
+const BEAT_COLORS: Record<string, string> = {
+  Hook: 'bg-green-500',
+  Problem: 'bg-red-400',
+  Solution: 'bg-blue-500',
+  'Product Showcase': 'bg-purple-500',
+  'Social Proof': 'bg-yellow-500',
+  'Benefit Stack': 'bg-teal-500',
+  'Objection Handling': 'bg-orange-400',
+  CTA: 'bg-pink-500',
+  Transition: 'bg-gray-400',
+  Unknown: 'bg-gray-300',
+};
 
 export default function CritiquePage() {
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -48,6 +66,7 @@ export default function CritiquePage() {
   });
   const [result, setResult] = useState<CritiqueResponse | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [selectedCritiqueId, setSelectedCritiqueId] = useState<string | null>(null);
 
   const uploadCritique = useUploadCritique();
@@ -61,11 +80,18 @@ export default function CritiquePage() {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
+      // Clean up previous URL
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+      // Create new URL for video playback
+      const url = URL.createObjectURL(file);
       setSelectedFile(file);
+      setFileUrl(url);
       setResult(null);
       setSelectedCritiqueId(null);
     }
-  }, []);
+  }, [fileUrl]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -121,16 +147,24 @@ export default function CritiquePage() {
   };
 
   const clearFile = () => {
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
     setSelectedFile(null);
+    setFileUrl(null);
     setResult(null);
     setUploadProgress(0);
     setAnalysisProgress(0);
   };
 
   const handleSelectCritique = (critique: CritiqueListItem) => {
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
     setSelectedCritiqueId(critique.id);
     setResult(null);
     setSelectedFile(null);
+    setFileUrl(null);
     setUploadProgress(0);
     setAnalysisProgress(0);
   };
@@ -144,12 +178,65 @@ export default function CritiquePage() {
   };
 
   const handleNewAnalysis = () => {
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
     setSelectedCritiqueId(null);
     setResult(null);
     setSelectedFile(null);
+    setFileUrl(null);
   };
 
-  const isVideo = selectedFile?.type.startsWith('video/');
+  const isVideo = selectedFile?.type.startsWith('video/') || displayResult?.media_type === 'video';
+
+  // Get timeline for video player
+  const timeline = displayResult?.analysis?.timeline ?? [];
+
+  // Determine the effective video URL to use
+  // Priority: stored file_url from displayResult > local blob fileUrl
+  const effectiveVideoUrl = displayResult?.file_url || fileUrl;
+
+  // Video player hook
+  const {
+    videoRef,
+    currentBeat,
+    isPlaying,
+    currentTime,
+    duration,
+    playBeat,
+    navigateBeat,
+    togglePlayPause,
+    parseTimestamp,
+    formatTimestamp,
+    videoEventHandlers,
+  } = useVideoPlayer({
+    timeline,
+    onBeatChange: () => {},
+  });
+
+  // Spacebar to play/pause video
+  useEffect(() => {
+    if (!isVideo || !effectiveVideoUrl) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        togglePlayPause();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isVideo, effectiveVideoUrl, togglePlayPause]);
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    };
+  }, [fileUrl]);
 
   return (
     <div className="flex gap-6">
@@ -340,7 +427,22 @@ export default function CritiquePage() {
                 New Analysis
               </Button>
             </div>
-            <CritiqueResults result={displayResult} />
+            <CritiqueResults
+              result={displayResult}
+              fileUrl={effectiveVideoUrl}
+              videoRef={videoRef}
+              currentBeat={currentBeat}
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              timeline={timeline}
+              playBeat={playBeat}
+              navigateBeat={navigateBeat}
+              togglePlayPause={togglePlayPause}
+              parseTimestamp={parseTimestamp}
+              formatTimestamp={formatTimestamp}
+              videoEventHandlers={videoEventHandlers}
+            />
           </>
         )}
       </div>
@@ -444,9 +546,45 @@ function CritiqueHistoryItem({
   );
 }
 
-function CritiqueResults({ result }: { result: CritiqueResponse }) {
+function CritiqueResults({
+  result,
+  fileUrl,
+  videoRef,
+  currentBeat,
+  isPlaying,
+  currentTime,
+  duration,
+  timeline,
+  playBeat,
+  navigateBeat,
+  togglePlayPause,
+  parseTimestamp,
+  formatTimestamp,
+  videoEventHandlers,
+}: {
+  result: CritiqueResponse;
+  fileUrl: string | null;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  currentBeat: EnhancedNarrativeBeat | null;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  timeline: EnhancedNarrativeBeat[];
+  playBeat: (beat: EnhancedNarrativeBeat) => void;
+  navigateBeat: (direction: 'next' | 'prev') => void;
+  togglePlayPause: () => void;
+  parseTimestamp: (timestamp: string) => number;
+  formatTimestamp: (seconds: number) => string;
+  videoEventHandlers: {
+    onTimeUpdate: () => void;
+    onLoadedMetadata: () => void;
+    onPlay: () => void;
+    onPause: () => void;
+  };
+}) {
   const { analysis } = result;
   const { critique } = analysis;
+  const isVideo = result.media_type === 'video';
 
   const getGradeColor = (grade: string) => {
     const letter = grade.charAt(0).toUpperCase();
@@ -468,6 +606,171 @@ function CritiqueResults({ result }: { result: CritiqueResponse }) {
 
   return (
     <div className="space-y-6">
+      {/* Video Player */}
+      {isVideo && fileUrl && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="aspect-video bg-black rounded-lg overflow-hidden mb-4">
+              <video
+                ref={videoRef}
+                src={fileUrl}
+                className="w-full h-full object-contain"
+                {...videoEventHandlers}
+              />
+            </div>
+
+            {/* Video Timeline with beats */}
+            {timeline.length > 0 && duration > 0 && (
+              <div className="mb-4">
+                <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
+                  {timeline.map((beat, index) => {
+                    const startPercent = (parseTimestamp(beat.start_time) / duration) * 100;
+                    const endPercent = (parseTimestamp(beat.end_time) / duration) * 100;
+                    const widthPercent = endPercent - startPercent;
+
+                    return (
+                      <button
+                        key={index}
+                        className={`absolute h-full transition-opacity hover:opacity-100 ${
+                          BEAT_COLORS[beat.beat_type] || BEAT_COLORS.Unknown
+                        } ${currentBeat === beat ? 'opacity-100' : 'opacity-70'}`}
+                        style={{
+                          left: `${startPercent}%`,
+                          width: `${widthPercent}%`,
+                        }}
+                        onClick={() => playBeat(beat)}
+                        title={`${beat.beat_type}: ${beat.start_time} - ${beat.end_time}`}
+                      />
+                    );
+                  })}
+                  <div
+                    className="absolute top-0 w-0.5 h-full bg-white shadow-md"
+                    style={{ left: `${(currentTime / duration) * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>{formatTimestamp(currentTime)}</span>
+                  <span>{formatTimestamp(duration)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Video Controls */}
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigateBeat('prev')}>
+                <SkipBack className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" onClick={togglePlayPause}>
+                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigateBeat('next')}>
+                <SkipForward className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Current Beat Feedback */}
+            {currentBeat && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-3">
+                {/* Beat header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${BEAT_COLORS[currentBeat.beat_type]} text-white`}>
+                      {currentBeat.beat_type}
+                    </Badge>
+                    <span className="text-sm text-gray-500 font-mono">
+                      {currentBeat.start_time} - {currentBeat.end_time}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {currentBeat.attention_score != null && (
+                      <div className="flex items-center gap-1">
+                        <Target className="h-3.5 w-3.5 text-blue-500" />
+                        <span className="text-xs font-medium text-blue-700">
+                          Attention: {currentBeat.attention_score}/10
+                        </span>
+                      </div>
+                    )}
+                    {currentBeat.emotion && (
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="h-3.5 w-3.5 text-purple-500" />
+                        <span className="text-xs font-medium text-purple-700 capitalize">
+                          {currentBeat.emotion}
+                          {currentBeat.emotion_intensity != null && ` (${currentBeat.emotion_intensity}/10)`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Transcript / Visual description */}
+                {(currentBeat.audio_transcript || currentBeat.visual_description) && (
+                  <p className="text-sm text-gray-700">
+                    {currentBeat.audio_transcript || currentBeat.visual_description}
+                  </p>
+                )}
+
+                {/* Cinematics & Rhetorical info */}
+                <div className="flex flex-wrap gap-1.5">
+                  {currentBeat.cinematics?.camera_angle && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {currentBeat.cinematics.camera_angle}
+                    </Badge>
+                  )}
+                  {currentBeat.cinematics?.lighting_style && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {currentBeat.cinematics.lighting_style}
+                    </Badge>
+                  )}
+                  {currentBeat.cinematics?.motion_type && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {currentBeat.cinematics.motion_type}
+                    </Badge>
+                  )}
+                  {currentBeat.rhetorical_appeal?.mode && currentBeat.rhetorical_appeal.mode !== 'Unknown' && (
+                    <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700">
+                      {currentBeat.rhetorical_appeal.mode}
+                    </Badge>
+                  )}
+                  {currentBeat.rhetorical_appeal?.persuasion_techniques?.map((tech, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px] border-indigo-300 text-indigo-700">
+                      {tech}
+                    </Badge>
+                  ))}
+                  {currentBeat.tone_of_voice && (
+                    <Badge variant="outline" className="text-[10px] border-gray-300">
+                      {currentBeat.tone_of_voice}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Improvement note */}
+                {currentBeat.improvement_note && (
+                  <div className="flex items-start gap-2 p-2.5 bg-orange-50 border border-orange-200 rounded-md">
+                    <Lightbulb className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-orange-800">{currentBeat.improvement_note}</p>
+                  </div>
+                )}
+
+                {/* Text overlays in this beat */}
+                {currentBeat.text_overlays_in_beat?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentBeat.text_overlays_in_beat.map((overlay, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-white border rounded"
+                      >
+                        <span className="font-medium">&ldquo;{overlay.text}&rdquo;</span>
+                        <span className="text-gray-400">@ {overlay.timestamp}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Grade Overview */}
       <Card>
         <CardContent className="pt-6">
@@ -638,50 +941,58 @@ function CritiqueResults({ result }: { result: CritiqueResponse }) {
       </Tabs>
 
       {/* Timeline Section for Videos */}
-      {analysis.media_type === 'video' && analysis.timeline && analysis.timeline.length > 0 && (
+      {analysis.media_type === 'video' && timeline.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Beat-by-Beat Analysis</CardTitle>
             <CardDescription>
-              Detailed breakdown of your video&apos;s narrative structure
+              {fileUrl
+                ? 'Click on any beat to jump to that part of the video'
+                : 'Detailed breakdown of your video\'s narrative structure'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {analysis.timeline.map((beat, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-4 p-3 rounded-lg border hover:bg-gray-50"
-                >
-                  <div className="flex-shrink-0">
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {beat.start_time} - {beat.end_time}
-                    </Badge>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge
-                        className={getBeatTypeColor(beat.beat_type)}
-                      >
-                        {beat.beat_type}
+            <ScrollArea className="h-[500px]">
+              <div className="space-y-3">
+                {timeline.map((beat, index) => (
+                  <button
+                    key={index}
+                    className={`w-full text-left flex items-start gap-4 p-3 rounded-lg border transition-colors ${
+                      fileUrl ? 'hover:bg-gray-50 cursor-pointer' : ''
+                    } ${currentBeat === beat ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}`}
+                    onClick={() => fileUrl && playBeat(beat)}
+                    disabled={!fileUrl}
+                  >
+                    <div className="flex-shrink-0">
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {beat.start_time} - {beat.end_time}
                       </Badge>
-                      {beat.attention_score && (
-                        <span className="text-xs text-gray-500">
-                          Attention: {beat.attention_score}/10
-                        </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`${getBeatTypeColor(beat.beat_type)} text-white`}>
+                          {beat.beat_type}
+                        </Badge>
+                        {beat.attention_score && (
+                          <span className="text-xs text-gray-500">
+                            Attention: {beat.attention_score}/10
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {beat.audio_transcript || beat.visual_description}
+                      </p>
+                      {beat.improvement_note && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          <Lightbulb className="h-3 w-3 inline mr-1" />
+                          {beat.improvement_note}
+                        </p>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600">{beat.visual_description}</p>
-                    {beat.improvement_note && (
-                      <p className="text-xs text-orange-600 mt-1">
-                        <Lightbulb className="h-3 w-3 inline mr-1" />
-                        {beat.improvement_note}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       )}

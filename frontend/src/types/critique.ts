@@ -16,6 +16,7 @@ export interface CritiqueResponse {
   media_type: 'image' | 'video';
   file_size_bytes: number;
   file_name?: string;
+  file_url?: string;
   created_at?: string;
 }
 
@@ -24,6 +25,7 @@ export interface CritiqueListItem {
   file_name: string;
   file_size_bytes: number;
   media_type: 'image' | 'video';
+  file_url?: string;
   brand_name?: string;
   industry?: string;
   overall_grade?: string;

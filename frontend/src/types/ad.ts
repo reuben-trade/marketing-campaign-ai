@@ -33,6 +33,13 @@ export interface Ad {
   analysis_status: 'pending' | 'completed' | 'failed';
   total_engagement: number;
   overall_score?: number;
+
+  // Composite scoring fields
+  composite_score?: number; // 0-1 scale
+  engagement_rate_percentile?: number; // 0-1 scale
+  survivorship_score?: number; // 0.2/0.5/0.8/1.0
+  ad_summary?: string;
+
   original_ad_id?: string;
   duplicate_count?: number;
   is_carousel?: boolean;
@@ -91,4 +98,6 @@ export interface AdFilters {
   analyzed?: boolean;
   creative_type?: 'image' | 'video';
   min_engagement?: number;
+  min_overall_score?: number; // 0-10 scale
+  min_composite_score?: number; // 0-1 scale
 }

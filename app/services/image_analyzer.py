@@ -224,7 +224,13 @@ class ImageAnalyzer:
             if result_text.endswith("```"):
                 result_text = result_text[:-3]
 
-            return json.loads(result_text.strip())
+            result = json.loads(result_text.strip())
+
+            # Handle double-encoded JSON
+            if isinstance(result, str):
+                result = json.loads(result)
+
+            return result
 
         except json.JSONDecodeError as e:
             raise ImageAnalysisError(f"Failed to parse analysis response: {e}") from e
@@ -408,7 +414,7 @@ class ImageAnalyzer:
         )
 
     def parse_enhanced_analysis_v2(
-        self, raw_analysis: dict[str, Any]
+        self, raw_analysis: dict[str, Any] | str
     ) -> EnhancedAdAnalysisV2:
         """
         Parse raw V2 image analysis into an EnhancedAdAnalysisV2 schema.
@@ -419,12 +425,17 @@ class ImageAnalyzer:
         are set to empty/None.
 
         Args:
-            raw_analysis: Raw analysis dictionary from the AI (V2 format)
+            raw_analysis: Raw analysis dictionary from the AI (V2 format),
+                or a JSON string that will be parsed first.
 
         Returns:
             EnhancedAdAnalysisV2 object with validated structure
         """
         try:
+            # Handle case where raw_analysis is a string (double-encoded JSON)
+            if isinstance(raw_analysis, str):
+                raw_analysis = json.loads(raw_analysis)
+
             # Parse copy analysis
             copy_data = raw_analysis.get("copy_analysis", {})
             copy_analysis = self._parse_copy_analysis(copy_data)
@@ -521,7 +532,7 @@ class ImageAnalyzer:
             logo_visible=data.get("logo_visible", False),
             logo_position=self._sanitize_nullable(data.get("logo_position")),
             brand_colors_detected=data.get("brand_colors_detected", []),
-            brand_color_consistency=data.get("brand_color_consistency"),
+            brand_color_consistency=self._clamp_score(data["brand_color_consistency"]) if data.get("brand_color_consistency") else None,
             product_appearances=[],  # No timestamps for images
             has_product_shot=data.get("has_product_shot", False),
             product_visibility_seconds=None,
@@ -540,7 +551,7 @@ class ImageAnalyzer:
             curiosity_gap=thumb_data.get("curiosity_gap", False),
             curiosity_gap_description=thumb_data.get("curiosity_gap_description"),
             first_second_elements=thumb_data.get("first_second_elements", []),
-            visual_contrast_score=thumb_data.get("visual_contrast_score"),
+            visual_contrast_score=self._clamp_score(thumb_data["visual_contrast_score"]) if thumb_data.get("visual_contrast_score") else None,
             text_hook_present=thumb_data.get("text_hook_present", False),
             face_in_first_frame=thumb_data.get("face_in_first_frame", False),
         )

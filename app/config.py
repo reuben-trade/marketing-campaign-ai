@@ -74,6 +74,16 @@ class Settings(BaseSettings):
         description="Meta API rate limit per hour",
     )
 
+    # Server Configuration
+    port: int = Field(
+        default=8000,
+        description="Server port for uvicorn",
+    )
+    host: str = Field(
+        default="0.0.0.0",
+        description="Server host for uvicorn",
+    )
+
     # Supabase Storage Buckets
     ad_creatives_bucket: str = Field(
         default="ad-creatives",
@@ -86,6 +96,10 @@ class Settings(BaseSettings):
     supabase_screenshots_bucket: str = Field(
         default="screenshots",
         description="Bucket for storing landing page screenshots",
+    )
+    critique_files_bucket: str = Field(
+        default="critique-files",
+        description="Bucket for storing user-uploaded critique files (images and videos)",
     )
 
     @property

@@ -179,6 +179,13 @@ def analyze_single_ad_task(self, ad_id: str):
 
             logger.info(f"Analyzed ad {ad_id}")
 
+            # Trigger scoring and embedding tasks
+            from app.tasks.scoring_tasks import calculate_composite_score_task, embed_ad_task
+
+            # These run asynchronously after analysis completes
+            calculate_composite_score_task.delay(ad_id)
+            embed_ad_task.delay(ad_id)
+
             return {
                 "status": "completed",
                 "ad_id": ad_id,

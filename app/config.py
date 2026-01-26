@@ -101,6 +101,10 @@ class Settings(BaseSettings):
         default="critique-files",
         description="Bucket for storing user-uploaded critique files (images and videos)",
     )
+    user_uploads_bucket: str = Field(
+        default="user-uploads",
+        description="Bucket for storing user-uploaded project video files",
+    )
 
     @property
     def meta_api_base_url(self) -> str:

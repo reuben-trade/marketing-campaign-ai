@@ -5,3 +5,4 @@ export * from './useRecommendations';
 export * from './useCritique';
 export * from './useNotifications';
 export * from './useVideoPlayer';
+export * from './useProjects';

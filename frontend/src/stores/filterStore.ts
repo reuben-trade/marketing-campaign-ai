@@ -9,6 +9,8 @@ interface FilterState {
   creativeType: 'all' | 'image' | 'video';
   analyzedOnly: boolean | null;
   minEngagement: number;
+  minOverallScore: number; // 0-10 scale
+  minCompositeScore: number; // 0-10 scale (stored as 0-10 for UI, converted to 0-1 for API)
 
   // Actions
   setSelectedCompetitors: (ids: string[]) => void;
@@ -16,6 +18,8 @@ interface FilterState {
   setCreativeType: (type: 'all' | 'image' | 'video') => void;
   setAnalyzedOnly: (value: boolean | null) => void;
   setMinEngagement: (value: number) => void;
+  setMinOverallScore: (value: number) => void;
+  setMinCompositeScore: (value: number) => void;
   clearFilters: () => void;
 }
 
@@ -26,6 +30,8 @@ export const useFilterStore = create<FilterState>()(
       creativeType: 'all',
       analyzedOnly: null,
       minEngagement: 0,
+      minOverallScore: 0,
+      minCompositeScore: 0,
 
       setSelectedCompetitors: (ids) => set({ selectedCompetitorIds: ids }),
       toggleCompetitor: (id) =>
@@ -37,12 +43,16 @@ export const useFilterStore = create<FilterState>()(
       setCreativeType: (type) => set({ creativeType: type }),
       setAnalyzedOnly: (value) => set({ analyzedOnly: value }),
       setMinEngagement: (value) => set({ minEngagement: value }),
+      setMinOverallScore: (value) => set({ minOverallScore: value }),
+      setMinCompositeScore: (value) => set({ minCompositeScore: value }),
       clearFilters: () =>
         set({
           selectedCompetitorIds: [],
           creativeType: 'all',
           analyzedOnly: null,
           minEngagement: 0,
+          minOverallScore: 0,
+          minCompositeScore: 0,
         }),
     }),
     {

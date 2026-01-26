@@ -261,6 +261,9 @@ export interface RecommendationGenerateRequest {
   num_video_ideas?: number;
   num_image_ideas?: number;
   user_ad_id?: string;
+  relevance_description?: string;
+  relevance_themes?: string[];
+  min_similarity?: number;
 }
 
 export interface RecommendationListResponse {

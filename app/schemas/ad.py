@@ -110,6 +110,12 @@ class AdResponse(AdBase):
     total_engagement: int = Field(..., description="Sum of likes, comments, shares")
     overall_score: float | None = Field(None, description="Overall marketing score")
 
+    # Composite scoring fields (0.0-1.0 scale)
+    composite_score: float | None = Field(None, description="Unified composite score (0.0-1.0)")
+    engagement_rate_percentile: float | None = Field(None, description="Engagement rate percentile (0.0-1.0)")
+    survivorship_score: float | None = Field(None, description="Survivorship score (0.2/0.5/0.8/1.0)")
+    ad_summary: str | None = Field(None, description="Generated summary for embeddings")
+
     # Duplicate tracking
     original_ad_id: UUID | None = Field(None, description="If set, this is a duplicate - references the original ad")
     duplicate_count: int = Field(1, description="How many times this creative has been seen (on originals)")

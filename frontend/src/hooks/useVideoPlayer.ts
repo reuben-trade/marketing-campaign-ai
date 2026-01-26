@@ -11,6 +11,7 @@ interface UseVideoPlayerOptions {
 export function useVideoPlayer(options: UseVideoPlayerOptions = {}) {
   const { timeline = [], onBeatChange } = options;
   const videoRef = useRef<HTMLVideoElement>(null);
+  const beatEndListenerRef = useRef<(() => void) | null>(null);
   const [currentBeat, setCurrentBeat] = useState<EnhancedNarrativeBeat | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -61,12 +62,30 @@ export function useVideoPlayer(options: UseVideoPlayerOptions = {}) {
     (beat: EnhancedNarrativeBeat) => {
       if (!videoRef.current) return;
 
+      // Clean up previous beat-end listener
+      if (beatEndListenerRef.current) {
+        beatEndListenerRef.current();
+        beatEndListenerRef.current = null;
+      }
+
       const startSeconds = parseTimestamp(beat.start_time);
       const endSeconds = parseTimestamp(beat.end_time);
 
       videoRef.current.currentTime = startSeconds;
-      videoRef.current.play();
-      setIsPlaying(true);
+      setCurrentBeat(beat);
+
+      // Play and handle the promise (browsers require this)
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch(() => {
+            // Autoplay was prevented - user needs to interact first
+            setIsPlaying(false);
+          });
+      }
 
       // Stop at beat end
       const handleTimeUpdate = () => {
@@ -74,11 +93,11 @@ export function useVideoPlayer(options: UseVideoPlayerOptions = {}) {
           videoRef.current.pause();
           setIsPlaying(false);
           videoRef.current.removeEventListener('timeupdate', handleTimeUpdate);
+          beatEndListenerRef.current = null;
         }
       };
       videoRef.current.addEventListener('timeupdate', handleTimeUpdate);
-
-      return () => {
+      beatEndListenerRef.current = () => {
         videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
       };
     },
@@ -117,14 +136,21 @@ export function useVideoPlayer(options: UseVideoPlayerOptions = {}) {
 
   // Toggle play/pause
   const togglePlayPause = useCallback(() => {
-    if (videoRef.current) {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
-        setIsPlaying(true);
-      } else {
-        videoRef.current.pause();
-        setIsPlaying(false);
+    if (!videoRef.current) return;
+
+    if (videoRef.current.paused) {
+      // Clean up any beat-end listener so continuous play works
+      if (beatEndListenerRef.current) {
+        beatEndListenerRef.current();
+        beatEndListenerRef.current = null;
       }
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      }
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
     }
   }, []);
 

@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useFilterStore } from '@/stores/filterStore';
+import { searchApi } from '@/lib/api/search';
 import {
   ImageIcon,
   Video,
@@ -41,6 +42,7 @@ import {
   ChevronRight,
   Download,
   Building2,
+  Search,
 } from 'lucide-react';
 import type { Ad } from '@/types/ad';
 import { formatDistanceToNow } from 'date-fns';
@@ -68,6 +70,12 @@ function AdsPageContent() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchResults, setSearchResults] = useState<Ad[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   // Retrieval section state
   const [retrieveCompetitorIds, setRetrieveCompetitorIds] = useState<string[]>([]);
   const [retrieveCount, setRetrieveCount] = useState(10);
@@ -77,11 +85,15 @@ function AdsPageContent() {
     creativeType,
     analyzedOnly,
     minEngagement,
+    minOverallScore,
+    minCompositeScore,
     setSelectedCompetitors,
     toggleCompetitor,
     setCreativeType,
     setAnalyzedOnly,
     setMinEngagement,
+    setMinOverallScore,
+    setMinCompositeScore,
     clearFilters,
   } = useFilterStore();
 
@@ -102,6 +114,8 @@ function AdsPageContent() {
     creative_type: creativeType !== 'all' ? creativeType : undefined,
     analyzed: analyzedOnly ?? undefined,
     min_engagement: minEngagement > 0 ? minEngagement : undefined,
+    min_overall_score: minOverallScore > 0 ? minOverallScore : undefined,
+    min_composite_score: minCompositeScore > 0 ? minCompositeScore / 10 : undefined, // Convert 0-10 to 0-1
   };
 
   const { data: adsData, isLoading } = useAds(filters);
@@ -109,15 +123,18 @@ function AdsPageContent() {
   const analyzeAds = useAnalyzeAds();
   const retrieveAds = useRetrieveAds();
 
-  const ads = adsData?.items ?? [];
-  const totalAds = adsData?.total ?? 0;
+  // Use search results if in search mode, otherwise use filtered ads
+  const ads = isSearchMode ? searchResults : (adsData?.items ?? []);
+  const totalAds = isSearchMode ? searchResults.length : (adsData?.total ?? 0);
   const totalPages = Math.ceil(totalAds / pageSize);
 
   const hasActiveFilters =
     selectedCompetitorIds.length > 0 ||
     creativeType !== 'all' ||
     analyzedOnly !== null ||
-    minEngagement > 0;
+    minEngagement > 0 ||
+    minOverallScore > 0 ||
+    minCompositeScore > 0;
 
   const onAnalyze = async () => {
     await analyzeAds.mutateAsync(10);
@@ -164,9 +181,42 @@ function AdsPageContent() {
       toast.success(
         `Retrieved ${totalRetrieved} ads from ${retrieveCompetitorIds.length} competitor(s). ${totalSkipped} skipped, ${totalFailed} failed.`
       );
-    } catch (error) {
+    } catch {
       toast.error('Failed to retrieve ads. Please try again.');
     }
+  };
+
+  const onSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast.error('Please enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const data = await searchApi.semanticSearch({
+        query: searchQuery,
+        limit: 100,
+        filters: {
+          analyzed: true,
+        },
+      });
+
+      setSearchResults(data.items);
+      setIsSearchMode(true);
+      toast.success(`Found ${data.items.length} relevant ads`);
+    } catch (error) {
+      toast.error('Search failed. Please try again.');
+      console.error('Search error:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setIsSearchMode(false);
+    setSearchResults([]);
   };
 
   return (
@@ -192,6 +242,58 @@ function AdsPageContent() {
           )}
         </Button>
       </div>
+
+      {/* Semantic Search */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Semantic Search
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search for ads by topic, theme, or concept (e.g., 'eco-friendly products', 'testimonials', 'problem-solution')"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isSearching) {
+                  onSearch();
+                }
+              }}
+              className="flex-1"
+            />
+            {isSearchMode ? (
+              <Button variant="outline" onClick={clearSearch}>
+                <X className="mr-2 h-4 w-4" />
+                Clear Search
+              </Button>
+            ) : (
+              <Button onClick={onSearch} disabled={isSearching || !searchQuery.trim()}>
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Search
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+          {isSearchMode && (
+            <div className="mt-2">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                Showing {searchResults.length} search results for "{searchQuery}"
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Ad Retrieval Section */}
       <Card>
@@ -448,6 +550,32 @@ function AdsPageContent() {
               />
               <span className="text-sm font-medium w-12">{minEngagement}</span>
             </div>
+
+            {/* Overall Score Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Min Overall Score:</span>
+              <Slider
+                value={[minOverallScore]}
+                onValueChange={([value]) => setMinOverallScore(value)}
+                max={10}
+                step={0.5}
+                className="w-32"
+              />
+              <span className="text-sm font-medium w-12">{minOverallScore.toFixed(1)}</span>
+            </div>
+
+            {/* Composite Score Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Min Composite Score:</span>
+              <Slider
+                value={[minCompositeScore]}
+                onValueChange={([value]) => setMinCompositeScore(value)}
+                max={10}
+                step={0.5}
+                className="w-32"
+              />
+              <span className="text-sm font-medium w-12">{minCompositeScore.toFixed(1)}</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -467,7 +595,12 @@ function AdsPageContent() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {ads.map((ad) => (
-              <AdCard key={ad.id} ad={ad} competitors={competitors} />
+              <AdCard
+                key={ad.id}
+                ad={ad}
+                competitors={competitors}
+                showSimilarity={isSearchMode}
+              />
             ))}
           </div>
 
@@ -504,13 +637,25 @@ function AdsPageContent() {
 function AdCard({
   ad,
   competitors,
+  showSimilarity = false,
 }: {
-  ad: Ad;
+  ad: Ad & { similarity_score?: number };
   competitors: Array<{ id: string; company_name: string }>;
+  showSimilarity?: boolean;
 }) {
   const competitor = competitors.find((c) => c.id === ad.competitor_id);
   const gradeValue = ad.video_intelligence?.critique?.overall_grade || (ad.analysis?.grade as string | undefined);
   const grade = typeof gradeValue === 'string' ? gradeValue : undefined;
+
+  // Helper to format scores for display
+  const formatScore = (score: number | undefined, scale: number = 10): string | null => {
+    if (score === undefined || score === null) return null;
+    return (score * scale).toFixed(1);
+  };
+
+  const overallScoreDisplay = ad.overall_score ? ad.overall_score.toFixed(1) : null;
+  const compositeScoreDisplay = formatScore(ad.composite_score, 10);
+  const similarityDisplay = ad.similarity_score ? (ad.similarity_score * 100).toFixed(0) : null;
 
   return (
     <Link href={`/ads/${ad.id}`}>
@@ -570,6 +715,37 @@ function AdCard({
               {grade}
             </Badge>
           )}
+
+          {/* Rating badges at bottom */}
+          <div className="absolute bottom-2 left-2 right-2 flex gap-1 flex-wrap">
+            {showSimilarity && similarityDisplay && (
+              <Badge
+                variant="secondary"
+                className="bg-green-500 text-white border-0 text-xs"
+                title="Relevance to Search Query"
+              >
+                {similarityDisplay}% Match
+              </Badge>
+            )}
+            {overallScoreDisplay && (
+              <Badge
+                variant="secondary"
+                className="bg-purple-500 text-white border-0 text-xs"
+                title="Overall Marketing Score"
+              >
+                Overall: {overallScoreDisplay}/10
+              </Badge>
+            )}
+            {compositeScoreDisplay && (
+              <Badge
+                variant="secondary"
+                className="bg-blue-500 text-white border-0 text-xs"
+                title="Composite Score (AI Quality + Survivorship + Engagement)"
+              >
+                Score: {compositeScoreDisplay}/10
+              </Badge>
+            )}
+          </div>
         </div>
 
         <CardContent className="p-3">

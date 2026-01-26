@@ -337,6 +337,21 @@ class RecommendationCreate(BaseModel):
         None,
         description="Optional user's own ad ID to analyze and use as reference",
     )
+    # Semantic relevance filtering (optional)
+    relevance_description: str | None = Field(
+        None,
+        description="Description of what you want to advertise (enables semantic filtering)",
+    )
+    relevance_themes: list[str] | None = Field(
+        None,
+        description="Specific themes or ideas to focus on",
+    )
+    min_similarity: float = Field(
+        0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity threshold for relevance filtering",
+    )
 
 
 class RecommendationResponse(BaseModel):

@@ -60,6 +60,10 @@ class CritiqueResponse(BaseModel):
         None,
         description="Original file name",
     )
+    file_url: str | None = Field(
+        None,
+        description="Public URL to the stored file (image or video)",
+    )
     created_at: datetime | None = Field(
         None,
         description="When the critique was created",
@@ -73,6 +77,7 @@ class CritiqueListItem(BaseModel):
     file_name: str
     file_size_bytes: int
     media_type: str
+    file_url: str | None = None
     brand_name: str | None = None
     industry: str | None = None
     overall_grade: str | None = None

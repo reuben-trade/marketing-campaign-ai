@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:${PORT:-8000}"
     volumes:
       - .:/app
     env_file:
@@ -13,6 +13,8 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+asyncpg://postgres.zyougpdlujpaejjugecu:qwHj6Jjg8U1BkLUw@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+      - PORT=${PORT:-8000}
+      - HOST=${HOST:-0.0.0.0}
 
   redis:
     image: redis:7-alpine

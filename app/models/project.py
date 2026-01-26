@@ -78,6 +78,12 @@ class Project(Base):
         lazy="selectin",
         cascade="all, delete-orphan",
     )
+    files: Mapped[list["ProjectFile"]] = relationship(  # noqa: F821
+        "ProjectFile",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index("idx_projects_brand_profile_id", "brand_profile_id"),

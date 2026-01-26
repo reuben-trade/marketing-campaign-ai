@@ -67,3 +67,49 @@ class ProjectListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# Upload schemas
+
+
+class ProjectFileResponse(BaseModel):
+    """Schema for a single uploaded file response."""
+
+    file_id: UUID
+    filename: str
+    original_filename: str
+    file_size_bytes: int
+    file_url: str
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class UploadFailure(BaseModel):
+    """Schema for a failed upload."""
+
+    filename: str
+    error: str
+
+
+class ProjectUploadResponse(BaseModel):
+    """Schema for upload response."""
+
+    project_id: UUID
+    uploaded_files: list[ProjectFileResponse]
+    total_files: int
+    total_size_bytes: int
+    total_size_mb: float
+    failed_files: list[UploadFailure] = []
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectFilesListResponse(BaseModel):
+    """Schema for listing project files."""
+
+    project_id: UUID
+    files: list[ProjectFileResponse]
+    total: int
+    total_size_bytes: int
+    total_size_mb: float

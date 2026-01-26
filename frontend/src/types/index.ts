@@ -5,3 +5,4 @@ export * from './analysis';
 export * from './recommendation';
 export * from './critique';
 export * from './notification';
+export * from './project';

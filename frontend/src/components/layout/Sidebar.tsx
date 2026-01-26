@@ -11,10 +11,12 @@ import {
   BarChart3,
   Lightbulb,
   MessageSquareText,
+  FolderKanban,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Business Setup', href: '/setup', icon: Building2 },
   { name: 'Competitors', href: '/competitors', icon: Users },
   { name: 'Ads Browser', href: '/ads', icon: MonitorPlay },

@@ -1,6 +1,5 @@
 """Projects API endpoints."""
 
-import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -17,7 +16,6 @@ from app.schemas.project import (
     ProjectUpdate,
 )
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -42,13 +40,10 @@ async def _build_project_response(db: DbSession, project: Project) -> ProjectRes
     """Build a project response with stats."""
     stats = await _get_project_stats(db, project.id)
 
-    # Convert inspiration_ads JSONB to list of UUIDs if present
+    # Convert inspiration_ads JSONB (stored as list of UUID strings) to list of UUIDs
     inspiration_ads = None
-    if project.inspiration_ads:
-        if isinstance(project.inspiration_ads, list):
-            inspiration_ads = [UUID(str(ad_id)) for ad_id in project.inspiration_ads]
-        elif isinstance(project.inspiration_ads, dict) and "ads" in project.inspiration_ads:
-            inspiration_ads = [UUID(str(ad_id)) for ad_id in project.inspiration_ads["ads"]]
+    if project.inspiration_ads and isinstance(project.inspiration_ads, list):
+        inspiration_ads = [UUID(str(ad_id)) for ad_id in project.inspiration_ads]
 
     return ProjectResponse(
         id=project.id,

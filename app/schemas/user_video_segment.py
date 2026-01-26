@@ -104,21 +104,6 @@ class VideoAnalysisResult(BaseModel):
     )
 
 
-class AnalyzeFileRequest(BaseModel):
-    """Request to analyze a single file."""
-
-    project_file_id: uuid.UUID
-
-
-class AnalyzeProjectRequest(BaseModel):
-    """Request to analyze all pending files in a project."""
-
-    project_id: uuid.UUID
-    force_reanalyze: bool = Field(
-        default=False, description="Re-analyze already processed files"
-    )
-
-
 class AnalysisProgress(BaseModel):
     """Schema for analysis progress updates."""
 

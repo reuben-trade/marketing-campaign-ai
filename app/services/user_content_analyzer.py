@@ -1,16 +1,15 @@
 """User content analysis service for analyzing uploaded videos."""
 
+import asyncio
 import json
 import logging
 import tempfile
-import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from google import genai
 from google.genai import types
-from openai import AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +22,7 @@ from app.schemas.user_video_segment import (
     SegmentAnalysis,
     VideoAnalysisResult,
 )
+from app.services.embedding_service import EmbeddingService
 from app.utils.supabase_storage import SupabaseStorage
 
 logger = logging.getLogger(__name__)
@@ -144,9 +144,8 @@ class UserContentAnalyzer:
         """Initialize the user content analyzer."""
         settings = get_settings()
         self.gemini_client = genai.Client(api_key=settings.google_api_key)
-        self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.embedding_service = EmbeddingService()
         self.model_name = "gemini-2.0-flash"
-        self.embedding_model = "text-embedding-3-small"
         self.storage = SupabaseStorage()
 
     async def analyze_video(
@@ -179,7 +178,7 @@ class UserContentAnalyzer:
 
             # Wait for processing
             while video_file.state == types.FileState.PROCESSING:
-                time.sleep(2)
+                await asyncio.sleep(2)
                 video_file = self.gemini_client.files.get(name=video_file.name)
 
             if video_file.state == types.FileState.FAILED:
@@ -262,20 +261,18 @@ class UserContentAnalyzer:
             content_type=raw.get("content_type"),
         )
 
-    async def generate_segment_embedding(self, segment: SegmentAnalysis) -> list[float]:
+    def _build_segment_text(self, segment: SegmentAnalysis) -> str:
         """
-        Generate embedding for a segment's description.
+        Build rich text representation for embedding.
 
-        Creates a rich text representation combining visual description and tags
-        for optimal semantic search matching.
+        Combines visual description and tags for optimal semantic search matching.
 
         Args:
-            segment: The segment to embed
+            segment: The segment to build text for
 
         Returns:
-            1536-dimensional embedding vector
+            Combined text suitable for embedding
         """
-        # Build rich text for embedding
         parts = [segment.visual_description]
 
         if segment.action_tags:
@@ -290,15 +287,22 @@ class UserContentAnalyzer:
         if segment.camera_shot:
             parts.append(f"Camera: {segment.camera_shot}")
 
-        text = " | ".join(parts)
+        return " | ".join(parts)
+
+    async def generate_segment_embedding(self, segment: SegmentAnalysis) -> list[float]:
+        """
+        Generate embedding for a segment's description.
+
+        Args:
+            segment: The segment to embed
+
+        Returns:
+            1536-dimensional embedding vector
+        """
+        text = self._build_segment_text(segment)
 
         try:
-            response = await self.openai_client.embeddings.create(
-                model=self.embedding_model,
-                input=text,
-                encoding_format="float",
-            )
-            return response.data[0].embedding
+            return await self.embedding_service.generate_embedding(text)
         except Exception as e:
             logger.error(f"Failed to generate embedding: {e}")
             raise UserContentAnalyzerError(f"Embedding generation failed: {e}") from e

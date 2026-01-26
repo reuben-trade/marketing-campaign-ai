@@ -1,20 +1,71 @@
 """Test configuration and fixtures."""
 
-import asyncio
-from collections.abc import AsyncGenerator
-from typing import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+# =============================================================================
+# SQLite Type Adapters for PostgreSQL-specific types
+# =============================================================================
+# IMPORTANT: These MUST be registered BEFORE any app imports to ensure
+# the type compilers are in place when SQLAlchemy metadata is created.
+#
+# This allows tests to use SQLite in-memory database while the models use
+# PostgreSQL-specific types (JSONB, ARRAY, pgvector Vector).
 
-import pytest
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import ARRAY as SQL_ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 
-from app.database import Base
-from app.main import app
+
+# Map JSONB to JSON for SQLite
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+
+# Map PostgreSQL ARRAY to JSON for SQLite (store as JSON array)
+@compiles(PG_ARRAY, "sqlite")
+def compile_pg_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+
+# Map base SQLAlchemy ARRAY to JSON for SQLite (some models use sqlalchemy.ARRAY)
+@compiles(SQL_ARRAY, "sqlite")
+def compile_sql_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+
+# Map pgvector's Vector type to TEXT for SQLite
+try:
+    from pgvector.sqlalchemy import Vector
+
+    @compiles(Vector, "sqlite")
+    def compile_vector_sqlite(type_, compiler, **kw):
+        return "TEXT"
+except ImportError:
+    pass  # pgvector not installed
+
+
+# =============================================================================
+# Standard imports (AFTER type adapters are registered)
+# =============================================================================
+# ruff: noqa: E402 - Imports below must be after type adapter registration
+
+import asyncio  # noqa: E402
+from collections.abc import AsyncGenerator  # noqa: E402
+from typing import Generator  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.database import Base  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -136,6 +187,30 @@ def mock_supabase_storage():
 
 
 @pytest.fixture
+def mock_ad_library_scraper():
+    """Mock AdLibraryScraper to avoid Playwright dependency in tests."""
+    with patch("app.api.competitors.AdLibraryScraper") as mock:
+        mock_instance = MagicMock()
+
+        # Mock extract_page_id_from_profile - extracts page ID from URL
+        mock_instance.extract_page_id_from_profile = AsyncMock(return_value="123456789")
+
+        # Mock search_page_id_by_name - searches for page by company name
+        mock_instance.search_page_id_by_name = AsyncMock(
+            return_value=("123456789", "https://facebook.com/testpage")
+        )
+
+        # Mock batch_search_page_ids - batch search for multiple companies
+        async def batch_search_side_effect(company_names):
+            return {name: (f"{hash(name) % 1000000000}", f"https://facebook.com/{name.lower().replace(' ', '')}") for name in company_names}
+
+        mock_instance.batch_search_page_ids = AsyncMock(side_effect=batch_search_side_effect)
+
+        mock.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
 def sample_business_strategy():
     """Sample business strategy data."""
     return {
@@ -163,10 +238,14 @@ def sample_business_strategy():
 
 @pytest.fixture
 def sample_competitor():
-    """Sample competitor data."""
+    """Sample competitor data for API requests.
+
+    Note: The API derives page_id from facebook_url or company_name via AdLibraryScraper.
+    Tests should use mock_ad_library_scraper fixture to avoid real scraper calls.
+    """
     return {
         "company_name": "Competitor Inc",
-        "page_id": "123456789",
+        "facebook_url": "https://www.facebook.com/competitorinc",
         "industry": "Technology",
         "follower_count": 50000,
         "is_market_leader": True,

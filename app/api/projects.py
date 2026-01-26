@@ -1,20 +1,33 @@
 """Projects API endpoints."""
 
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
 
 from app.api.deps import DbSession
 from app.models.project import Project
+from app.models.project_file import ProjectFile
 from app.models.user_video_segment import UserVideoSegment
 from app.schemas.project import (
     ProjectCreate,
+    ProjectFileResponse,
+    ProjectFilesListResponse,
     ProjectListResponse,
     ProjectResponse,
     ProjectStats,
     ProjectUpdate,
+    ProjectUploadResponse,
+    UploadFailure,
 )
+from app.services.upload_service import (
+    UploadError,
+    UploadService,
+    UploadValidationError,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -28,10 +41,21 @@ async def _get_project_stats(db: DbSession, project_id: UUID) -> ProjectStats:
         )
     ).scalar() or 0
 
-    # For now, return basic stats - video counts will be added when upload pipeline is implemented
+    # Get file stats
+    file_stats = await db.execute(
+        select(
+            func.count(ProjectFile.id),
+            func.coalesce(func.sum(ProjectFile.file_size_bytes), 0),
+        ).where(ProjectFile.project_id == project_id)
+    )
+    row = file_stats.one()
+    videos_uploaded = int(row[0])
+    total_size_bytes = int(row[1])
+    total_size_mb = total_size_bytes / (1024 * 1024) if total_size_bytes > 0 else 0.0
+
     return ProjectStats(
-        videos_uploaded=0,  # Will be populated when upload service is implemented
-        total_size_mb=0.0,  # Will be populated when upload service is implemented
+        videos_uploaded=videos_uploaded,
+        total_size_mb=round(total_size_mb, 2),
         segments_extracted=segments_count,
     )
 
@@ -206,5 +230,185 @@ async def delete_project(
             detail="Project not found",
         )
 
+    # Delete files from storage
+    upload_service = UploadService(db)
+    try:
+        await upload_service.delete_project_files(project_id)
+    except Exception as e:
+        logger.warning(f"Failed to delete project files from storage: {e}")
+
     await db.delete(db_project)
+    await db.commit()
+
+
+@router.post(
+    "/{project_id}/upload",
+    response_model=ProjectUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: {"description": "Invalid request or validation error"},
+        404: {"description": "Project not found"},
+        413: {"description": "File(s) too large or project size limit exceeded"},
+    },
+)
+async def upload_project_files(
+    db: DbSession,
+    project_id: UUID,
+    files: list[UploadFile] = File(..., description="Video files to upload (max 10, max 100MB each)"),
+) -> ProjectUploadResponse:
+    """
+    Upload video files to a project.
+
+    **Constraints:**
+    - Maximum 10 videos per project (configurable per project)
+    - Maximum 500MB total per project (configurable per project)
+    - Maximum 100MB per individual file
+    - Supported formats: mp4, mov, webm, avi, m4v, mkv
+
+    **Returns:**
+    - List of uploaded files with their URLs and metadata
+    - Any files that failed to upload
+    """
+    # Get project
+    result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Upload files
+    upload_service = UploadService(db)
+
+    try:
+        summary = await upload_service.upload_files(project, files)
+    except UploadValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except UploadError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+    await db.commit()
+
+    return ProjectUploadResponse(
+        project_id=summary.project_id,
+        uploaded_files=[
+            ProjectFileResponse(
+                file_id=f.file_id,
+                filename=f.filename,
+                original_filename=f.original_filename,
+                file_size_bytes=f.file_size_bytes,
+                file_url=f.file_url,
+                status=f.status,
+            )
+            for f in summary.uploaded_files
+        ],
+        total_files=summary.total_files,
+        total_size_bytes=summary.total_size_bytes,
+        total_size_mb=round(summary.total_size_bytes / (1024 * 1024), 2),
+        failed_files=[
+            UploadFailure(filename=f["filename"], error=f["error"])
+            for f in summary.failed_files
+        ],
+    )
+
+
+@router.get(
+    "/{project_id}/files",
+    response_model=ProjectFilesListResponse,
+)
+async def list_project_files(
+    db: DbSession,
+    project_id: UUID,
+) -> ProjectFilesListResponse:
+    """List all uploaded files for a project."""
+    # Verify project exists
+    result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Get files
+    files_result = await db.execute(
+        select(ProjectFile)
+        .where(ProjectFile.project_id == project_id)
+        .order_by(ProjectFile.created_at.desc())
+    )
+    files = files_result.scalars().all()
+
+    total_size_bytes = sum(f.file_size_bytes for f in files)
+
+    return ProjectFilesListResponse(
+        project_id=project_id,
+        files=[
+            ProjectFileResponse(
+                file_id=f.id,
+                filename=f.filename,
+                original_filename=f.original_filename,
+                file_size_bytes=f.file_size_bytes,
+                file_url=f.file_url,
+                status=f.status,
+            )
+            for f in files
+        ],
+        total=len(files),
+        total_size_bytes=total_size_bytes,
+        total_size_mb=round(total_size_bytes / (1024 * 1024), 2) if total_size_bytes > 0 else 0.0,
+    )
+
+
+@router.delete(
+    "/{project_id}/files/{file_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_project_file(
+    db: DbSession,
+    project_id: UUID,
+    file_id: UUID,
+) -> None:
+    """Delete a specific file from a project."""
+    # Get file
+    result = await db.execute(
+        select(ProjectFile).where(
+            ProjectFile.id == file_id,
+            ProjectFile.project_id == project_id,
+        )
+    )
+    project_file = result.scalar_one_or_none()
+
+    if not project_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    # Delete from storage
+    from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
+
+    storage = SupabaseStorage()
+    try:
+        await storage.delete_file(
+            project_file.storage_path,
+            bucket=storage.user_uploads_bucket,
+        )
+    except SupabaseStorageError as e:
+        logger.warning(f"Failed to delete file from storage: {e}")
+
+    # Delete from database
+    await db.delete(project_file)
     await db.commit()

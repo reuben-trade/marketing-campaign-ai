@@ -27,6 +27,7 @@ class SupabaseStorage:
         self.ad_creatives_bucket = settings.ad_creatives_bucket
         self.strategy_documents_bucket = settings.strategy_documents_bucket
         self.critique_files_bucket = settings.critique_files_bucket
+        self.user_uploads_bucket = settings.user_uploads_bucket
 
     def _get_content_type(self, filename: str) -> str:
         """Get content type from filename."""
@@ -213,6 +214,63 @@ class SupabaseStorage:
             return any(f["name"] == filename for f in response)
         except Exception:
             return False
+
+    async def upload_project_file(
+        self,
+        project_id: UUID,
+        file_id: UUID,
+        content: bytes,
+        filename: str,
+        content_type: str,
+    ) -> str:
+        """
+        Upload a project video file to Supabase Storage.
+
+        Args:
+            project_id: UUID of the project
+            file_id: UUID of the file record
+            content: File content as bytes
+            filename: Original filename
+            content_type: MIME type of the file
+
+        Returns:
+            Storage path of the uploaded file
+        """
+        from pathlib import Path
+
+        extension = Path(filename).suffix or ".mp4"
+        storage_path = f"projects/{project_id}/{file_id}{extension}"
+
+        try:
+            self.client.storage.from_(self.user_uploads_bucket).upload(
+                path=storage_path,
+                file=content,
+                file_options={"content-type": content_type, "upsert": "true"},
+            )
+            return storage_path
+        except Exception as e:
+            # Check if it's a duplicate error (409) - treat as success since file exists
+            error_str = str(e)
+            if "409" in error_str or "Duplicate" in error_str or "already exists" in error_str:
+                return storage_path
+            raise SupabaseStorageError(f"Failed to upload project file: {e}") from e
+
+    async def delete_project_files(self, project_id: UUID) -> None:
+        """
+        Delete all files for a project from Supabase Storage.
+
+        Args:
+            project_id: UUID of the project
+        """
+        try:
+            folder = f"projects/{project_id}"
+            # List and delete all files in the project folder
+            files = self.client.storage.from_(self.user_uploads_bucket).list(folder)
+            if files:
+                paths = [f"{folder}/{f['name']}" for f in files]
+                self.client.storage.from_(self.user_uploads_bucket).remove(paths)
+        except Exception as e:
+            raise SupabaseStorageError(f"Failed to delete project files: {e}") from e
 
     async def upload_bytes(
         self,

@@ -12,6 +12,7 @@ from app.api import (
     critique,
     notifications,
     projects,
+    recipes,
     recommendations,
     search,
     strategy,
@@ -54,6 +55,7 @@ app.include_router(recommendations.router, prefix="/api/recommendations", tags=[
 app.include_router(critique.router, prefix="/api/critique", tags=["Critique"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
+app.include_router(recipes.router, prefix="/api", tags=["Recipes"])
 
 
 @app.get("/health")

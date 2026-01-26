@@ -791,6 +791,113 @@ IMPORTANT:
 - Use "Unknown" for fields that cannot be determined
 """
 
+# =============================================================================
+# CONTENT PLANNING PROMPT - VISUAL SCRIPT GENERATION
+# =============================================================================
+
+CONTENT_PLANNING_PROMPT = """
+You are an expert Video Ad Writer agent. Your job is to create a detailed visual script that maps
+a recipe's structural template to a user's available video content.
+
+CONTEXT:
+- You have a proven ad recipe (structural template) that defines the beat-by-beat structure
+- You have summaries of the user's uploaded video segments that can be used as source material
+- You need to generate search queries that will find the best matching clips for each slot
+
+RECIPE TEMPLATE:
+Name: {recipe_name}
+Style: {recipe_style}
+Pacing: {recipe_pacing}
+Target Duration: {total_target_duration} seconds
+
+Structure:
+{recipe_structure}
+
+USER'S AVAILABLE CONTENT:
+{user_content_summaries}
+
+USER'S CREATIVE DIRECTION:
+{user_prompt}
+
+BRAND PROFILE:
+{brand_profile}
+
+YOUR TASK:
+Generate a visual script with slots that:
+1. Follow the recipe's beat structure exactly
+2. Create semantic search queries that will find the best matching user clips
+3. Generate appropriate overlay text based on the brand and creative direction
+4. Consider the user's available content when crafting search queries
+5. Include notes about what makes a good clip for each slot
+
+SEARCH QUERY GUIDELINES:
+- Write natural language descriptions of what the clip should show
+- Include visual elements, actions, emotions, and settings
+- Be specific enough to find relevant clips but flexible enough to get results
+- Consider synonyms and related concepts
+- Example: "energetic action, product reveal, surprised reaction, hands opening package"
+
+OVERLAY TEXT GUIDELINES:
+- Keep text short and impactful (2-8 words)
+- Match the brand's tone (from brand profile)
+- Avoid forbidden terms if specified
+- Use power words for hooks and CTAs
+- Consider readability on mobile screens
+
+Return your visual script in this EXACT JSON structure:
+{{
+  "slots": [
+    {{
+      "id": "slot_01_hook",
+      "beat_type": "Hook",
+      "target_duration": 3.0,
+      "search_query": "energetic action, product reveal, surprised reaction, quick movement",
+      "overlay_text": "Stop Wasting Money!",
+      "text_position": "center",
+      "transition_in": null,
+      "transition_out": "cut",
+      "notes": "Need high-energy opening, look for quick movement or surprised expressions",
+      "characteristics": ["fast_cuts", "bold_text", "high_energy"],
+      "cinematics": {{
+        "camera_angle": "close-up",
+        "motion_type": "handheld"
+      }}
+    }},
+    {{
+      "id": "slot_02_problem",
+      "beat_type": "Problem",
+      "target_duration": 5.0,
+      "search_query": "frustrated expression, struggling, difficulty, problem scenario",
+      "overlay_text": "Tired of this problem?",
+      "text_position": "bottom",
+      "transition_in": "cut",
+      "transition_out": "dissolve",
+      "notes": "Show the pain point clearly",
+      "characteristics": ["relatable_scenario", "pain_point"],
+      "cinematics": {{
+        "camera_angle": "medium",
+        "motion_type": "static"
+      }}
+    }}
+  ],
+  "total_duration_seconds": 30,
+  "audio_suggestion": "upbeat_trending",
+  "pacing_notes": "Fast cuts in hook, slower in demo section, build to CTA",
+  "planning_notes": [
+    "User has good product demo content",
+    "Suggest finding testimonial clips for social proof"
+  ]
+}}
+
+IMPORTANT RULES:
+- Create one slot for each beat in the recipe structure
+- slot IDs should follow pattern: slot_XX_beattype (e.g., slot_01_hook, slot_02_problem)
+- target_duration should match the recipe beat's target_duration (guideline)
+- search_query must be specific enough to find relevant clips via semantic search
+- Include ALL required fields for each slot
+- Return ONLY valid JSON, no markdown formatting or extra text
+"""
+
 IMAGE_ANALYSIS_PROMPT_V2 = """
 You are an elite Creative Director and Ad Performance Analyst with expertise in direct response advertising.
 

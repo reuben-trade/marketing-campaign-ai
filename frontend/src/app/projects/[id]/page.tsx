@@ -199,7 +199,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:grid-cols-none lg:inline-grid">
+        <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="upload" className="gap-2">
             <Video className="h-4 w-4" />
             <span className="hidden sm:inline">Upload</span>

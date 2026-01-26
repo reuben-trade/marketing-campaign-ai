@@ -1,6 +1,5 @@
 """Tests for Meta Ad Library service."""
 
-import pytest
 
 from app.services.meta_ad_library import MetaAdLibraryClient
 

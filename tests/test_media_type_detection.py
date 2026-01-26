@@ -5,7 +5,6 @@ import re
 
 from playwright.async_api import async_playwright
 
-
 # Test URLs provided by user
 IMAGE_AD_URL = "https://www.facebook.com/ads/library/?id=2150472312151855"
 VIDEO_AD_URL = "https://www.facebook.com/ads/library/?id=869478225701965"
@@ -40,11 +39,11 @@ async def analyze_page_structure(page, ad_id: str) -> dict:
         context = content[context_start:context_end]
 
         # Check for media type indicators near this ad ID
-        has_video_indicator = any(x in context.lower() for x in ['video', 'playable', 'mp4'])
-        has_image_indicator = any(x in context.lower() for x in ['photo', 'image', 'jpg', 'png'])
+        has_video_indicator = any(x in context.lower() for x in ["video", "playable", "mp4"])
+        has_image_indicator = any(x in context.lower() for x in ["photo", "image", "jpg", "png"])
 
         if i == 0:
-            print(f"  Context around first occurrence:")
+            print("  Context around first occurrence:")
             print(f"    Video indicators: {has_video_indicator}")
             print(f"    Image indicators: {has_image_indicator}")
 
@@ -65,16 +64,16 @@ async def analyze_page_structure(page, ad_id: str) -> dict:
 
     # Look for creative type in nearby JSON
     # Pattern: find the ad data block and look for video/image indicators
-    ad_block_pattern = rf'{ad_id}[^{{}}]{{0,2000}}'
+    ad_block_pattern = rf"{ad_id}[^{{}}]{{0,2000}}"
     ad_block_match = re.search(ad_block_pattern, content)
     if ad_block_match:
         ad_block = ad_block_match.group(0)
-        if 'video_sd_url' in ad_block or 'video_hd_url' in ad_block or 'playable_url' in ad_block:
+        if "video_sd_url" in ad_block or "video_hd_url" in ad_block or "playable_url" in ad_block:
             result["has_video_urls_in_block"] = True
-            print(f"  Found video URLs in ad data block")
-        if 'resized_image_url' in ad_block or 'watermarked_resized_image_url' in ad_block:
+            print("  Found video URLs in ad data block")
+        if "resized_image_url" in ad_block or "watermarked_resized_image_url" in ad_block:
             result["has_image_urls_in_block"] = True
-            print(f"  Found image URLs in ad data block")
+            print("  Found image URLs in ad data block")
 
     return result
 
@@ -102,8 +101,8 @@ async def check_creative_in_first_ad_card(page) -> dict:
         'div[data-testid="ad_card"]',
         'div[data-testid="ad_library_preview_card"]',
         # Generic ad container patterns
-        'div._7jyr',  # Common Facebook ad container class
-        'div._99s5',  # Another common pattern
+        "div._7jyr",  # Common Facebook ad container class
+        "div._99s5",  # Another common pattern
         # First ad in the list
         'div[role="article"]',
     ]
@@ -128,7 +127,7 @@ async def check_creative_in_first_ad_card(page) -> dict:
             for img in imgs:
                 src = await img.get_attribute("src")
                 width = await img.get_attribute("width")
-                style = await img.get_attribute("style")
+                _style = await img.get_attribute("style")  # noqa: F841
 
                 # Skip small images (likely icons/avatars)
                 if src and not src.startswith("data:"):
@@ -159,7 +158,7 @@ async def analyze_ad_page(url: str, expected_type: str) -> dict:
     print(f"\n{'='*80}")
     print(f"Analyzing: {url}")
     print(f"Expected type: {expected_type}")
-    print("="*80)
+    print("=" * 80)
 
     # Extract ad ID from URL
     ad_id = url.split("id=")[-1].split("&")[0]
@@ -252,30 +251,34 @@ async def analyze_ad_page(url: str, expected_type: str) -> dict:
                     has_image_url = True
 
             if has_video_url:
-                print(f"  Found video URL patterns near ad ID")
+                print("  Found video URL patterns near ad ID")
                 result["has_video_url_patterns"] = True
             if has_image_url:
-                print(f"  Found image URL patterns near ad ID")
+                print("  Found image URL patterns near ad ID")
                 result["has_image_url_patterns"] = True
 
             # Also do a global search for these patterns associated with this ad
             # Sometimes the ad data is in a different part of the page
             video_global = (
-                re.search(rf'"id"\s*:\s*"{ad_id}"[^}}]*"video_sd_url"', content) or
-                re.search(rf'"video_sd_url"[^}}]*"{ad_id}"', content) or
-                re.search(rf'"ad_archive_id"\s*:\s*"{ad_id}"[^}}{{]*"video_', content, re.DOTALL)
+                re.search(rf'"id"\s*:\s*"{ad_id}"[^}}]*"video_sd_url"', content)
+                or re.search(rf'"video_sd_url"[^}}]*"{ad_id}"', content)
+                or re.search(rf'"ad_archive_id"\s*:\s*"{ad_id}"[^}}{{]*"video_', content, re.DOTALL)
             )
             image_global = (
-                re.search(rf'"id"\s*:\s*"{ad_id}"[^}}]*"resized_image_url"', content) or
-                re.search(rf'"resized_image_url"[^}}]*"{ad_id}"', content) or
-                re.search(rf'"ad_archive_id"\s*:\s*"{ad_id}"[^}}{{]*"resized_image_url"', content, re.DOTALL)
+                re.search(rf'"id"\s*:\s*"{ad_id}"[^}}]*"resized_image_url"', content)
+                or re.search(rf'"resized_image_url"[^}}]*"{ad_id}"', content)
+                or re.search(
+                    rf'"ad_archive_id"\s*:\s*"{ad_id}"[^}}{{]*"resized_image_url"',
+                    content,
+                    re.DOTALL,
+                )
             )
 
             if video_global:
-                print(f"  Global search: Found video URL associated with this ad")
+                print("  Global search: Found video URL associated with this ad")
                 result["global_video_match"] = True
             if image_global:
-                print(f"  Global search: Found image URL associated with this ad")
+                print("  Global search: Found image URL associated with this ad")
                 result["global_image_match"] = True
 
             # DECISION LOGIC: How should we determine the type?
@@ -295,10 +298,14 @@ async def analyze_ad_page(url: str, expected_type: str) -> dict:
                 result["detected_type"] = "image"
                 result["detection_reason"] = "Found image URL patterns but no video URLs"
             # Fallback to structure analysis
-            elif structure_result.get("has_video_urls_in_block") and not structure_result.get("has_image_urls_in_block"):
+            elif structure_result.get("has_video_urls_in_block") and not structure_result.get(
+                "has_image_urls_in_block"
+            ):
                 result["detected_type"] = "video"
                 result["detection_reason"] = "JSON block contains video URLs"
-            elif structure_result.get("has_image_urls_in_block") and not structure_result.get("has_video_urls_in_block"):
+            elif structure_result.get("has_image_urls_in_block") and not structure_result.get(
+                "has_video_urls_in_block"
+            ):
                 result["detected_type"] = "image"
                 result["detection_reason"] = "JSON block contains image URLs"
             else:
@@ -311,15 +318,20 @@ async def analyze_ad_page(url: str, expected_type: str) -> dict:
             # VERDICT
             print("\n--- VERDICT ---")
             if result["detected_type"] == result["expected_type"]:
-                print(f"  ✓ CORRECT: Detected {result['detected_type']} matches expected {result['expected_type']}")
+                print(
+                    f"  ✓ CORRECT: Detected {result['detected_type']} matches expected {result['expected_type']}"
+                )
             else:
-                print(f"  ✗ MISMATCH: Detected {result['detected_type']} but expected {result['expected_type']}")
+                print(
+                    f"  ✗ MISMATCH: Detected {result['detected_type']} but expected {result['expected_type']}"
+                )
 
             await context.close()
 
         except Exception as e:
             print(f"Error: {e}")
             import traceback
+
             traceback.print_exc()
             result["error"] = str(e)
 
@@ -331,12 +343,13 @@ async def analyze_ad_page(url: str, expected_type: str) -> dict:
 
 async def test_actual_scraper():
     """Test the actual scraper function after our fix."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TESTING ACTUAL SCRAPER FUNCTION")
-    print("="*80)
+    print("=" * 80)
 
     # Import the scraper
     import sys
+
     sys.path.insert(0, "/home/rjs/Desktop/Projects/marketing-ai")
 
     from app.services.ad_library_scraper import AdLibraryScraper
@@ -361,20 +374,24 @@ async def test_actual_scraper():
             print(f"  {status} Detected type: {detected_type}")
             print(f"     Creative URL: {creative_url[:80] if creative_url else 'None'}...")
 
-            results.append({
-                "ad_id": ad_id,
-                "expected": expected_type,
-                "detected": detected_type,
-                "success": success,
-            })
+            results.append(
+                {
+                    "ad_id": ad_id,
+                    "expected": expected_type,
+                    "detected": detected_type,
+                    "success": success,
+                }
+            )
         except Exception as e:
             print(f"  ✗ Error: {e}")
-            results.append({
-                "ad_id": ad_id,
-                "expected": expected_type,
-                "detected": "error",
-                "success": False,
-            })
+            results.append(
+                {
+                    "ad_id": ad_id,
+                    "expected": expected_type,
+                    "detected": "error",
+                    "success": False,
+                }
+            )
 
     # Summary
     print("\n--- SCRAPER FUNCTION TEST RESULTS ---")
@@ -393,9 +410,9 @@ async def test_actual_scraper():
 
 async def main():
     """Run analysis on both test URLs."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("MEDIA TYPE DETECTION TEST")
-    print("="*80)
+    print("=" * 80)
 
     results = []
 
@@ -408,9 +425,9 @@ async def main():
     results.append(video_result)
 
     # Summary
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("ANALYSIS SUMMARY")
-    print("="*80)
+    print("=" * 80)
 
     for r in results:
         status = "✓" if r.get("detected_type") == r.get("expected_type") else "✗"

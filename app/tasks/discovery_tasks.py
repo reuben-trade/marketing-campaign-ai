@@ -48,9 +48,7 @@ def discover_competitors_task(self, max_competitors: int = 10):
 
     try:
         strategy = (
-            session.query(BusinessStrategy)
-            .order_by(BusinessStrategy.last_updated.desc())
-            .first()
+            session.query(BusinessStrategy).order_by(BusinessStrategy.last_updated.desc()).first()
         )
 
         if not strategy:
@@ -89,11 +87,7 @@ def discover_competitors_task(self, max_competitors: int = 10):
                 manual_review += 1
                 continue
 
-            existing = (
-                session.query(Competitor)
-                .filter(Competitor.page_id == page_id)
-                .first()
-            )
+            existing = session.query(Competitor).filter(Competitor.page_id == page_id).first()
 
             if existing:
                 skipped += 1
@@ -128,7 +122,9 @@ def discover_competitors_task(self, max_competitors: int = 10):
         }
         session.commit()
 
-        logger.info(f"Competitor discovery completed: {added} added, {skipped} skipped, {manual_review} need manual review")
+        logger.info(
+            f"Competitor discovery completed: {added} added, {skipped} skipped, {manual_review} need manual review"
+        )
 
         return {
             "status": "completed",
@@ -166,23 +162,19 @@ def enrich_competitor_task(competitor_id: str):
     session = get_sync_session()
 
     try:
-        competitor = (
-            session.query(Competitor)
-            .filter(Competitor.id == UUID(competitor_id))
-            .first()
-        )
+        competitor = session.query(Competitor).filter(Competitor.id == UUID(competitor_id)).first()
 
         if not competitor:
             return {"error": "Competitor not found"}
 
-        discovery = CompetitorDiscovery()
+        _discovery = CompetitorDiscovery()  # noqa: F841 - disabled temporarily
         # enriched_data = asyncio.run(
         #     discovery.enrich_competitor_data(
         #         competitor.company_name,
         #         competitor.industry,
         #     )
         # )
-        enriched_data = None # taking too long to enrich all
+        enriched_data = None  # taking too long to enrich all
 
         if enriched_data:
             competitor.metadata_ = competitor.metadata_ or {}

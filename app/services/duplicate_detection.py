@@ -5,7 +5,7 @@ import io
 import logging
 import re
 import tempfile
-from typing import Optional, Tuple, List
+from typing import Optional
 from uuid import UUID
 
 import httpx
@@ -13,7 +13,7 @@ import imagehash
 import imageio.v3 as iio
 import numpy as np
 from PIL import Image
-from sqlalchemy import select, or_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ad import Ad
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Thresholds
 PHASH_THRESHOLD = 4  # Tighter threshold (0-64 scale). < 4 is extremely similar.
 VIDEO_SAMPLE_FRAMES = 5
+
 
 class DuplicateDetector:
     """
@@ -41,17 +42,13 @@ class DuplicateDetector:
         await self.http_client.aclose()
 
     async def find_duplicate(
-        self, 
-        db: AsyncSession, 
-        url: str, 
-        platform_id: str = None,
-        ad_type: str = "image"
+        self, db: AsyncSession, url: str, platform_id: str = None, ad_type: str = "image"
     ) -> Optional[UUID]:
         """
         Main entry point. Runs the strategies in order of efficiency.
         Returns the UUID of the existing duplicate Ad, or None.
         """
-        
+
         # --- STRATEGY 1: Meta Video/Media ID (Zero Cost) ---
         # If we have a platform-specific ID (e.g., from JSON), check that first.
         if platform_id:
@@ -95,7 +92,7 @@ class DuplicateDetector:
         if not url:
             return None
         # Regex for standard FB CDN ID pattern
-        match = re.search(r'/(\d{8,})(?:_|.)', url)
+        match = re.search(r"/(\d{8,})(?:_|.)", url)
         return match.group(1) if match else None
 
     async def _check_headers_duplicate(self, db: AsyncSession, url: str) -> Optional[UUID]:
@@ -113,25 +110,23 @@ class DuplicateDetector:
 
             if not content_length:
                 return None
-            
+
             # Remove quotes from ETag if present
-            if etag: 
+            if etag:
                 etag = etag.strip('"')
 
             # Build Query: Look for ads with SAME file size AND SAME ETag
-            # This assumes your Ad model stores these fields. If not, 
+            # This assumes your Ad model stores these fields. If not,
             # you can add them or rely solely on pHash.
-            stmt = select(Ad.id).where(
-                Ad.file_size == int(content_length)
-            )
-            
+            stmt = select(Ad.id).where(Ad.file_size == int(content_length))
+
             # Only add ETag check if we actually got one, otherwise just size is risky
             if etag:
                 stmt = stmt.where(Ad.etag == etag)
             else:
                 # If no ETag, size matches might be coincidental (rare but possible)
                 # We might skip returning here to be safe, or return if size is very specific.
-                return None 
+                return None
 
             result = await db.execute(stmt)
             return result.scalar_one_or_none()
@@ -140,7 +135,9 @@ class DuplicateDetector:
             logger.warning(f"Header check failed: {e}")
             return None
 
-    async def _check_phash_duplicate(self, db: AsyncSession, url: str, ad_type: str) -> Optional[UUID]:
+    async def _check_phash_duplicate(
+        self, db: AsyncSession, url: str, ad_type: str
+    ) -> Optional[UUID]:
         """
         Downloads content, generates pHash, and compares against DB.
         """
@@ -151,11 +148,11 @@ class DuplicateDetector:
             content_bytes = response.content
 
             # 2. Compute Hash
-            if ad_type == 'video':
+            if ad_type == "video":
                 new_hash = self.compute_video_phash(content_bytes)
             else:
                 new_hash = self.compute_image_phash(content_bytes)
-            
+
             if not new_hash:
                 return None
 
@@ -163,11 +160,10 @@ class DuplicateDetector:
             # OPTIMIZATION: Do not download all images. Query just the hashes.
             # We assume Ad model has a 'perceptual_hash' column (String).
             stmt = select(Ad.id, Ad.perceptual_hash).where(
-                Ad.perceptual_hash.is_not(None),
-                Ad.creative_type == ad_type
+                Ad.perceptual_hash.is_not(None), Ad.creative_type == ad_type
             )
             result = await db.execute(stmt)
-            existing_ads = result.all() # Returns list of (id, hash)
+            existing_ads = result.all()  # Returns list of (id, hash)
 
             # 4. Compare (In-Memory)
             # This is fast for < 100k records. For millions, use a vector DB or bk-tree.
@@ -250,7 +246,7 @@ class DuplicateDetector:
             response = await self.http_client.get(creative_url)
             content_bytes = response.content
 
-            if creative_type == 'video':
+            if creative_type == "video":
                 return self.compute_video_phash(content_bytes)
             else:
                 return self.compute_image_phash(content_bytes)
@@ -280,11 +276,7 @@ class DuplicateDetector:
         return await self.get_phash_from_url(creative_url, creative_type or "image")
 
     async def are_ads_duplicates(
-        self,
-        ad_id_1: str,
-        ad_id_2: str,
-        *_other_ad_ids: str,
-        db: AsyncSession
+        self, ad_id_1: str, ad_id_2: str, *_other_ad_ids: str, db: AsyncSession
     ) -> bool:
         """
         Checks if two or more ads are duplicates of each other.
@@ -298,11 +290,7 @@ class DuplicateDetector:
 
         return self.is_duplicate_hash(hash1, hash2)
 
-    async def check_duplicates_in_database(
-        self,
-        db: AsyncSession,
-        *ad_ids: str
-    ) -> bool:
+    async def check_duplicates_in_database(self, db: AsyncSession, *ad_ids: str) -> bool:
         """
         Checks if the given ads exist and can be checked for duplicates.
         Returns True if the check completes successfully.
@@ -327,8 +315,8 @@ class DuplicateDetector:
             # Convert to standard RGB to avoid mode mismatches
             if image.mode != "RGB":
                 image = image.convert("RGB")
-            
-            # hash_size=8 is standard (64-bit). 
+
+            # hash_size=8 is standard (64-bit).
             # For more detail/strictness, use hash_size=16 (256-bit).
             phash = imagehash.phash(image, hash_size=8)
             return str(phash)
@@ -348,33 +336,32 @@ class DuplicateDetector:
                 # Read basic metadata
                 props = iio.improps(tmp.name, plugin="pyav")
                 total_frames = props.shape[0] if len(props.shape) > 0 else 0
-                
+
                 # If reading metadata fails, just try reading frames
-                if total_frames < 10: 
-                    total_frames = 100 
+                if total_frames < 10:
+                    total_frames = 100
 
                 # Sample frames spread across the video
                 indices = [
-                    int(total_frames * i / VIDEO_SAMPLE_FRAMES) 
-                    for i in range(VIDEO_SAMPLE_FRAMES)
+                    int(total_frames * i / VIDEO_SAMPLE_FRAMES) for i in range(VIDEO_SAMPLE_FRAMES)
                 ]
-                
+
                 valid_hashes = []
-                
+
                 for idx in indices:
                     try:
                         frame = iio.imread(tmp.name, index=idx, plugin="pyav")
-                        
+
                         # Check for "Empty" frames (Solid Black/White)
                         # Standard deviation of color channels is low for solid frames
-                        if np.std(frame) < 10: 
-                            continue # Skip this frame
+                        if np.std(frame) < 10:
+                            continue  # Skip this frame
 
                         image = Image.fromarray(frame)
                         if image.mode != "RGB":
                             image = image.convert("RGB")
-                            
-                        # Use dHash (Difference Hash) for video frames 
+
+                        # Use dHash (Difference Hash) for video frames
                         # It is often more robust for video compression artifacts than pHash
                         h = imagehash.dhash(image, hash_size=8)
                         valid_hashes.append(str(h))
@@ -428,16 +415,17 @@ class DuplicateDetector:
         if "|" in hash1 and "|" in hash2:
             h1_parts = hash1.split("|")
             h2_parts = hash2.split("|")
-            
+
             # We look for a "Subsequence Match" or "Majority Match"
             # If > 50% of the frames match closely, it's a duplicate.
             matches = 0
             comparisons = 0
-            
+
             # Compare the minimum number of frames available in both
             limit = min(len(h1_parts), len(h2_parts))
-            if limit == 0: return False
-            
+            if limit == 0:
+                return False
+
             for i in range(limit):
                 try:
                     d = imagehash.hex_to_hash(h1_parts[i]) - imagehash.hex_to_hash(h2_parts[i])

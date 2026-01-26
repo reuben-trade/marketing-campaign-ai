@@ -18,9 +18,7 @@ settings = get_settings()
 
 # Convert asyncpg URL to psycopg for better pgbouncer/Supabase pooler compatibility
 # postgresql+asyncpg:// -> postgresql+psycopg://
-database_url = settings.database_url.replace(
-    "postgresql+asyncpg://", "postgresql+psycopg://"
-)
+database_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
 
 engine = create_async_engine(
     database_url,

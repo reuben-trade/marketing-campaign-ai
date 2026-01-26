@@ -13,8 +13,9 @@ Create Date: 2026-01-22
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSON
+
 from alembic import op
-from sqlalchemy.dialects.postgresql import JSON, JSONB
 
 revision: str = "008"
 down_revision: Union[str, None] = "007"
@@ -34,11 +35,15 @@ def upgrade() -> None:
     )
     op.add_column(
         "ad_creative_analysis",
-        sa.Column("overall_pacing_score", sa.Integer(), nullable=True, comment="1-10 pacing effectiveness"),
+        sa.Column(
+            "overall_pacing_score", sa.Integer(), nullable=True, comment="1-10 pacing effectiveness"
+        ),
     )
     op.add_column(
         "ad_creative_analysis",
-        sa.Column("production_style", sa.String(50), nullable=True, comment="UGC, Studio, Hybrid, etc."),
+        sa.Column(
+            "production_style", sa.String(50), nullable=True, comment="UGC, Studio, Hybrid, etc."
+        ),
     )
 
     # Audience and messaging
@@ -76,7 +81,9 @@ def upgrade() -> None:
     # Engagement predictors
     op.add_column(
         "ad_creative_analysis",
-        sa.Column("thumb_stop_score", sa.Integer(), nullable=True, comment="1-10 scroll-stop potential"),
+        sa.Column(
+            "thumb_stop_score", sa.Integer(), nullable=True, comment="1-10 scroll-stop potential"
+        ),
     )
     op.add_column(
         "ad_creative_analysis",
@@ -148,8 +155,12 @@ def upgrade() -> None:
         "ad_elements",
         sa.Column("id", sa.Uuid(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("ad_id", sa.Uuid(), sa.ForeignKey("ads.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("beat_index", sa.Integer(), nullable=False, comment="Position in timeline (0, 1, 2...)"),
-        sa.Column("beat_type", sa.String(50), nullable=False, comment="Hook, Problem, Solution, CTA, etc."),
+        sa.Column(
+            "beat_index", sa.Integer(), nullable=False, comment="Position in timeline (0, 1, 2...)"
+        ),
+        sa.Column(
+            "beat_type", sa.String(50), nullable=False, comment="Hook, Problem, Solution, CTA, etc."
+        ),
         sa.Column("start_time", sa.String(10), nullable=True, comment="MM:SS format"),
         sa.Column("end_time", sa.String(10), nullable=True, comment="MM:SS format"),
         sa.Column("duration_seconds", sa.Float(), nullable=True),
@@ -162,7 +173,9 @@ def upgrade() -> None:
         sa.Column("emotion_intensity", sa.Integer(), nullable=True, comment="1-10"),
         sa.Column("attention_score", sa.Integer(), nullable=True, comment="1-10"),
         # Rhetorical
-        sa.Column("rhetorical_mode", sa.String(20), nullable=True, comment="Logos, Pathos, Ethos, Kairos"),
+        sa.Column(
+            "rhetorical_mode", sa.String(20), nullable=True, comment="Logos, Pathos, Ethos, Kairos"
+        ),
         sa.Column("rhetorical_description", sa.Text(), nullable=True),
         sa.Column("persuasion_techniques", JSON(), nullable=True),
         # Cinematics

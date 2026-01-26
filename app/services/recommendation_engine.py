@@ -5,7 +5,6 @@ import logging
 import time
 from collections import Counter
 from typing import Any
-from uuid import UUID
 
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
@@ -121,7 +120,9 @@ class RecommendationEngine:
                         if rhetorical:
                             beat_summary["rhetorical"] = {
                                 "mode": rhetorical.get("mode", ""),
-                                "persuasion_techniques": rhetorical.get("persuasion_techniques", []),
+                                "persuasion_techniques": rhetorical.get(
+                                    "persuasion_techniques", []
+                                ),
                             }
 
                         ad_summary["narrative_structure"].append(beat_summary)
@@ -167,9 +168,13 @@ class RecommendationEngine:
                         "thumb_stop_score": thumb_stop.get("thumb_stop_score", 5),
                         "pattern_interrupt": thumb_stop.get("pattern_interrupt_type", ""),
                         "curiosity_gap": thumb_stop.get("curiosity_gap", False),
-                        "uses_social_proof": engagement_pred.get("uses_social_proof_signals", False),
+                        "uses_social_proof": engagement_pred.get(
+                            "uses_social_proof_signals", False
+                        ),
                         "uses_fomo": engagement_pred.get("uses_fear_of_missing_out", False),
-                        "uses_transformation": engagement_pred.get("uses_transformation_narrative", False),
+                        "uses_transformation": engagement_pred.get(
+                            "uses_transformation_narrative", False
+                        ),
                     }
 
                 # Extract critique insights
@@ -179,7 +184,9 @@ class RecommendationEngine:
                         "overall_grade": critique.get("overall_grade", ""),
                         "overall_assessment": critique.get("overall_assessment", ""),
                         "strengths": [s.get("strength", "") for s in critique.get("strengths", [])],
-                        "weaknesses": [w.get("weakness", "") for w in critique.get("weaknesses", [])],
+                        "weaknesses": [
+                            w.get("weakness", "") for w in critique.get("weaknesses", [])
+                        ],
                         "quick_wins": critique.get("quick_wins", []),
                     }
 
@@ -223,15 +230,17 @@ class RecommendationEngine:
             if creative_analysis:
                 if "creative_dna" not in ad_summary:
                     ad_summary["creative_dna"] = {}
-                ad_summary["creative_dna"].update({
-                    "hook_score": creative_analysis.get("hook_score", 5),
-                    "copy_framework": creative_analysis.get("copy_framework", ""),
-                    "headline": creative_analysis.get("headline_text", ""),
-                    "cta": creative_analysis.get("cta_text", ""),
-                    "production_quality": creative_analysis.get("production_quality_score", 5),
-                    "thumb_stop_score": creative_analysis.get("thumb_stop_score", 5),
-                    "overall_grade": creative_analysis.get("overall_grade", ""),
-                })
+                ad_summary["creative_dna"].update(
+                    {
+                        "hook_score": creative_analysis.get("hook_score", 5),
+                        "copy_framework": creative_analysis.get("copy_framework", ""),
+                        "headline": creative_analysis.get("headline_text", ""),
+                        "cta": creative_analysis.get("cta_text", ""),
+                        "production_quality": creative_analysis.get("production_quality_score", 5),
+                        "thumb_stop_score": creative_analysis.get("thumb_stop_score", 5),
+                        "overall_grade": creative_analysis.get("overall_grade", ""),
+                    }
+                )
 
             # Fallback to basic analysis if no rich data
             if "creative_dna" not in ad_summary and analysis:
@@ -319,9 +328,7 @@ class RecommendationEngine:
                 if analysis.get("emotional_appeal"):
                     emotional_appeals.append(analysis["emotional_appeal"])
 
-            total_engagement += (
-                ad.get("likes", 0) + ad.get("comments", 0) + ad.get("shares", 0)
-            )
+            total_engagement += ad.get("likes", 0) + ad.get("comments", 0) + ad.get("shares", 0)
 
         avg_engagement = total_engagement / len(ads) if ads else 0
 
@@ -335,7 +342,9 @@ class RecommendationEngine:
             "total_ads": len(ads),
             "avg_engagement": round(avg_engagement, 2),
             "visual_themes": ", ".join([t for t, _ in theme_counts.most_common(5)]),
-            "messaging_patterns": ", ".join([e for e, _ in Counter(emotional_appeals).most_common(3)]),
+            "messaging_patterns": ", ".join(
+                [e for e, _ in Counter(emotional_appeals).most_common(3)]
+            ),
             "top_ctas": ", ".join([c for c, _ in cta_counts.most_common(5)]),
             "production_styles": ", ".join([p for p, _ in production_counts.most_common(3)]),
             "copy_frameworks": ", ".join([f for f, _ in framework_counts.most_common(3)]),

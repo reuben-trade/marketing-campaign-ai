@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, "/home/rjs/Desktop/Projects/marketing-ai")
 
-from app.services.ad_library_scraper import AdLibraryScraper
+from app.services.ad_library_scraper import AdLibraryScraper  # noqa: E402
 
 
 async def test_single():
@@ -40,11 +40,11 @@ async def test_single():
         print(f"  Facebook URL: {facebook_url}")
         print(f"  Ad Library URL: {scraper.build_ad_library_url(page_id)}")
     else:
-        print(f"  Page ID: Not found")
+        print("  Page ID: Not found")
         if facebook_url:
             print(f"  Facebook URL (manual review): {facebook_url}")
         else:
-            print(f"  No Facebook page found")
+            print("  No Facebook page found")
 
 
 async def test_batch():
@@ -78,11 +78,11 @@ async def test_batch():
             print(f"    Facebook URL: {facebook_url}")
             print(f"    Ad Library URL: {scraper.build_ad_library_url(page_id)}")
         else:
-            print(f"    Page ID: Not found")
+            print("    Page ID: Not found")
             if facebook_url:
                 print(f"    Facebook URL (manual review): {facebook_url}")
             else:
-                print(f"    No Facebook page found")
+                print("    No Facebook page found")
 
 
 async def main():

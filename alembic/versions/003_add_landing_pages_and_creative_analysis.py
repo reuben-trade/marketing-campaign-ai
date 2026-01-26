@@ -8,8 +8,9 @@ Create Date: 2026-01-19
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "003"
 down_revision: Union[str, None] = "002"
@@ -21,9 +22,16 @@ def upgrade() -> None:
     # Create landing_pages table
     op.create_table(
         "landing_pages",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("url", sa.Text, nullable=False, unique=True),
-        sa.Column("url_hash", sa.String(64), nullable=False, unique=True),  # SHA256 hash for fast lookups
+        sa.Column(
+            "url_hash", sa.String(64), nullable=False, unique=True
+        ),  # SHA256 hash for fast lookups
         sa.Column("final_url", sa.Text, nullable=True),  # URL after redirects
         # Content
         sa.Column("page_title", sa.Text, nullable=True),
@@ -55,22 +63,40 @@ def upgrade() -> None:
     # Create ad_creative_analysis table
     op.create_table(
         "ad_creative_analysis",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
-        sa.Column("ad_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("ads.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
+        sa.Column(
+            "ad_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("ads.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         # Creative archetype classification
-        sa.Column("creative_archetype", sa.String(50), nullable=True),  # UGC, Problem/Solution Demo, Lo-fi Meme, High-Production Studio
+        sa.Column(
+            "creative_archetype", sa.String(50), nullable=True
+        ),  # UGC, Problem/Solution Demo, Lo-fi Meme, High-Production Studio
         sa.Column("archetype_confidence", sa.Numeric(3, 2), nullable=True),  # 0.00-1.00
         # Hook/offer detection
-        sa.Column("hook_offer_type", sa.String(100), nullable=True),  # Free Quote, 20% Discount, BOGO, etc.
+        sa.Column(
+            "hook_offer_type", sa.String(100), nullable=True
+        ),  # Free Quote, 20% Discount, BOGO, etc.
         sa.Column("offer_details", sa.Text, nullable=True),  # Specific offer text extracted
         sa.Column("offer_confidence", sa.Numeric(3, 2), nullable=True),
         # Emotional analysis
-        sa.Column("primary_emotion", sa.String(50), nullable=True),  # urgency, aspiration, fear, belonging, curiosity
+        sa.Column(
+            "primary_emotion", sa.String(50), nullable=True
+        ),  # urgency, aspiration, fear, belonging, curiosity
         # Production quality
         sa.Column("production_quality_score", sa.Integer, nullable=True),  # 1-10
         sa.Column("text_to_image_ratio", sa.Numeric(5, 2), nullable=True),  # percentage
         # Visual analysis
-        sa.Column("color_palette", postgresql.JSONB, nullable=True),  # ["#FF5733", "#C70039", "#900C3F"]
+        sa.Column(
+            "color_palette", postgresql.JSONB, nullable=True
+        ),  # ["#FF5733", "#C70039", "#900C3F"]
         sa.Column("has_human_face", sa.Boolean, nullable=True),
         sa.Column("has_product_shot", sa.Boolean, nullable=True),
         # Metadata
@@ -78,13 +104,22 @@ def upgrade() -> None:
         sa.Column("model_used", sa.String(100), nullable=True),
     )
     op.create_index("idx_ad_creative_analysis_ad_id", "ad_creative_analysis", ["ad_id"])
-    op.create_index("idx_ad_creative_analysis_archetype", "ad_creative_analysis", ["creative_archetype"])
-    op.create_index("idx_ad_creative_analysis_hook_offer", "ad_creative_analysis", ["hook_offer_type"])
+    op.create_index(
+        "idx_ad_creative_analysis_archetype", "ad_creative_analysis", ["creative_archetype"]
+    )
+    op.create_index(
+        "idx_ad_creative_analysis_hook_offer", "ad_creative_analysis", ["hook_offer_type"]
+    )
 
     # Create cross_platform_ads table
     op.create_table(
         "cross_platform_ads",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("uuid_generate_v4()"),
+        ),
         sa.Column("domain", sa.String(255), nullable=False),  # Advertiser's website domain
         sa.Column("platform", sa.String(50), nullable=False),  # facebook, tiktok, google
         sa.Column("platform_ad_id", sa.String(255), nullable=True),  # Ad ID on that platform
@@ -93,22 +128,35 @@ def upgrade() -> None:
         sa.Column("first_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("last_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("status", sa.String(20), server_default=sa.text("'active'")),  # active, inactive
-        sa.Column("is_universal_winner", sa.Boolean, server_default=sa.text("false")),  # Found on 3+ platforms
+        sa.Column(
+            "is_universal_winner", sa.Boolean, server_default=sa.text("false")
+        ),  # Found on 3+ platforms
         # Link to our ads table if from Facebook
-        sa.Column("ad_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("ads.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "ad_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("ads.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
     )
     op.create_index("idx_cross_platform_ads_domain", "cross_platform_ads", ["domain"])
     op.create_index("idx_cross_platform_ads_platform", "cross_platform_ads", ["platform"])
     op.create_index("idx_cross_platform_ads_creative_hash", "cross_platform_ads", ["creative_hash"])
-    op.create_index("idx_cross_platform_ads_universal_winner", "cross_platform_ads", ["is_universal_winner"])
+    op.create_index(
+        "idx_cross_platform_ads_universal_winner", "cross_platform_ads", ["is_universal_winner"]
+    )
 
     # Update ads table with new columns
     op.add_column("ads", sa.Column("landing_page_id", postgresql.UUID(as_uuid=True), nullable=True))
     op.add_column("ads", sa.Column("landing_page_url", sa.Text, nullable=True))
     op.add_column("ads", sa.Column("is_carousel", sa.Boolean, server_default=sa.text("false")))
     op.add_column("ads", sa.Column("carousel_item_count", sa.Integer, nullable=True))
-    op.add_column("ads", sa.Column("carousel_items", postgresql.JSONB, nullable=True))  # [{url: "", type: "image/video"}]
-    op.add_column("ads", sa.Column("ad_delivery_stop_time", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "ads", sa.Column("carousel_items", postgresql.JSONB, nullable=True)
+    )  # [{url: "", type: "image/video"}]
+    op.add_column(
+        "ads", sa.Column("ad_delivery_stop_time", sa.DateTime(timezone=True), nullable=True)
+    )
     op.add_column("ads", sa.Column("last_seen_active", sa.DateTime(timezone=True), nullable=True))
     op.add_column("ads", sa.Column("is_active", sa.Boolean, server_default=sa.text("true")))
 

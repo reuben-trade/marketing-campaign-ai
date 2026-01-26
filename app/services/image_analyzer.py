@@ -463,9 +463,7 @@ class ImageAnalyzer:
                 analysis_notes=raw_analysis.get("analysis_notes", []),
                 inferred_audience=raw_analysis.get("inferred_audience", ""),
                 primary_messaging_pillar=raw_analysis.get("primary_messaging_pillar", ""),
-                overall_pacing_score=self._clamp_score(
-                    raw_analysis.get("overall_pacing_score", 5)
-                ),
+                overall_pacing_score=self._clamp_score(raw_analysis.get("overall_pacing_score", 5)),
                 production_style=raw_analysis.get("production_style", "Unknown"),
                 hook_score=self._clamp_score(raw_analysis.get("hook_score", 5)),
                 timeline=[],  # Images don't have timeline
@@ -532,7 +530,9 @@ class ImageAnalyzer:
             logo_visible=data.get("logo_visible", False),
             logo_position=self._sanitize_nullable(data.get("logo_position")),
             brand_colors_detected=data.get("brand_colors_detected", []),
-            brand_color_consistency=self._clamp_score(data["brand_color_consistency"]) if data.get("brand_color_consistency") else None,
+            brand_color_consistency=self._clamp_score(data["brand_color_consistency"])
+            if data.get("brand_color_consistency")
+            else None,
             product_appearances=[],  # No timestamps for images
             has_product_shot=data.get("has_product_shot", False),
             product_visibility_seconds=None,
@@ -551,7 +551,9 @@ class ImageAnalyzer:
             curiosity_gap=thumb_data.get("curiosity_gap", False),
             curiosity_gap_description=thumb_data.get("curiosity_gap_description"),
             first_second_elements=thumb_data.get("first_second_elements", []),
-            visual_contrast_score=self._clamp_score(thumb_data["visual_contrast_score"]) if thumb_data.get("visual_contrast_score") else None,
+            visual_contrast_score=self._clamp_score(thumb_data["visual_contrast_score"])
+            if thumb_data.get("visual_contrast_score")
+            else None,
             text_hook_present=thumb_data.get("text_hook_present", False),
             face_in_first_frame=thumb_data.get("face_in_first_frame", False),
         )
@@ -565,7 +567,9 @@ class ImageAnalyzer:
             uses_controversy_or_hot_take=data.get("uses_controversy_or_hot_take", False),
             uses_transformation_narrative=data.get("uses_transformation_narrative", False),
             predicted_watch_through_rate=None,  # N/A for images
-            predicted_engagement_type=self._sanitize_nullable(data.get("predicted_engagement_type")),
+            predicted_engagement_type=self._sanitize_nullable(
+                data.get("predicted_engagement_type")
+            ),
         )
 
     def _parse_platform_optimization(self, data: dict[str, Any]) -> PlatformOptimization:

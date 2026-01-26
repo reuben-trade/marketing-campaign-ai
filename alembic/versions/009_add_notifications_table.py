@@ -9,8 +9,9 @@ Create Date: 2026-01-22
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
+
+from alembic import op
 
 revision: str = "009"
 down_revision: Union[str, None] = "008"

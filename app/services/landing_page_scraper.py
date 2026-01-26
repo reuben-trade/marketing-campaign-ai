@@ -101,7 +101,9 @@ class LandingPageScraper:
                 }
 
                 if detect_pixels:
-                    page.on("request", lambda req: self._detect_pixels_from_request(req, pixel_data))
+                    page.on(
+                        "request", lambda req: self._detect_pixels_from_request(req, pixel_data)
+                    )
 
                 # Navigate to page and measure load time
                 start_time = time.time()

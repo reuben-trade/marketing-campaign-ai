@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, JSON, String, Text, Uuid
+from sqlalchemy import JSON, DateTime, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 

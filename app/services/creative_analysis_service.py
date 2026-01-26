@@ -1,7 +1,6 @@
 """Service for populating ad_creative_analysis and ad_elements tables from video_intelligence."""
 
 import logging
-import uuid
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -66,9 +65,7 @@ async def populate_creative_analysis(
     voice = audio_analysis.get("voice", {}) or {}
 
     # Check if analysis already exists (query to avoid lazy load issues)
-    result = await db.execute(
-        select(AdCreativeAnalysis).where(AdCreativeAnalysis.ad_id == ad.id)
-    )
+    result = await db.execute(select(AdCreativeAnalysis).where(AdCreativeAnalysis.ad_id == ad.id))
     existing = result.scalar_one_or_none()
 
     if existing:

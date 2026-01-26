@@ -7,8 +7,9 @@ Create Date: 2026-01-18
 """
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision: str = "002"
 down_revision: Union[str, None] = "001"
@@ -20,7 +21,8 @@ def upgrade() -> None:
     # First, extract page_id from existing URLs
     # URLs are in format: https://www.facebook.com/ads/library/?view_all_page_id=123456789
     # We need to extract just the page ID number
-    op.execute("""
+    op.execute(
+        """
         UPDATE competitors
         SET ad_library_url = COALESCE(
             -- Try to extract view_all_page_id parameter
@@ -32,7 +34,8 @@ def upgrade() -> None:
             -- Fallback: keep original (will fail if too long, but that's expected)
             ad_library_url
         )
-    """)
+    """
+    )
 
     # Now rename and change type
     op.alter_column(
@@ -57,8 +60,10 @@ def downgrade() -> None:
     )
 
     # Rebuild full URLs from page_id
-    op.execute("""
+    op.execute(
+        """
         UPDATE competitors
         SET ad_library_url = 'https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&view_all_page_id=' || ad_library_url
         WHERE ad_library_url ~ '^[0-9]+$'
-    """)
+    """
+    )

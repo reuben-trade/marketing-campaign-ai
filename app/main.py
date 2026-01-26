@@ -6,7 +6,16 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ads, competitors, critique, notifications, projects, recommendations, search, strategy
+from app.api import (
+    ads,
+    competitors,
+    critique,
+    notifications,
+    projects,
+    recommendations,
+    search,
+    strategy,
+)
 from app.config import get_settings
 
 
@@ -61,4 +70,3 @@ async def root() -> dict[str, str]:
         "docs": "/docs",
         "health": "/health",
     }
-

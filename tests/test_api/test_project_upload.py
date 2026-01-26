@@ -32,7 +32,9 @@ def invalid_file():
 
 
 @pytest.mark.asyncio
-async def test_upload_single_file(client: AsyncClient, sample_project, video_file, mock_supabase_storage):
+async def test_upload_single_file(
+    client: AsyncClient, sample_project, video_file, mock_supabase_storage
+):
     """Test uploading a single video file."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)
@@ -96,7 +98,9 @@ async def test_upload_exceeds_file_count_limit(client: AsyncClient, mock_supabas
 
 
 @pytest.mark.asyncio
-async def test_upload_invalid_file_type(client: AsyncClient, sample_project, invalid_file, mock_supabase_storage):
+async def test_upload_invalid_file_type(
+    client: AsyncClient, sample_project, invalid_file, mock_supabase_storage
+):
     """Test that uploading non-video files fails."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)
@@ -127,7 +131,9 @@ async def test_upload_empty_file(client: AsyncClient, sample_project, mock_supab
 
 
 @pytest.mark.asyncio
-async def test_upload_to_nonexistent_project(client: AsyncClient, video_file, mock_supabase_storage):
+async def test_upload_to_nonexistent_project(
+    client: AsyncClient, video_file, mock_supabase_storage
+):
     """Test uploading to a non-existent project fails."""
     fake_project_id = str(uuid4())
     filename, content, content_type = video_file
@@ -139,7 +145,9 @@ async def test_upload_to_nonexistent_project(client: AsyncClient, video_file, mo
 
 
 @pytest.mark.asyncio
-async def test_list_project_files(client: AsyncClient, sample_project, video_file, mock_supabase_storage):
+async def test_list_project_files(
+    client: AsyncClient, sample_project, video_file, mock_supabase_storage
+):
     """Test listing uploaded files for a project."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)
@@ -187,7 +195,9 @@ async def test_list_files_nonexistent_project(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_delete_project_file(client: AsyncClient, sample_project, video_file, mock_supabase_storage):
+async def test_delete_project_file(
+    client: AsyncClient, sample_project, video_file, mock_supabase_storage
+):
     """Test deleting a specific file from a project."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)
@@ -223,7 +233,9 @@ async def test_delete_nonexistent_file(client: AsyncClient, sample_project, mock
 
 
 @pytest.mark.asyncio
-async def test_project_stats_after_upload(client: AsyncClient, sample_project, video_file, mock_supabase_storage):
+async def test_project_stats_after_upload(
+    client: AsyncClient, sample_project, video_file, mock_supabase_storage
+):
     """Test that project stats are updated after upload."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)
@@ -247,7 +259,9 @@ async def test_project_stats_after_upload(client: AsyncClient, sample_project, v
 
 
 @pytest.mark.asyncio
-async def test_upload_various_video_formats(client: AsyncClient, sample_project, mock_supabase_storage):
+async def test_upload_various_video_formats(
+    client: AsyncClient, sample_project, mock_supabase_storage
+):
     """Test uploading various supported video formats."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)
@@ -297,7 +311,9 @@ async def test_cumulative_upload_limit(client: AsyncClient, mock_supabase_storag
 
 
 @pytest.mark.asyncio
-async def test_delete_project_cascades_files(client: AsyncClient, sample_project, video_file, mock_supabase_storage):
+async def test_delete_project_cascades_files(
+    client: AsyncClient, sample_project, video_file, mock_supabase_storage
+):
     """Test that deleting a project also deletes its files."""
     # Create project
     create_response = await client.post("/api/projects", json=sample_project)

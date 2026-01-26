@@ -81,8 +81,12 @@ class AdBase(BaseModel):
 
     # Detailed ad info from modal view
     started_running_date: date | None = Field(None, description="Date the ad started running")
-    total_active_time: str | None = Field(None, description="How long ad has been active (e.g., '4 hrs', '3 days')")
-    platforms: list[str] | None = Field(None, description="Platforms where ad runs (facebook, instagram, messenger)")
+    total_active_time: str | None = Field(
+        None, description="How long ad has been active (e.g., '4 hrs', '3 days')"
+    )
+    platforms: list[str] | None = Field(
+        None, description="Platforms where ad runs (facebook, instagram, messenger)"
+    )
     link_headline: str | None = Field(None, description="Link preview headline")
     link_description: str | None = Field(None, description="Link preview description")
     additional_links: list[str] | None = Field(None, description="Additional URLs from ad assets")
@@ -101,7 +105,9 @@ class AdResponse(AdBase):
     id: UUID
     competitor_id: UUID
     analysis: AdAnalysis | None = None
-    video_intelligence: dict | None = Field(None, description="Enhanced V2 analysis with timeline beats, critique, and creative DNA")
+    video_intelligence: dict | None = Field(
+        None, description="Enhanced V2 analysis with timeline beats, critique, and creative DNA"
+    )
     retrieved_date: datetime
     analyzed_date: datetime | None = None
     analyzed: bool
@@ -112,13 +118,21 @@ class AdResponse(AdBase):
 
     # Composite scoring fields (0.0-1.0 scale)
     composite_score: float | None = Field(None, description="Unified composite score (0.0-1.0)")
-    engagement_rate_percentile: float | None = Field(None, description="Engagement rate percentile (0.0-1.0)")
-    survivorship_score: float | None = Field(None, description="Survivorship score (0.2/0.5/0.8/1.0)")
+    engagement_rate_percentile: float | None = Field(
+        None, description="Engagement rate percentile (0.0-1.0)"
+    )
+    survivorship_score: float | None = Field(
+        None, description="Survivorship score (0.2/0.5/0.8/1.0)"
+    )
     ad_summary: str | None = Field(None, description="Generated summary for embeddings")
 
     # Duplicate tracking
-    original_ad_id: UUID | None = Field(None, description="If set, this is a duplicate - references the original ad")
-    duplicate_count: int = Field(1, description="How many times this creative has been seen (on originals)")
+    original_ad_id: UUID | None = Field(
+        None, description="If set, this is a duplicate - references the original ad"
+    )
+    duplicate_count: int = Field(
+        1, description="How many times this creative has been seen (on originals)"
+    )
 
     model_config = {"from_attributes": True}
 
@@ -156,7 +170,9 @@ class AdRetrieveRequest(BaseModel):
     competitor_id: UUID
     max_ads: int | None = Field(None, ge=1, le=100)
     since_days: int | None = Field(None, ge=1, le=365)
-    scrape_details: bool = Field(True, description="Scrape detailed modal info for each ad (slower but more accurate)")
+    scrape_details: bool = Field(
+        True, description="Scrape detailed modal info for each ad (slower but more accurate)"
+    )
 
 
 class AdRetrieveResponse(BaseModel):

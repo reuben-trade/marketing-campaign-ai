@@ -44,7 +44,7 @@ class ContentPlanningAgent:
         """Initialize the content planning agent."""
         settings = get_settings()
         self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self.model = "gpt-4-turbo-preview"
+        self.model = "gpt-4.1-nano"
 
     async def generate(
         self,

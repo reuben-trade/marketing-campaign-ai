@@ -1,0 +1,117 @@
+export interface ProjectStats {
+  videos_uploaded: number;
+  total_size_mb: number;
+  segments_extracted: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  brand_profile_id: string | null;
+  status: 'draft' | 'processing' | 'ready' | 'rendered';
+  inspiration_ads: string[] | null;
+  user_prompt: string | null;
+  max_videos: number;
+  max_total_size_mb: number;
+  created_at: string;
+  updated_at: string;
+  stats: ProjectStats | null;
+}
+
+export interface ProjectListResponse {
+  items: Project[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ProjectCreate {
+  name: string;
+  brand_profile_id?: string;
+  user_prompt?: string;
+  inspiration_ads?: string[];
+  max_videos?: number;
+  max_total_size_mb?: number;
+}
+
+export interface ProjectUpdate {
+  name?: string;
+  brand_profile_id?: string;
+  status?: 'draft' | 'processing' | 'ready' | 'rendered';
+  inspiration_ads?: string[];
+  user_prompt?: string;
+  max_videos?: number;
+  max_total_size_mb?: number;
+}
+
+export interface ProjectFilters {
+  page?: number;
+  page_size?: number;
+  status?: 'draft' | 'processing' | 'ready' | 'rendered';
+}
+
+export interface ProjectFile {
+  file_id: string;
+  filename: string;
+  original_filename: string;
+  file_size_bytes: number;
+  file_url: string;
+  status: string;
+}
+
+export interface ProjectUploadResponse {
+  project_id: string;
+  uploaded_files: ProjectFile[];
+  total_files: number;
+  total_size_bytes: number;
+  total_size_mb: number;
+  failed_files: Array<{ filename: string; error: string }>;
+}
+
+export interface ProjectFilesListResponse {
+  project_id: string;
+  files: ProjectFile[];
+  total: number;
+  total_size_bytes: number;
+  total_size_mb: number;
+}
+
+// Video segment types
+export interface UserVideoSegment {
+  id: string;
+  project_id: string;
+  source_file_id: string;
+  source_file_name: string | null;
+  source_file_url: string | null;
+  timestamp_start: number;
+  timestamp_end: number;
+  duration_seconds: number | null;
+  visual_description: string | null;
+  action_tags: string[] | null;
+  thumbnail_url: string | null;
+  created_at: string;
+}
+
+export interface ProjectSegmentsResponse {
+  project_id: string;
+  total_segments: number;
+  segments: UserVideoSegment[];
+}
+
+export interface AnalysisProgress {
+  project_id: string;
+  total_files: number;
+  completed_files: number;
+  current_file: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error_message: string | null;
+  segments_extracted: number;
+}
+
+// Upload progress tracking
+export interface FileUploadProgress {
+  file: File;
+  progress: number;
+  status: 'pending' | 'uploading' | 'completed' | 'failed';
+  error?: string;
+}

@@ -8,15 +8,15 @@ import {
   Users,
   MonitorPlay,
   Lightbulb,
-  MessageSquareText,
+  FolderKanban,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Home', href: '/', icon: LayoutDashboard },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Competitors', href: '/competitors', icon: Users },
   { name: 'Ads', href: '/ads', icon: MonitorPlay },
   { name: 'Ideas', href: '/ideas', icon: Lightbulb },
-  { name: 'Feedback', href: '/critique', icon: MessageSquareText },
 ];
 
 export function MobileNav() {

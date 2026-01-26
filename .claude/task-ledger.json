@@ -147,7 +147,7 @@
       "description": "Implement Writer agent that generates visual scripts from recipes and user content",
       "status": "completed",
       "branch": "feature/content-planning-agent",
-      "prNumber": null,
+      "prNumber": 19,
       "files": [
         "app/services/content_planner.py",
         "app/schemas/visual_script.py",

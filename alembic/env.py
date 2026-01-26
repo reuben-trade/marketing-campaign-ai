@@ -2,10 +2,10 @@
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
 
+from alembic import context
 from app.config import get_settings
 from app.database import Base
 from app.models import (  # noqa: F401
@@ -30,9 +30,7 @@ settings = get_settings()
 
 # Convert async URL to sync URL for migrations
 # postgresql+asyncpg:// -> postgresql://
-sync_database_url = settings.database_url.replace(
-    "postgresql+asyncpg://", "postgresql://"
-)
+sync_database_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
 config.set_main_option("sqlalchemy.url", sync_database_url)
 
 

@@ -12,7 +12,9 @@ class SemanticSearchRequest(BaseModel):
     """Request for semantic search."""
 
     query: str = Field(..., min_length=1, description="Search query text")
-    filters: dict[str, Any] | None = Field(None, description="Additional filters (creative_type, analyzed, etc.)")
+    filters: dict[str, Any] | None = Field(
+        None, description="Additional filters (creative_type, analyzed, etc.)"
+    )
     limit: int = Field(20, ge=1, le=100, description="Maximum number of results")
 
 
@@ -34,7 +36,9 @@ class RelevanceFilter(BaseModel):
     """Filter for relevance-based ad selection."""
 
     description: str = Field(..., min_length=1, description="Description of what to advertise")
-    themes: list[str] = Field(default_factory=list, description="Specific themes or ideas to focus on")
+    themes: list[str] = Field(
+        default_factory=list, description="Specific themes or ideas to focus on"
+    )
     min_similarity: float = Field(0.7, ge=0.0, le=1.0, description="Minimum similarity threshold")
 
 

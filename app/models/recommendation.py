@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ARRAY, DateTime, Integer, JSON, Numeric, String, Uuid
+from sqlalchemy import ARRAY, JSON, DateTime, Integer, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 

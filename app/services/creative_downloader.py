@@ -4,8 +4,6 @@ import asyncio
 import logging
 from uuid import UUID
 
-import httpx
-
 from app.config import get_settings
 from app.services.ad_library_scraper import AdLibraryScraper
 from app.utils.supabase_storage import SupabaseStorage, download_from_url
@@ -24,7 +22,7 @@ class CreativeDownloader:
 
     def __init__(self) -> None:
         """Initialize the creative downloader."""
-        settings = get_settings()
+        _settings = get_settings()  # noqa: F841 - validates config on init
         self.storage = SupabaseStorage()
         self.scraper = AdLibraryScraper()
         self.max_retries = 3
@@ -52,7 +50,11 @@ class CreativeDownloader:
         # Use direct creative_url if provided, otherwise extract from snapshot page
         if creative_url:
             # Determine type from URL
-            creative_type = "video" if any(x in creative_url.lower() for x in [".mp4", ".webm", ".mov", "video"]) else "image"
+            creative_type = (
+                "video"
+                if any(x in creative_url.lower() for x in [".mp4", ".webm", ".mov", "video"])
+                else "image"
+            )
             logger.info(f"Using direct creative URL for ad {ad_id}")
         else:
             # Fallback to extracting from snapshot page
@@ -61,7 +63,9 @@ class CreativeDownloader:
             )
 
         if not creative_url or creative_type == "unknown":
-            raise CreativeDownloadError(f"Could not determine creative URL from snapshot: {ad_snapshot_url}")
+            raise CreativeDownloadError(
+                f"Could not determine creative URL from snapshot: {ad_snapshot_url}"
+            )
 
         for attempt in range(self.max_retries):
             try:

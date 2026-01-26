@@ -50,11 +50,7 @@ def retrieve_all_ads_task(self, max_ads_per_competitor: int | None = None):
     session.commit()
 
     try:
-        competitors = (
-            session.query(Competitor)
-            .filter(Competitor.active == True)
-            .all()
-        )
+        competitors = session.query(Competitor).filter(Competitor.active.is_(True)).all()
 
         total_retrieved = 0
         total_failed = 0
@@ -84,9 +80,7 @@ def retrieve_all_ads_task(self, max_ads_per_competitor: int | None = None):
         }
         session.commit()
 
-        logger.info(
-            f"Ad retrieval completed: {total_retrieved} retrieved, {total_failed} failed"
-        )
+        logger.info(f"Ad retrieval completed: {total_retrieved} retrieved, {total_failed} failed")
 
         return {
             "status": "completed",
@@ -127,11 +121,7 @@ def retrieve_ads_for_competitor_task(
     session = get_sync_session()
 
     try:
-        competitor = (
-            session.query(Competitor)
-            .filter(Competitor.id == UUID(competitor_id))
-            .first()
-        )
+        competitor = session.query(Competitor).filter(Competitor.id == UUID(competitor_id)).first()
 
         if not competitor:
             return {"error": "Competitor not found"}
@@ -161,11 +151,7 @@ def retrieve_ads_for_competitor_task(
                 failed += 1
                 continue
 
-            existing = (
-                session.query(Ad)
-                .filter(Ad.ad_library_id == ad_library_id)
-                .first()
-            )
+            existing = session.query(Ad).filter(Ad.ad_library_id == ad_library_id).first()
 
             if existing:
                 skipped += 1
@@ -217,9 +203,7 @@ def retrieve_ads_for_competitor_task(
                 retrieved += 1
 
             except CreativeDownloadError as e:
-                logger.warning(
-                    f"Failed to download creative for ad {ad_library_id}: {e}"
-                )
+                logger.warning(f"Failed to download creative for ad {ad_library_id}: {e}")
                 failed += 1
             except Exception as e:
                 logger.warning(f"Failed to process ad {ad_library_id}: {e}")

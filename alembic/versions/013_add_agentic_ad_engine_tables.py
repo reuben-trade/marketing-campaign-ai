@@ -148,7 +148,9 @@ def upgrade() -> None:
         ),
     )
     op.create_index("idx_user_video_segments_project_id", "user_video_segments", ["project_id"])
-    op.create_index("idx_user_video_segments_source_file_id", "user_video_segments", ["source_file_id"])
+    op.create_index(
+        "idx_user_video_segments_source_file_id", "user_video_segments", ["source_file_id"]
+    )
     op.create_index("idx_user_video_segments_created_at", "user_video_segments", ["created_at"])
 
     # Create HNSW index for user_video_segments embedding similarity search

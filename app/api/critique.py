@@ -167,7 +167,9 @@ async def critique_uploaded_ad(
                 filename=file.filename,
                 media_type=media_type,
             )
-            file_url = storage.get_public_url(file_storage_path, bucket=storage.critique_files_bucket)
+            file_url = storage.get_public_url(
+                file_storage_path, bucket=storage.critique_files_bucket
+            )
         except SupabaseStorageError as e:
             logger.warning(f"Failed to upload file to storage: {e}. Continuing without file URL.")
 
@@ -272,7 +274,9 @@ async def list_critiques(
                 pacing_score=c.pacing_score,
                 thumb_stop_score=c.thumb_stop_score,
                 model_used=c.model_used,
-                processing_time_seconds=float(c.processing_time_seconds) if c.processing_time_seconds else None,
+                processing_time_seconds=float(c.processing_time_seconds)
+                if c.processing_time_seconds
+                else None,
                 created_at=c.created_at,
             )
             for c in critiques
@@ -324,7 +328,9 @@ async def get_critique(
     return CritiqueResponse(
         id=critique.id,
         analysis=EnhancedAdAnalysisV2(**critique.analysis),
-        processing_time_seconds=float(critique.processing_time_seconds) if critique.processing_time_seconds else 0,
+        processing_time_seconds=float(critique.processing_time_seconds)
+        if critique.processing_time_seconds
+        else 0,
         model_used=critique.model_used or "unknown",
         media_type=critique.media_type,
         file_size_bytes=critique.file_size_bytes,
@@ -356,9 +362,13 @@ async def delete_critique(
     if critique.file_storage_path:
         try:
             storage = SupabaseStorage()
-            await storage.delete_file(critique.file_storage_path, bucket=storage.critique_files_bucket)
+            await storage.delete_file(
+                critique.file_storage_path, bucket=storage.critique_files_bucket
+            )
         except SupabaseStorageError as e:
-            logger.warning(f"Failed to delete file from storage: {e}. Continuing with critique deletion.")
+            logger.warning(
+                f"Failed to delete file from storage: {e}. Continuing with critique deletion."
+            )
 
     await db.delete(critique)
     return {"message": "Critique deleted successfully", "id": str(critique_id)}

@@ -1,9 +1,8 @@
 """Meta Ad Library API integration."""
 
-import asyncio
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -133,7 +132,9 @@ class MetaAdLibraryClient:
         async with httpx.AsyncClient(timeout=60) as client:
             while url and len(all_ads) < limit:
                 try:
-                    response = await client.get(url, params=params if url.endswith("/ads_archive") else None)
+                    response = await client.get(
+                        url, params=params if url.endswith("/ads_archive") else None
+                    )
                     response.raise_for_status()
                     data = response.json()
 

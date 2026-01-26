@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 # =============================================================================
 # TYPE DEFINITIONS
 # =============================================================================
@@ -17,15 +16,15 @@ EmotionType = str
 # AdComponentType: Strict ad component types for structural analysis
 # These are the key components that should be identified in every ad
 AdComponentType = Literal[
-    "Hook",              # The first 0-5s attention grabber
-    "Problem",           # Agitating the pain point
-    "Solution",          # The "Product Reveal" moment
+    "Hook",  # The first 0-5s attention grabber
+    "Problem",  # Agitating the pain point
+    "Solution",  # The "Product Reveal" moment
     "Product Showcase",  # Demoing features/how it works
-    "Social Proof",      # Testimonials, reviews, UGC
-    "Benefit Stack",     # Listing value propositions
-    "Objection Handling", # Addressing doubts/trust markers
-    "CTA",               # Call to Action
-    "Transition",        # Visual bridge between sections
+    "Social Proof",  # Testimonials, reviews, UGC
+    "Benefit Stack",  # Listing value propositions
+    "Objection Handling",  # Addressing doubts/trust markers
+    "CTA",  # Call to Action
+    "Transition",  # Visual bridge between sections
 ]
 
 # BeatType: Extended type that includes Unknown for backwards compatibility
@@ -606,7 +605,9 @@ class EmotionalBeatMarker(BaseModel):
     """Emotional state at a specific point in the ad."""
 
     timestamp: str = Field(..., description="Timestamp (MM:SS)")
-    primary_emotion: EmotionType = Field(default="neutral", description="Primary emotion at this moment")
+    primary_emotion: EmotionType = Field(
+        default="neutral", description="Primary emotion at this moment"
+    )
     intensity: int = Field(
         default=5,
         ge=1,

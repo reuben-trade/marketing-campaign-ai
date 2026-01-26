@@ -1,0 +1,56 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+
+      - name: Install Node dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      # Run all checks
+      - name: Python Lint
+        run: poetry run ruff check .
+
+      - name: Python Format Check
+        run: poetry run ruff format --check .
+
+      - name: TypeScript Check
+        run: cd frontend && npx tsc --noEmit
+
+      - name: Frontend Lint
+        run: cd frontend && npm run lint
+
+      - name: Python Tests
+        run: poetry run pytest --tb=short
+
+      - name: Frontend Build
+        run: cd frontend && npm run build

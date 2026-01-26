@@ -3,11 +3,23 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, Uuid
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -90,9 +102,7 @@ class Ad(Base):
     # Composite scoring fields (all on 0-1 scale)
     composite_score: Mapped[float | None] = mapped_column(Float)
     # Range: 0.0 to 1.0
-    composite_score_calculated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    composite_score_calculated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     engagement_rate_percentile: Mapped[float | None] = mapped_column(Float)
     # Range: 0.0 to 1.0 - percentile rank across all ads
     survivorship_score: Mapped[float | None] = mapped_column(Float)
@@ -151,8 +161,8 @@ class Ad(Base):
         back_populates="ad",
         uselist=False,
     )
-    elements: Mapped[list["AdElement"]] = relationship(
-        "AdElement",  # noqa: F821
+    elements: Mapped[list["AdElement"]] = relationship(  # noqa: F821
+        "AdElement",
         back_populates="ad",
         lazy="selectin",
         order_by="AdElement.beat_index",
@@ -173,7 +183,11 @@ class Ad(Base):
         Index("idx_ads_competitor", "competitor_id"),
         Index("idx_ads_analyzed", "analyzed"),
         Index("idx_ads_creative_type", "creative_type"),
-        Index("idx_ads_publication_date", "publication_date", postgresql_ops={"publication_date": "DESC"}),
+        Index(
+            "idx_ads_publication_date",
+            "publication_date",
+            postgresql_ops={"publication_date": "DESC"},
+        ),
         Index("idx_ads_landing_page_id", "landing_page_id"),
         Index("idx_ads_is_active", "is_active"),
         Index("idx_ads_perceptual_hash", "perceptual_hash"),

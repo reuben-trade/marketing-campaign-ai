@@ -14,9 +14,9 @@ import sys
 
 sys.path.insert(0, "/home/rjs/Desktop/Projects/marketing-ai")
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright  # noqa: E402
 
-from app.services.ad_library_scraper import AdLibraryScraper
+from app.services.ad_library_scraper import AdLibraryScraper  # noqa: E402
 
 
 async def test_extraction_from_url(facebook_url: str) -> tuple[str | None, str | None]:
@@ -84,7 +84,7 @@ async def main():
         print("\n" + "-" * 70)
         facebook_url = input("\nEnter Facebook URL (or 'q' to quit): ").strip()
 
-        if facebook_url.lower() == 'q':
+        if facebook_url.lower() == "q":
             print("\nExiting...")
             break
 
@@ -110,12 +110,14 @@ async def main():
 
         if page_id:
             print(f"\n  ✓ Page ID found: {page_id}")
-            print(f"\n  Ad Library URL:")
-            print(f"    https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=AU&view_all_page_id={page_id}")
+            print("\n  Ad Library URL:")
+            print(
+                f"    https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=AU&view_all_page_id={page_id}"
+            )
         elif error:
             print(f"\n  ✗ Error: {error}")
         else:
-            print(f"\n  ✗ Page ID not found")
+            print("\n  ✗ Page ID not found")
             print("    The extraction method could not find the Page ID.")
             print("    This may require manual investigation.")
 

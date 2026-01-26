@@ -76,9 +76,7 @@ class UploadService:
         self.db = db
         self.storage = SupabaseStorage()
 
-    async def get_project_upload_stats(
-        self, project_id: uuid.UUID
-    ) -> tuple[int, int]:
+    async def get_project_upload_stats(self, project_id: uuid.UUID) -> tuple[int, int]:
         """
         Get current upload statistics for a project.
 
@@ -207,10 +205,12 @@ class UploadService:
                 total_size += result.file_size_bytes
             except Exception as e:
                 logger.error(f"Failed to upload file {validated.file.filename}: {e}")
-                failed_files.append({
-                    "filename": validated.file.filename,
-                    "error": str(e),
-                })
+                failed_files.append(
+                    {
+                        "filename": validated.file.filename,
+                        "error": str(e),
+                    }
+                )
 
         # If all files failed, raise an error
         if not uploaded_files and failed_files:

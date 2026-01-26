@@ -25,13 +25,6 @@ def video_file():
 
 
 @pytest.fixture
-def large_video_file():
-    """Create a large mock video file (over 100MB limit)."""
-    content = b"x" * (101 * 1024 * 1024)  # 101MB
-    return ("large_video.mp4", io.BytesIO(content), "video/mp4")
-
-
-@pytest.fixture
 def invalid_file():
     """Create an invalid file type."""
     content = b"not a video"

@@ -26,6 +26,7 @@ from app.services.upload_service import (
     UploadService,
     UploadValidationError,
 )
+from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
 
 logger = logging.getLogger(__name__)
 
@@ -398,8 +399,6 @@ async def delete_project_file(
         )
 
     # Delete from storage
-    from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
-
     storage = SupabaseStorage()
     try:
         await storage.delete_file(

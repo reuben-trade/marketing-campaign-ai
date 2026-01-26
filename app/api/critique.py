@@ -3,7 +3,6 @@
 import logging
 import time
 import uuid
-from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
@@ -19,38 +18,19 @@ from app.schemas.critique import (
 )
 from app.services.image_analyzer import ImageAnalysisError, ImageAnalyzer
 from app.services.video_analyzer import VideoAnalysisError, VideoAnalyzer
+from app.utils.media_types import (
+    IMAGE_EXTENSIONS,
+    IMAGE_MIME_TYPES,
+    MAX_IMAGE_SIZE_BYTES,
+    MAX_VIDEO_SIZE_BYTES,
+    VIDEO_EXTENSIONS,
+    VIDEO_MIME_TYPES,
+    get_media_type,
+)
 from app.utils.supabase_storage import SupabaseStorage, SupabaseStorageError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Supported file types
-IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
-VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "avi", "m4v"}
-IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-VIDEO_MIME_TYPES = {
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-    "video/x-msvideo",
-    "video/x-m4v",
-}
-
-# File size limits (in bytes)
-MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
-MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100MB
-
-
-def get_media_type(filename: str, content_type: str | None) -> Literal["image", "video"] | None:
-    """Determine if file is image or video based on extension and MIME type."""
-    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-
-    if extension in IMAGE_EXTENSIONS or content_type in IMAGE_MIME_TYPES:
-        return "image"
-    elif extension in VIDEO_EXTENSIONS or content_type in VIDEO_MIME_TYPES:
-        return "video"
-
-    return None
 
 
 @router.post(
@@ -116,15 +96,15 @@ async def critique_uploaded_ad(
     file_size = len(content)
 
     # Validate file size
-    if media_type == "image" and file_size > MAX_IMAGE_SIZE:
+    if media_type == "image" and file_size > MAX_IMAGE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Image file too large. Maximum size: {MAX_IMAGE_SIZE // (1024 * 1024)}MB",
+            detail=f"Image file too large. Maximum size: {MAX_IMAGE_SIZE_BYTES // (1024 * 1024)}MB",
         )
-    elif media_type == "video" and file_size > MAX_VIDEO_SIZE:
+    elif media_type == "video" and file_size > MAX_VIDEO_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Video file too large. Maximum size: {MAX_VIDEO_SIZE // (1024 * 1024)}MB",
+            detail=f"Video file too large. Maximum size: {MAX_VIDEO_SIZE_BYTES // (1024 * 1024)}MB",
         )
 
     # Validate file is not empty
@@ -310,12 +290,12 @@ async def get_supported_formats() -> dict:
         "image": {
             "extensions": sorted(IMAGE_EXTENSIONS),
             "mime_types": sorted(IMAGE_MIME_TYPES),
-            "max_size_mb": MAX_IMAGE_SIZE // (1024 * 1024),
+            "max_size_mb": MAX_IMAGE_SIZE_BYTES // (1024 * 1024),
         },
         "video": {
             "extensions": sorted(VIDEO_EXTENSIONS),
             "mime_types": sorted(VIDEO_MIME_TYPES),
-            "max_size_mb": MAX_VIDEO_SIZE // (1024 * 1024),
+            "max_size_mb": MAX_VIDEO_SIZE_BYTES // (1024 * 1024),
         },
     }
 

@@ -162,15 +162,15 @@
       "sprint": 2,
       "title": "Project-scoped semantic retrieval",
       "description": "Add project-scoped search to semantic search service",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/project-scoped-semantic-search",
       "prNumber": null,
       "files": [
         "app/services/semantic_search_service.py",
         "tests/test_services/test_semantic_search.py"
       ],
       "prdSection": "3.2 Semantic Retrieval",
-      "notes": "Search user's segments within a project only"
+      "notes": "Implemented: search_project_segments (single query), search_project_segments_batch (multiple queries), search_slots_in_project (visual script slots), find_similar_segments_in_project. All methods use pgvector cosine similarity with configurable min_similarity threshold. 12 tests pass."
     },
     {
       "id": "s2-t3",

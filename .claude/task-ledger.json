@@ -177,7 +177,7 @@
       "sprint": 2,
       "title": "Director Agent (Assembler)",
       "description": "Implement Director agent that selects clips and generates Remotion payload",
-      "status": "in_progress",
+      "status": "completed",
       "branch": "feature/director-agent",
       "prNumber": null,
       "files": [
@@ -186,7 +186,7 @@
         "tests/test_services/test_director_agent.py"
       ],
       "prdSection": "3.3 Director Agent",
-      "notes": "Handles gap detection, clip selection, payload generation"
+      "notes": "Implemented DirectorAgent service with: clip selection (70/30 similarity/duration weighting), gap handling (B-Roll generation, text slides, skip), Remotion payload generation with timeline segments, brand profile support, audio track config, clip replacement API. RemotionPayload schema with composition types (vertical/horizontal/square), segment types (video_clip/generated_broll/text_slide), transitions, text overlays. 22 tests pass."
     },
     {
       "id": "s2-t4",

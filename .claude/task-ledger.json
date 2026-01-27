@@ -310,7 +310,7 @@
       "description": "Build timeline with editable slots, clip swap modal",
       "status": "completed",
       "branch": "feature/timeline-editor",
-      "prNumber": null,
+      "prNumber": 29,
       "files": [
         "frontend/src/components/timeline-editor.tsx",
         "frontend/src/components/clip-swap-modal.tsx",

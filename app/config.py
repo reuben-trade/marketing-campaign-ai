@@ -74,6 +74,12 @@ class Settings(BaseSettings):
         description="Meta API rate limit per hour",
     )
 
+    # Render Service
+    render_callback_secret: str = Field(
+        default="",
+        description="Secret for authenticating render callback requests",
+    )
+
     # Server Configuration
     port: int = Field(
         default=8000,

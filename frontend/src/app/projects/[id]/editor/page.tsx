@@ -24,7 +24,7 @@ import {
 } from '@/hooks/useRender';
 import { RemotionPlayer, RemotionPlayerHandle } from '@/components/remotion-player';
 import { TimelineEditor } from '@/components/timeline-editor';
-import { ClipSwapModal } from '@/components/clip-swap-modal';
+import { ClipSwapModal, AlternativeClip } from '@/components/clip-swap-modal';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -51,7 +51,6 @@ import type {
   CompositionType,
   VideoClipSource,
 } from '@/types/render';
-import type { UserVideoSegmentWithSimilarity } from '@/types/project';
 
 // Status configuration for render jobs
 const renderStatusConfig: Record<
@@ -141,13 +140,6 @@ const createSamplePayload = (projectId: string): RemotionPayload => ({
     },
   ],
 });
-
-// Alternative clip type for the modal
-interface AlternativeClip {
-  id: string;
-  segment: UserVideoSegmentWithSimilarity;
-  similarity_score: number;
-}
 
 interface PageProps {
   params: { id: string };
@@ -790,7 +782,6 @@ export default function EditorPage({ params }: PageProps) {
         open={clipSwapOpen}
         onOpenChange={setClipSwapOpen}
         segment={swapSegment}
-        projectId={id}
         onSwapClip={handleSwapClip}
         onRegenerateBRoll={handleRegenerateBRoll}
         onUpdateOverlay={handleUpdateOverlay}

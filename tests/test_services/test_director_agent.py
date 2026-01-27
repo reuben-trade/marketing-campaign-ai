@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -170,9 +170,7 @@ class TestDirectorAgent:
         # Mock database queries
         with patch.object(
             director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", return_value=sample_project
-        ), patch.object(
+        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
             director_agent,
             "_build_file_url_map",
             return_value={sample_project_files[0].id: sample_project_files[0].file_url},
@@ -216,9 +214,7 @@ class TestDirectorAgent:
 
         with patch.object(
             director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", return_value=sample_project
-        ), patch.object(
+        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
             director_agent,
             "_build_file_url_map",
             return_value={sample_project_files[0].id: sample_project_files[0].file_url},
@@ -262,9 +258,7 @@ class TestDirectorAgent:
 
         with patch.object(
             director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", return_value=sample_project
-        ), patch.object(
+        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
             director_agent,
             "_build_file_url_map",
             return_value={sample_project_files[0].id: sample_project_files[0].file_url},
@@ -287,9 +281,7 @@ class TestDirectorAgent:
 
             assert result.success is True
             # Check that gaps became text slides
-            gap_segments = [
-                s for s in result.payload.timeline if s.type == SegmentType.TEXT_SLIDE
-            ]
+            gap_segments = [s for s in result.payload.timeline if s.type == SegmentType.TEXT_SLIDE]
             assert len(gap_segments) == 2
 
     @pytest.mark.asyncio
@@ -306,9 +298,7 @@ class TestDirectorAgent:
 
         with patch.object(
             director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", return_value=sample_project
-        ), patch.object(
+        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
             director_agent,
             "_build_file_url_map",
             return_value={sample_project_files[0].id: sample_project_files[0].file_url},
@@ -348,9 +338,7 @@ class TestDirectorAgent:
 
         with patch.object(
             director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", return_value=sample_project
-        ), patch.object(
+        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
             director_agent,
             "_build_file_url_map",
             return_value={sample_project_files[0].id: sample_project_files[0].file_url},
@@ -399,9 +387,7 @@ class TestDirectorAgent:
 
         with patch.object(
             director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", return_value=sample_project
-        ), patch.object(
+        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
             director_agent,
             "_build_file_url_map",
             return_value={sample_project_files[0].id: sample_project_files[0].file_url},
@@ -811,7 +797,6 @@ class TestPayloadUpdate:
     @pytest.mark.asyncio
     async def test_update_segment_clip(self, director_agent, sample_segments):
         """Test updating a segment with a new clip."""
-        from app.schemas.remotion_payload import VideoClipSource
 
         # Create initial payload with a gap segment
         payload = RemotionPayload(

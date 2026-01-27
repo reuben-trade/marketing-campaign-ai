@@ -212,7 +212,7 @@
       "description": "POST /api/projects/{id}/generate - orchestrates Writer + Retrieval + Director",
       "status": "completed",
       "branch": "feature/ad-generation-endpoint",
-      "prNumber": null,
+      "prNumber": 26,
       "files": [
         "app/api/projects.py",
         "app/schemas/project.py",

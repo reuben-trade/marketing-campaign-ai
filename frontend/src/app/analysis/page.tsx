@@ -28,7 +28,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import type { Ad } from '@/types/ad';
-import type { EnhancedNarrativeBeat, BeatType } from '@/types/analysis';
+import type { EnhancedNarrativeBeat, BeatType, StrengthItem, WeaknessItem } from '@/types/analysis';
 
 const BEAT_COLORS: Record<string, string> = {
   Hook: 'bg-green-500',
@@ -297,7 +297,7 @@ function VideoAnalysisPanel({
           {timeline.length > 0 && duration > 0 && (
             <div className="mb-4">
               <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
-                {timeline.map((beat, index) => {
+                {timeline.map((beat: EnhancedNarrativeBeat, index: number) => {
                   const startPercent = (parseTimestamp(beat.start_time) / duration) * 100;
                   const endPercent = (parseTimestamp(beat.end_time) / duration) * 100;
                   const widthPercent = endPercent - startPercent;
@@ -370,7 +370,7 @@ function VideoAnalysisPanel({
             <CardContent className="p-0">
               <ScrollArea className="h-[300px]">
                 <div className="divide-y">
-                  {filteredTimeline.map((beat, index) => (
+                  {filteredTimeline.map((beat: EnhancedNarrativeBeat, index: number) => (
                     <BeatCard
                       key={index}
                       beat={beat}
@@ -425,7 +425,7 @@ function VideoAnalysisPanel({
                   </CardHeader>
                   <CardContent className="pt-0">
                     <ul className="space-y-3">
-                      {critique.strengths.map((s, i) => (
+                      {critique.strengths.map((s: StrengthItem, i: number) => (
                         <li key={i} className="flex gap-2">
                           <span className="text-green-500 mt-1">+</span>
                           <div>
@@ -455,7 +455,7 @@ function VideoAnalysisPanel({
                   </CardHeader>
                   <CardContent className="pt-0">
                     <ul className="space-y-3">
-                      {critique.weaknesses.map((w, i) => (
+                      {critique.weaknesses.map((w: WeaknessItem, i: number) => (
                         <li key={i} className="flex gap-2">
                           <span className="text-yellow-500 mt-1">!</span>
                           <div>
@@ -483,7 +483,7 @@ function VideoAnalysisPanel({
                   </CardHeader>
                   <CardContent className="pt-0">
                     <ul className="space-y-2">
-                      {critique.quick_wins.map((win, i) => (
+                      {critique.quick_wins.map((win: string, i: number) => (
                         <li key={i} className="flex gap-2 text-sm">
                           <span className="text-yellow-400">*</span>
                           {win}

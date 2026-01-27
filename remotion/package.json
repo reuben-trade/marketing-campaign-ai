@@ -1,0 +1,38 @@
+{
+  "name": "@marketing-campaign-ai/remotion",
+  "version": "1.0.0",
+  "description": "Remotion compositions for marketing campaign video generation",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion bundle",
+    "render": "remotion render",
+    "render:vertical": "remotion render vertical_ad_v1",
+    "render:horizontal": "remotion render horizontal_ad_v1",
+    "render:square": "remotion render square_ad_v1",
+    "typecheck": "tsc --noEmit",
+    "preview": "remotion preview"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/media-utils": "^4.0.0",
+    "@remotion/player": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "remotion",
+    "video",
+    "marketing",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -33,8 +33,14 @@ import {
 import type { TimelineSegment, VideoClipSource } from '@/types/render';
 import type { UserVideoSegment } from '@/types/project';
 
+// Default FPS for the editor (used when segment doesn't specify)
+export const DEFAULT_FPS = 30;
+// Duration constraints in seconds
+export const MIN_DURATION_SECONDS = 0.5;
+export const MAX_DURATION_SECONDS = 10;
+
 // Alternative clip interface (combining segment data with selection metadata)
-interface AlternativeClip {
+export interface AlternativeClip {
   id: string;
   segment: UserVideoSegment;
   similarity_score: number;
@@ -45,7 +51,6 @@ export interface ClipSwapModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   segment: TimelineSegment | null;
-  projectId: string;
   onSwapClip: (segmentId: string, newSource: VideoClipSource) => void;
   onRegenerateBRoll?: (segmentId: string, prompt: string) => void;
   onUpdateOverlay?: (segmentId: string, text: string) => void;
@@ -152,11 +157,11 @@ export function ClipSwapModal({
     onUpdateDuration(segment.id, durationFrames);
   }, [segment, durationFrames, onUpdateDuration]);
 
-  // Calculate duration display
-  const fps = 30; // Default FPS
+  // Calculate duration display using constants
+  const fps = DEFAULT_FPS;
   const durationSeconds = durationFrames / fps;
-  const minDuration = 15; // 0.5 seconds at 30fps
-  const maxDuration = 300; // 10 seconds at 30fps
+  const minDuration = Math.round(MIN_DURATION_SECONDS * fps);
+  const maxDuration = Math.round(MAX_DURATION_SECONDS * fps);
 
   if (!segment) return null;
 

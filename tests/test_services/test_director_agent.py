@@ -11,11 +11,13 @@ from app.models.project_file import ProjectFile
 from app.models.user_video_segment import UserVideoSegment
 from app.models.visual_script import VisualScript
 from app.schemas.remotion_payload import (
+    GeneratedBRollSource,
     CompositionType,
     DirectorAgentInput,
     RemotionPayload,
     SegmentType,
     TextPosition,
+    TimelineSegment,
     TransitionType,
 )
 from app.schemas.visual_script import VisualScriptSlot

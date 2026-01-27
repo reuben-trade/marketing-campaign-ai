@@ -869,5 +869,3 @@ class TestPayloadUpdate:
             assert "visual_description" in alternatives[0]
 
 
-# Import for type hints
-from app.schemas.remotion_payload import GeneratedBRollSource, TimelineSegment

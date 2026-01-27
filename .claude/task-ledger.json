@@ -1,0 +1,380 @@
+{
+  "currentSprint": 2,
+  "lastUpdated": "2026-01-27",
+  "tasks": [
+    {
+      "id": "s1-t1",
+      "sprint": 1,
+      "title": "Database migrations for new tables",
+      "description": "Create migrations for: brand_profiles, recipes, projects, user_video_segments, visual_scripts, rendered_videos",
+      "status": "completed",
+      "branch": "feature/database-migrations-new-tables",
+      "prNumber": 12,
+      "files": [
+        "alembic/versions/013_add_agentic_ad_engine_tables.py",
+        "app/models/brand_profile.py",
+        "app/models/recipe.py",
+        "app/models/project.py",
+        "app/models/user_video_segment.py",
+        "app/models/visual_script.py",
+        "app/models/rendered_video.py",
+        "app/models/__init__.py"
+      ],
+      "prdSection": "4.2 Database Schema Additions",
+      "notes": "Single migration file creates all 6 tables with proper FK ordering. Migration verified on Supabase."
+    },
+    {
+      "id": "s1-t2",
+      "sprint": 1,
+      "title": "Project model + API endpoints",
+      "description": "Implement Project CRUD API: list, create, get, update, delete projects",
+      "status": "completed",
+      "branch": "feature/project-api-endpoints",
+      "prNumber": 13,
+      "files": [
+        "app/schemas/project.py",
+        "app/api/projects.py",
+        "app/main.py",
+        "tests/test_api/test_projects.py",
+        "tests/conftest.py"
+      ],
+      "prdSection": "2.1 Project-Based Uploads",
+      "notes": "Implementation complete. Also fixed SQLite test compatibility issue by adding type compilers for JSONB, ARRAY, and pgvector Vector in conftest.py."
+    },
+    {
+      "id": "s1-t3",
+      "sprint": 1,
+      "title": "User upload pipeline - multi-file upload",
+      "description": "Implement POST /api/projects/{id}/upload for multi-file video upload to Supabase",
+      "status": "completed",
+      "branch": "feature/user-upload-pipeline",
+      "prNumber": 14,
+      "files": [
+        "app/models/project_file.py",
+        "app/models/project.py",
+        "app/models/__init__.py",
+        "alembic/versions/014_add_project_files_table.py",
+        "app/config.py",
+        "app/utils/supabase_storage.py",
+        "app/services/upload_service.py",
+        "app/schemas/project.py",
+        "app/api/projects.py",
+        "tests/test_api/test_project_upload.py"
+      ],
+      "prdSection": "2.1 Project-Based Uploads",
+      "notes": "Implemented multi-file upload with: ProjectFile model for tracking, upload service with validation (max files, size limits, video formats), endpoints for upload/list/delete files, project stats now reflect actual upload data. All 15 upload tests pass."
+    },
+    {
+      "id": "s1-t4",
+      "sprint": 1,
+      "title": "User content analysis pipeline",
+      "description": "Analyze uploaded videos with Gemini, extract timestamped segments, generate embeddings",
+      "status": "completed",
+      "branch": "feature/user-content-analysis",
+      "prNumber": 15,
+      "files": [
+        "app/schemas/user_video_segment.py",
+        "app/services/user_content_analyzer.py",
+        "app/api/projects.py",
+        "tests/test_services/test_user_content_analyzer.py"
+      ],
+      "prdSection": "2.2 User Content Analysis Pipeline",
+      "notes": "Implemented: UserContentAnalyzer service using Gemini 2.0 Flash for video analysis with timestamps, OpenAI embeddings (1536-dim) for semantic search. API endpoints: POST /projects/{id}/analyze, POST /projects/{id}/files/{file_id}/analyze, GET /projects/{id}/segments. All 19 tests pass."
+    },
+    {
+      "id": "s1-t5",
+      "sprint": 1,
+      "title": "Recipe extraction service",
+      "description": "Extract structural recipes from analyzed competitor ads",
+      "status": "completed",
+      "branch": "feature/recipe-extraction-service",
+      "prNumber": null,
+      "files": [
+        "app/services/recipe_extractor.py",
+        "app/schemas/recipe.py",
+        "app/api/recipes.py",
+        "app/main.py",
+        "tests/test_services/test_recipe_extractor.py"
+      ],
+      "prdSection": "1.2 Recipe Extraction",
+      "notes": "Implemented RecipeExtractor service that extracts structural templates from analyzed ads. Supports both video_intelligence (V2) and ad_elements data sources. API endpoints: GET /api/recipes (list with filters), GET /api/recipes/{id}, POST /api/recipes/extract, DELETE /api/recipes/{id}. Extracts beat definitions with duration ranges (±20% flexibility), cinematics, rhetorical modes, text overlay patterns. Auto-generates recipe names based on structure. All 32 tests pass."
+    },
+    {
+      "id": "s1-t6",
+      "sprint": 1,
+      "title": "Frontend: Project creation flow",
+      "description": "Build project list page and project creation UI",
+      "status": "completed",
+      "branch": "feature/frontend-project-upload",
+      "prNumber": 17,
+      "files": [
+        "frontend/src/types/project.ts",
+        "frontend/src/lib/api/projects.ts",
+        "frontend/src/hooks/useProjects.ts",
+        "frontend/src/app/projects/page.tsx",
+        "frontend/src/components/project-card.tsx",
+        "frontend/src/components/create-project-dialog.tsx",
+        "frontend/src/components/ui/alert-dialog.tsx",
+        "frontend/src/components/layout/Sidebar.tsx",
+        "frontend/src/components/layout/MobileNav.tsx"
+      ],
+      "prdSection": "2.1 Project-Based Uploads",
+      "notes": "Implemented complete project management UI: TypeScript types matching backend schemas, API client with CRUD operations, React Query hooks for data fetching/caching, projects list page with search/filter/pagination, project cards showing stats, create/edit dialog with validation, delete confirmation dialog, navigation links added to Sidebar and MobileNav. Build passes."
+    },
+    {
+      "id": "s1-t7",
+      "sprint": 1,
+      "title": "Frontend: Project upload flow",
+      "description": "Build multi-file upload UI with progress indicators",
+      "status": "completed",
+      "branch": "feature/frontend-project-upload",
+      "prNumber": 17,
+      "files": [
+        "frontend/src/app/projects/[id]/page.tsx",
+        "frontend/src/types/project.ts",
+        "frontend/src/lib/api/projects.ts",
+        "frontend/src/hooks/useProjects.ts",
+        "frontend/src/components/upload-progress.tsx",
+        "frontend/src/components/video-segment-list.tsx"
+      ],
+      "prdSection": "2.1 Project-Based Uploads",
+      "notes": "Implemented complete upload flow: UploadProgress component with drag-drop, file validation (type, size, count limits), upload progress bar with axios progress tracking. VideoSegmentList component shows extracted segments grouped by source file with accordion, search/filter, analyze/re-analyze buttons, segment cards with thumbnails, timestamps, tags. Project detail page refactored with tabs (Upload, Files, Segments). All new hooks: useUploadProjectFiles, useProjectSegments, useAnalyzeProject, useAnalyzeFile. All 10 e2e tests pass, build passes."
+    },
+    {
+      "id": "s2-t1",
+      "sprint": 2,
+      "title": "Content Planning Agent (Writer)",
+      "description": "Implement Writer agent that generates visual scripts from recipes and user content",
+      "status": "completed",
+      "branch": "feature/content-planning-agent",
+      "prNumber": 19,
+      "files": [
+        "app/services/content_planner.py",
+        "app/schemas/visual_script.py",
+        "app/utils/prompts.py",
+        "tests/test_services/test_content_planner.py"
+      ],
+      "prdSection": "3.1 Content Planning Agent",
+      "notes": "Implemented ContentPlanningAgent service that generates visual scripts from recipes + user content. Uses GPT-4 to create slots with search queries, overlay text, transitions, and cinematics. 15 tests pass. Schema includes VisualScriptSlot, ContentPlanningInput/Output, generate request/response."
+    },
+    {
+      "id": "s2-t2",
+      "sprint": 2,
+      "title": "Project-scoped semantic retrieval",
+      "description": "Add project-scoped search to semantic search service",
+      "status": "completed",
+      "branch": "feature/project-scoped-semantic-search",
+      "prNumber": null,
+      "files": [
+        "app/services/semantic_search_service.py",
+        "tests/test_services/test_semantic_search.py"
+      ],
+      "prdSection": "3.2 Semantic Retrieval",
+      "notes": "Implemented: search_project_segments (single query), search_project_segments_batch (multiple queries), search_slots_in_project (visual script slots), find_similar_segments_in_project. All methods use pgvector cosine similarity with configurable min_similarity threshold. 12 tests pass."
+    },
+    {
+      "id": "s2-t3",
+      "sprint": 2,
+      "title": "Director Agent (Assembler)",
+      "description": "Implement Director agent that selects clips and generates Remotion payload",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "app/services/director_agent.py",
+        "app/schemas/remotion_payload.py",
+        "tests/test_services/test_director_agent.py"
+      ],
+      "prdSection": "3.3 Director Agent",
+      "notes": "Handles gap detection, clip selection, payload generation"
+    },
+    {
+      "id": "s2-t4",
+      "sprint": 2,
+      "title": "Frontend: Inspiration selection UI",
+      "description": "Build inspiration gallery and source selector components",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "frontend/src/components/inspiration-gallery.tsx",
+        "frontend/src/components/inspiration-source-selector.tsx",
+        "frontend/src/app/projects/[id]/inspire/page.tsx"
+      ],
+      "prdSection": "1.3 Inspiration Selection UI",
+      "notes": "Three sources: library, upload reference, paste URL"
+    },
+    {
+      "id": "s2-t5",
+      "sprint": 2,
+      "title": "Ad generation endpoint",
+      "description": "POST /api/projects/{id}/generate - orchestrates Writer + Retrieval + Director",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "app/api/projects.py",
+        "tests/test_api/test_project_generate.py"
+      ],
+      "prdSection": "3.1-3.3",
+      "notes": "Full pipeline: recipes -> visual script -> search -> remotion payload"
+    },
+    {
+      "id": "s3-t1",
+      "sprint": 3,
+      "title": "Remotion Lambda infrastructure",
+      "description": "Set up Remotion Lambda on AWS for cloud rendering",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "infrastructure/remotion/",
+        "docs/remotion-setup.md"
+      ],
+      "prdSection": "4.1 Remotion Integration",
+      "notes": "AWS Lambda + S3, IAM roles, API Gateway"
+    },
+    {
+      "id": "s3-t2",
+      "sprint": 3,
+      "title": "Remotion compositions",
+      "description": "Create Remotion compositions for vertical, horizontal, square formats",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "remotion/",
+        "remotion/src/compositions/vertical-ad.tsx",
+        "remotion/src/compositions/horizontal-ad.tsx",
+        "remotion/src/compositions/square-ad.tsx"
+      ],
+      "prdSection": "4.1 Remotion Integration",
+      "notes": "9:16, 16:9, 1:1 aspect ratios"
+    },
+    {
+      "id": "s3-t3",
+      "sprint": 3,
+      "title": "Render service + API",
+      "description": "Implement render service and API endpoints",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "app/services/remotion_renderer.py",
+        "app/api/render.py",
+        "tests/test_api/test_render.py"
+      ],
+      "prdSection": "4.1 Remotion Integration",
+      "notes": "POST /render, GET /render/{id}, PUT /render/{id}/payload"
+    },
+    {
+      "id": "s3-t4",
+      "sprint": 3,
+      "title": "Frontend: Remotion Player integration",
+      "description": "Embed Remotion Player for real-time preview",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "frontend/src/components/remotion-player.tsx",
+        "frontend/src/app/projects/[id]/editor/page.tsx"
+      ],
+      "prdSection": "4.1 Remotion Integration",
+      "notes": ""
+    },
+    {
+      "id": "s3-t5",
+      "sprint": 3,
+      "title": "Frontend: Timeline editor",
+      "description": "Build timeline with editable slots, clip swap modal",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "frontend/src/components/timeline-editor.tsx",
+        "frontend/src/components/clip-swap-modal.tsx"
+      ],
+      "prdSection": "4.1 Remotion Integration",
+      "notes": "Click slot to replace, edit text fields, adjust timing"
+    },
+    {
+      "id": "s4-t1",
+      "sprint": 4,
+      "title": "Veo 2 B-Roll generation service",
+      "description": "Integrate Veo 2 API for generating B-Roll clips",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "app/services/veo_generator.py",
+        "app/schemas/veo_request.py",
+        "app/api/broll.py",
+        "tests/test_services/test_veo_generator.py"
+      ],
+      "prdSection": "4.2 Veo 2 B-Roll Generation",
+      "notes": "POST /broll/generate, POST /broll/regenerate"
+    },
+    {
+      "id": "s4-t2",
+      "sprint": 4,
+      "title": "Frontend: B-Roll generation UI",
+      "description": "Build B-Roll generator component with regenerate/edit prompt",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "frontend/src/components/broll-generator.tsx"
+      ],
+      "prdSection": "4.2 Veo 2 B-Roll Generation",
+      "notes": ""
+    },
+    {
+      "id": "s4-t3",
+      "sprint": 4,
+      "title": "User onboarding questionnaire",
+      "description": "Implement onboarding flow to capture brand profile",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "app/schemas/brand_profile.py",
+        "app/api/onboarding.py",
+        "frontend/src/app/onboarding/page.tsx",
+        "tests/test_api/test_onboarding.py"
+      ],
+      "prdSection": "1.1 User Onboarding Questionnaire",
+      "notes": "3-step flow: industry, core offer, competitors"
+    },
+    {
+      "id": "s4-t4",
+      "sprint": 4,
+      "title": "Upload reference ad / fetch from URL",
+      "description": "Add ability to upload or fetch reference ads for recipe extraction",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "app/api/recipes.py",
+        "frontend/src/components/inspiration-source-selector.tsx"
+      ],
+      "prdSection": "1.3 Inspiration Selection UI",
+      "notes": "Processing time warning: 2-3 minutes"
+    },
+    {
+      "id": "s4-t5",
+      "sprint": 4,
+      "title": "End-to-end testing",
+      "description": "Comprehensive Playwright tests for full user flow",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "files": [
+        "frontend/tests/e2e/onboarding.spec.ts",
+        "frontend/tests/e2e/project-creation.spec.ts",
+        "frontend/tests/e2e/ad-generation.spec.ts"
+      ],
+      "prdSection": "7. Success Criteria",
+      "notes": "Test full pipeline: onboarding -> project -> upload -> inspire -> generate -> edit"
+    }
+  ]
+}

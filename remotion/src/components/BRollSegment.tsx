@@ -1,5 +1,5 @@
 import React from 'react';
-import { OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig, Img } from 'remotion';
+import { OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { GeneratedBRollSource, TextOverlay, Transition, BrandProfile } from '../types';
 import { TextOverlayComponent } from './TextOverlay';
 import { applyTransitionIn, applyTransitionOut } from '../utils/transitions';

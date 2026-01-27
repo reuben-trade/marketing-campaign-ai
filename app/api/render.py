@@ -3,9 +3,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_async_db
 from app.schemas.render import (
     RenderCallbackPayload,
@@ -281,13 +282,28 @@ async def get_queue_stats(
 async def render_callback(
     payload: RenderCallbackPayload,
     renderer: Annotated[RemotionRendererService, Depends(get_renderer_service)],
+    x_render_callback_secret: Annotated[str, Header()] = "",
 ) -> dict:
     """
     Callback endpoint for render workers/Lambda to report status.
 
     Used by external render workers to update job status when
     rendering completes or fails.
+
+    Requires X-Render-Callback-Secret header for authentication.
     """
+    settings = get_settings()
+    if not settings.render_callback_secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Render callback secret not configured",
+        )
+    if x_render_callback_secret != settings.render_callback_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid callback secret",
+        )
+
     render = await renderer.get_render(payload.render_id)
     if not render:
         raise HTTPException(

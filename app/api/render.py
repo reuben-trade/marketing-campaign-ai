@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import get_async_db
+from app.database import get_db
 from app.schemas.render import (
     RenderCallbackPayload,
     RenderListResponse,
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/render", tags=["render"])
 
 
 def get_renderer_service(
-    db: Annotated[AsyncSession, Depends(get_async_db)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> RemotionRendererService:
     """Dependency to get renderer service instance."""
     return RemotionRendererService(db)

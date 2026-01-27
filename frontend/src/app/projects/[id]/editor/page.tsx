@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useProject } from '@/hooks/useProjects';
+import { useProject, useSearchSegments } from '@/hooks/useProjects';
 import {
   useProjectRenders,
   useCreateRender,
@@ -23,6 +23,8 @@ import {
   useCancelRender,
 } from '@/hooks/useRender';
 import { RemotionPlayer, RemotionPlayerHandle } from '@/components/remotion-player';
+import { TimelineEditor } from '@/components/timeline-editor';
+import { ClipSwapModal } from '@/components/clip-swap-modal';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -39,6 +41,7 @@ import {
   FileVideo,
   Layers,
   ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type {
@@ -46,7 +49,9 @@ import type {
   TimelineSegment,
   RenderStatus,
   CompositionType,
+  VideoClipSource,
 } from '@/types/render';
+import type { UserVideoSegmentWithSimilarity } from '@/types/project';
 
 // Status configuration for render jobs
 const renderStatusConfig: Record<
@@ -65,23 +70,84 @@ const createSamplePayload = (projectId: string): RemotionPayload => ({
   width: 1080,
   height: 1920,
   fps: 30,
-  duration_in_frames: 150,
+  duration_in_frames: 450,
   project_id: projectId,
   timeline: [
     {
-      id: 'sample-1',
-      type: 'text_slide',
+      id: 'sample-hook',
+      type: 'video_clip',
       start_frame: 0,
+      duration_frames: 90,
+      beat_type: 'hook',
+      search_query: 'energetic action, product reveal',
+      similarity_score: 0.85,
+      source: {
+        url: '',
+        start_time: 0,
+        end_time: 3,
+      },
+      overlay: {
+        text: 'Stop Wasting Money!',
+        position: 'center',
+        font_size: 48,
+        color: '#FFFFFF',
+        animation: 'pop_in',
+      },
+    },
+    {
+      id: 'sample-problem',
+      type: 'video_clip',
+      start_frame: 90,
+      duration_frames: 120,
+      beat_type: 'problem',
+      search_query: 'frustrated expression, pain point',
+      similarity_score: 0.72,
+      source: {
+        url: '',
+        start_time: 0,
+        end_time: 4,
+      },
+      overlay: {
+        text: 'Is your sink leaking?',
+        position: 'bottom',
+        font_size: 36,
+        color: '#FFFFFF',
+      },
+    },
+    {
+      id: 'sample-broll',
+      type: 'generated_broll',
+      start_frame: 210,
+      duration_frames: 90,
+      beat_type: 'solution',
+      generated_source: {
+        url: null,
+        generation_prompt: 'Water dripping from faucet, slow motion, cinematic lighting',
+        regenerate_available: true,
+      },
+    },
+    {
+      id: 'sample-cta',
+      type: 'text_slide',
+      start_frame: 300,
       duration_frames: 150,
+      beat_type: 'cta',
       text_content: {
-        headline: 'Generate Your Ad',
-        subheadline: 'Select inspiration and generate to preview',
-        background_color: '#1a1a1a',
+        headline: '50% OFF Today Only!',
+        subheadline: 'Use code SUMMER50',
+        background_color: '#FF5733',
         text_color: '#FFFFFF',
       },
     },
   ],
 });
+
+// Alternative clip type for the modal
+interface AlternativeClip {
+  id: string;
+  segment: UserVideoSegmentWithSimilarity;
+  similarity_score: number;
+}
 
 interface PageProps {
   params: { id: string };
@@ -93,10 +159,19 @@ export default function EditorPage({ params }: PageProps) {
   const { data: rendersData, isLoading: rendersLoading } = useProjectRenders(id);
   const createRenderMutation = useCreateRender();
   const cancelRenderMutation = useCancelRender();
+  const searchSegmentsMutation = useSearchSegments();
 
   const [activeRenderId, setActiveRenderId] = useState<string | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<TimelineSegment | null>(null);
   const [compositionType, setCompositionType] = useState<CompositionType>('vertical_ad_v1');
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [localPayload, setLocalPayload] = useState<RemotionPayload | null>(null);
+
+  // Clip swap modal state
+  const [clipSwapOpen, setClipSwapOpen] = useState(false);
+  const [swapSegment, setSwapSegment] = useState<TimelineSegment | null>(null);
+  const [alternativeClips, setAlternativeClips] = useState<AlternativeClip[]>([]);
+  const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
 
   const playerRef = useRef<RemotionPlayerHandle>(null);
 
@@ -105,12 +180,20 @@ export default function EditorPage({ params }: PageProps) {
     poll: activeRenderId !== null,
   });
 
-  // Get current payload (from active render or sample)
-  const currentPayload: RemotionPayload | null = activeRenderStatus?.video_url
-    ? null // Will show video player instead
-    : project?.status === 'ready'
-    ? createSamplePayload(id) // TODO: Get actual payload from project
-    : createSamplePayload(id);
+  // Initialize local payload
+  useEffect(() => {
+    if (!localPayload && project) {
+      setLocalPayload(createSamplePayload(id));
+    }
+  }, [project, id, localPayload]);
+
+  // Get current payload (from local state or sample)
+  const currentPayload: RemotionPayload | null = useMemo(() => {
+    if (activeRenderStatus?.video_url) {
+      return null; // Will show video player instead
+    }
+    return localPayload;
+  }, [localPayload, activeRenderStatus?.video_url]);
 
   // Handle render completion
   useEffect(() => {
@@ -121,9 +204,221 @@ export default function EditorPage({ params }: PageProps) {
     }
   }, [activeRenderStatus?.status]);
 
+  // Handle segment click from player or timeline
   const handleSegmentClick = useCallback((segment: TimelineSegment) => {
     setSelectedSegment(segment);
   }, []);
+
+  // Handle opening clip swap modal
+  const handleOpenClipSwap = useCallback(async (segment: TimelineSegment) => {
+    setSwapSegment(segment);
+    setClipSwapOpen(true);
+    setAlternativeClips([]);
+
+    // Search for alternatives if segment has a search query
+    if (segment.search_query) {
+      setIsLoadingAlternatives(true);
+      try {
+        const results = await searchSegmentsMutation.mutateAsync({
+          projectId: id,
+          request: {
+            query: segment.search_query,
+            limit: 10,
+            min_similarity: 0.3,
+          },
+        });
+
+        const clips: AlternativeClip[] = results.results.map((seg) => ({
+          id: seg.id,
+          segment: seg,
+          similarity_score: seg.similarity_score,
+        }));
+        setAlternativeClips(clips);
+      } catch (error) {
+        console.error('Failed to search for alternatives:', error);
+        toast.error('Failed to load alternative clips');
+      } finally {
+        setIsLoadingAlternatives(false);
+      }
+    }
+  }, [id, searchSegmentsMutation]);
+
+  // Handle segment update (for inline editing)
+  const handleSegmentUpdate = useCallback(
+    (segmentId: string, updates: Partial<TimelineSegment>) => {
+      if (!localPayload) return;
+
+      const updatedTimeline = localPayload.timeline.map((seg) =>
+        seg.id === segmentId ? { ...seg, ...updates } : seg
+      );
+
+      const updatedPayload = {
+        ...localPayload,
+        timeline: updatedTimeline,
+      };
+
+      setLocalPayload(updatedPayload);
+
+      // Update selected segment if it's the one being edited
+      if (selectedSegment?.id === segmentId) {
+        setSelectedSegment({ ...selectedSegment, ...updates });
+      }
+
+      toast.success('Segment updated');
+    },
+    [localPayload, selectedSegment]
+  );
+
+  // Handle clip swap
+  const handleSwapClip = useCallback(
+    (segmentId: string, newSource: VideoClipSource) => {
+      if (!localPayload) return;
+
+      const updatedTimeline = localPayload.timeline.map((seg) =>
+        seg.id === segmentId
+          ? {
+              ...seg,
+              type: 'video_clip' as const,
+              source: newSource,
+              generated_source: undefined,
+            }
+          : seg
+      );
+
+      setLocalPayload({
+        ...localPayload,
+        timeline: updatedTimeline,
+      });
+
+      toast.success('Clip swapped successfully');
+    },
+    [localPayload]
+  );
+
+  // Handle B-Roll regeneration request
+  const handleRegenerateBRoll = useCallback(
+    (segmentId: string, prompt: string) => {
+      // In a real implementation, this would call an API to regenerate B-Roll
+      toast.info('B-Roll regeneration requested. This feature requires Veo 2 integration.');
+
+      // Update the prompt in the local state
+      if (!localPayload) return;
+
+      const updatedTimeline = localPayload.timeline.map((seg) =>
+        seg.id === segmentId && seg.type === 'generated_broll'
+          ? {
+              ...seg,
+              generated_source: {
+                ...seg.generated_source,
+                generation_prompt: prompt,
+              },
+            }
+          : seg
+      );
+
+      setLocalPayload({
+        ...localPayload,
+        timeline: updatedTimeline,
+      });
+    },
+    [localPayload]
+  );
+
+  // Handle overlay update
+  const handleUpdateOverlay = useCallback(
+    (segmentId: string, text: string) => {
+      if (!localPayload) return;
+
+      const updatedTimeline = localPayload.timeline.map((seg) =>
+        seg.id === segmentId
+          ? {
+              ...seg,
+              overlay: seg.overlay
+                ? { ...seg.overlay, text }
+                : { text, position: 'center' as const },
+            }
+          : seg
+      );
+
+      setLocalPayload({
+        ...localPayload,
+        timeline: updatedTimeline,
+      });
+
+      toast.success('Overlay text updated');
+    },
+    [localPayload]
+  );
+
+  // Handle duration update
+  const handleUpdateDuration = useCallback(
+    (segmentId: string, durationFrames: number) => {
+      if (!localPayload) return;
+
+      // Find the segment and calculate frame offset
+      const segmentIndex = localPayload.timeline.findIndex((s) => s.id === segmentId);
+      if (segmentIndex === -1) return;
+
+      const segment = localPayload.timeline[segmentIndex];
+      const frameDiff = durationFrames - segment.duration_frames;
+
+      // Update this segment and shift all subsequent segments
+      const updatedTimeline = localPayload.timeline.map((seg, idx) => {
+        if (seg.id === segmentId) {
+          return { ...seg, duration_frames: durationFrames };
+        }
+        if (idx > segmentIndex) {
+          return { ...seg, start_frame: seg.start_frame + frameDiff };
+        }
+        return seg;
+      });
+
+      // Update total duration
+      const newTotalFrames = localPayload.duration_in_frames + frameDiff;
+
+      setLocalPayload({
+        ...localPayload,
+        timeline: updatedTimeline,
+        duration_in_frames: newTotalFrames,
+      });
+
+      toast.success('Duration updated');
+    },
+    [localPayload]
+  );
+
+  // Handle seek from timeline
+  const handleSeek = useCallback((frame: number) => {
+    setCurrentFrame(frame);
+    playerRef.current?.seekTo(frame);
+  }, []);
+
+  // Handle search clips from modal
+  const handleSearchClips = useCallback(async (query: string) => {
+    setIsLoadingAlternatives(true);
+    try {
+      const results = await searchSegmentsMutation.mutateAsync({
+        projectId: id,
+        request: {
+          query,
+          limit: 10,
+          min_similarity: 0.3,
+        },
+      });
+
+      const clips: AlternativeClip[] = results.results.map((seg) => ({
+        id: seg.id,
+        segment: seg,
+        similarity_score: seg.similarity_score,
+      }));
+      setAlternativeClips(clips);
+    } catch (error) {
+      console.error('Failed to search clips:', error);
+      toast.error('Search failed');
+    } finally {
+      setIsLoadingAlternatives(false);
+    }
+  }, [id, searchSegmentsMutation]);
 
   const handleStartRender = async () => {
     if (!currentPayload) return;
@@ -131,8 +426,8 @@ export default function EditorPage({ params }: PageProps) {
     try {
       const result = await createRenderMutation.mutateAsync({
         project_id: id,
-        payload: currentPayload,
-        mode: 'local', // Default to local rendering
+        payload: { ...currentPayload, composition_id: compositionType },
+        mode: 'local',
       });
       setActiveRenderId(result.id);
       toast.info('Rendering started...');
@@ -344,7 +639,7 @@ export default function EditorPage({ params }: PageProps) {
                       Type
                     </label>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary">{selectedSegment.type}</Badge>
+                      <Badge variant="secondary">{selectedSegment.type.replace('_', ' ')}</Badge>
                       {selectedSegment.beat_type && (
                         <Badge variant="outline">{selectedSegment.beat_type}</Badge>
                       )}
@@ -392,14 +687,33 @@ export default function EditorPage({ params }: PageProps) {
                     </>
                   )}
 
-                  <Button variant="outline" size="sm" className="w-full mt-4">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Edit Segment
-                  </Button>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleOpenClipSwap(selectedSegment)}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Swap Clip
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setSwapSegment(selectedSegment);
+                        setClipSwapOpen(true);
+                      }}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Click a segment in the player to view details
+                  Click a segment in the timeline to view details
                 </p>
               )}
             </CardContent>
@@ -458,57 +772,33 @@ export default function EditorPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Timeline (placeholder for next task) */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Layers className="h-4 w-4" />
-              Timeline
-            </CardTitle>
-            <Badge variant="outline">Coming soon</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {currentPayload && currentPayload.timeline.length > 0 ? (
-            <div className="flex gap-1 overflow-x-auto py-2">
-              {currentPayload.timeline.map((segment) => (
-                <div
-                  key={segment.id}
-                  className={`flex-shrink-0 h-16 rounded cursor-pointer transition-colors ${
-                    selectedSegment?.id === segment.id
-                      ? 'ring-2 ring-primary'
-                      : 'hover:opacity-80'
-                  }`}
-                  style={{
-                    width: `${Math.max(60, (segment.duration_frames / currentPayload.duration_in_frames) * 600)}px`,
-                    backgroundColor:
-                      segment.type === 'text_slide'
-                        ? segment.text_content?.background_color || '#333'
-                        : segment.type === 'generated_broll'
-                        ? '#1e3a5f'
-                        : '#2a5a2a',
-                  }}
-                  onClick={() => handleSegmentClick(segment)}
-                >
-                  <div className="p-2 h-full flex flex-col justify-between">
-                    <span className="text-xs text-white/80 truncate">
-                      {segment.beat_type || segment.type}
-                    </span>
-                    <span className="text-xs text-white/60">
-                      {(segment.duration_frames / 30).toFixed(1)}s
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Generate an ad to see the timeline
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Timeline Editor */}
+      {currentPayload && (
+        <TimelineEditor
+          payload={currentPayload}
+          selectedSegmentId={selectedSegment?.id || null}
+          currentFrame={currentFrame}
+          onSegmentClick={handleSegmentClick}
+          onSegmentUpdate={handleSegmentUpdate}
+          onSeek={handleSeek}
+          onOpenClipSwap={handleOpenClipSwap}
+        />
+      )}
+
+      {/* Clip Swap Modal */}
+      <ClipSwapModal
+        open={clipSwapOpen}
+        onOpenChange={setClipSwapOpen}
+        segment={swapSegment}
+        projectId={id}
+        onSwapClip={handleSwapClip}
+        onRegenerateBRoll={handleRegenerateBRoll}
+        onUpdateOverlay={handleUpdateOverlay}
+        onUpdateDuration={handleUpdateDuration}
+        alternativeClips={alternativeClips}
+        isLoadingAlternatives={isLoadingAlternatives}
+        onSearchClips={handleSearchClips}
+      />
     </div>
   );
 }

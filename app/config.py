@@ -80,6 +80,37 @@ class Settings(BaseSettings):
         description="Secret for authenticating render callback requests",
     )
 
+    # Remotion Lambda (AWS)
+    remotion_aws_region: str = Field(
+        default="",
+        description="AWS region for Remotion Lambda (if empty, uses local rendering)",
+    )
+    remotion_function_name: str = Field(
+        default="",
+        description="Name of the deployed Remotion Lambda function",
+    )
+    remotion_site_name: str = Field(
+        default="",
+        description="Name of the Remotion site (bundle) in S3",
+    )
+    remotion_serve_url: str = Field(
+        default="",
+        description="Full URL to the Remotion bundle (auto-generated if empty)",
+    )
+    aws_access_key_id: str = Field(
+        default="",
+        description="AWS access key ID for Remotion Lambda (uses default credentials if empty)",
+    )
+    aws_secret_access_key: str = Field(
+        default="",
+        description="AWS secret access key for Remotion Lambda (uses default credentials if empty)",
+    )
+
+    @property
+    def remotion_lambda_enabled(self) -> bool:
+        """Check if Remotion Lambda is configured."""
+        return bool(self.remotion_aws_region and self.remotion_function_name)
+
     # Server Configuration
     port: int = Field(
         default=8000,

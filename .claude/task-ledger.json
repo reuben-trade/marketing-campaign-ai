@@ -97,7 +97,7 @@
         "tests/test_services/test_recipe_extractor.py"
       ],
       "prdSection": "1.2 Recipe Extraction",
-      "notes": "Implemented RecipeExtractor service that extracts structural templates from analyzed ads. Supports both video_intelligence (V2) and ad_elements data sources. API endpoints: GET /api/recipes (list with filters), GET /api/recipes/{id}, POST /api/recipes/extract, DELETE /api/recipes/{id}. Extracts beat definitions with duration ranges (±20% flexibility), cinematics, rhetorical modes, text overlay patterns. Auto-generates recipe names based on structure. All 32 tests pass."
+      "notes": "Implemented RecipeExtractor service that extracts structural templates from analyzed ads. Supports both video_intelligence (V2) and ad_elements data sources. API endpoints: GET /api/recipes (list with filters), GET /api/recipes/{id}, POST /api/recipes/extract, DELETE /api/recipes/{id}. Extracts beat definitions with duration ranges (\u00b120% flexibility), cinematics, rhetorical modes, text overlay patterns. Auto-generates recipe names based on structure. All 32 tests pass."
     },
     {
       "id": "s1-t6",
@@ -164,7 +164,7 @@
       "description": "Add project-scoped search to semantic search service",
       "status": "completed",
       "branch": "feature/project-scoped-semantic-search",
-      "prNumber": null,
+      "prNumber": 21,
       "files": [
         "app/services/semantic_search_service.py",
         "tests/test_services/test_semantic_search.py"
@@ -177,16 +177,16 @@
       "sprint": 2,
       "title": "Director Agent (Assembler)",
       "description": "Implement Director agent that selects clips and generates Remotion payload",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/director-agent",
+      "prNumber": 21,
       "files": [
         "app/services/director_agent.py",
         "app/schemas/remotion_payload.py",
         "tests/test_services/test_director_agent.py"
       ],
       "prdSection": "3.3 Director Agent",
-      "notes": "Handles gap detection, clip selection, payload generation"
+      "notes": "Implemented DirectorAgent service with: clip selection (70/30 similarity/duration weighting), gap handling (B-Roll generation, text slides, skip), Remotion payload generation with timeline segments, brand profile support, audio track config, clip replacement API. RemotionPayload schema with composition types (vertical/horizontal/square), segment types (video_clip/generated_broll/text_slide), transitions, text overlays. 22 tests pass."
     },
     {
       "id": "s2-t4",

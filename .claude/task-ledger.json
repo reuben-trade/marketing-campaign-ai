@@ -289,15 +289,19 @@
       "sprint": 3,
       "title": "Frontend: Remotion Player integration",
       "description": "Embed Remotion Player for real-time preview",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/remotion-player-integration",
       "prNumber": null,
       "files": [
+        "frontend/src/types/render.ts",
+        "frontend/src/lib/api/render.ts",
+        "frontend/src/hooks/useRender.ts",
         "frontend/src/components/remotion-player.tsx",
-        "frontend/src/app/projects/[id]/editor/page.tsx"
+        "frontend/src/app/projects/[id]/editor/page.tsx",
+        "frontend/tests/e2e/editor.spec.ts"
       ],
       "prdSection": "4.1 Remotion Integration",
-      "notes": ""
+      "notes": "Implemented: TypeScript types for render API (matching backend schemas), render API client with CRUD operations, React Query hooks (useRenderStatus, useProjectRenders, useCreateRender, etc.), RemotionPlayer component with @remotion/player integration for real-time preview, editor page with composition type selector, render controls, segment details sidebar, render history. Player supports playback controls, seeking, fullscreen. Added 'Open Editor' button to project detail page. All lint passes, build passes."
     },
     {
       "id": "s3-t5",

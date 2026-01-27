@@ -133,15 +133,25 @@ export default function ProjectDetailPage({ params }: PageProps) {
             </div>
           </div>
         </div>
-        {stats.segments_extracted > 0 && (
-          <Button asChild>
-            <Link href={`/projects/${id}/inspire`}>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Select Inspiration
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {stats.segments_extracted > 0 && (
+            <Button asChild>
+              <Link href={`/projects/${id}/inspire`}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Select Inspiration
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          )}
+          {project.status === 'ready' && (
+            <Button asChild variant="outline">
+              <Link href={`/projects/${id}/editor`}>
+                <Video className="mr-2 h-4 w-4" />
+                Open Editor
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Project Description */}

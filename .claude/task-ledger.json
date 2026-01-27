@@ -210,15 +210,16 @@
       "sprint": 2,
       "title": "Ad generation endpoint",
       "description": "POST /api/projects/{id}/generate - orchestrates Writer + Retrieval + Director",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/ad-generation-endpoint",
+      "prNumber": 26,
       "files": [
         "app/api/projects.py",
+        "app/schemas/project.py",
         "tests/test_api/test_project_generate.py"
       ],
       "prdSection": "3.1-3.3",
-      "notes": "Full pipeline: recipes -> visual script -> search -> remotion payload"
+      "notes": "Implemented POST /api/projects/{id}/generate endpoint that orchestrates: ContentPlanningAgent (Writer) -> SemanticSearchService (Retrieval) -> DirectorAgent (Assembler). Includes request validation, composition type selection, gap handling options, similarity thresholds. Updates project status to 'ready' on success. Returns payload preview, stats, gaps, warnings. All 19 tests pass."
     },
     {
       "id": "s3-t1",

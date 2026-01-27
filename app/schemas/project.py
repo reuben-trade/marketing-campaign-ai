@@ -115,3 +115,65 @@ class ProjectFilesListResponse(BaseModel):
     total: int
     total_size_bytes: int
     total_size_mb: float
+
+
+# Ad Generation schemas
+
+
+class GenerateAdRequest(BaseModel):
+    """Request schema for generating an ad from a project."""
+
+    recipe_id: UUID = Field(..., description="ID of the recipe to use as structural template")
+    user_prompt: str | None = Field(
+        None,
+        description="Optional user prompt for creative direction (e.g., 'Focus on the discount')",
+    )
+    composition_type: str = Field(
+        default="vertical_ad_v1",
+        description="Composition type: vertical_ad_v1, horizontal_ad_v1, square_ad_v1",
+    )
+    min_similarity_threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity for clip selection",
+    )
+    gap_handling: str = Field(
+        default="broll",
+        description="How to handle gaps: 'broll' (generate B-Roll), 'text_slide', or 'skip'",
+    )
+    audio_url: str | None = Field(
+        None,
+        description="Optional background audio track URL",
+    )
+
+
+class GenerationStats(BaseModel):
+    """Statistics from the ad generation process."""
+
+    total_slots: int = Field(..., description="Total number of slots in the visual script")
+    clips_selected: int = Field(..., description="Number of slots filled with user clips")
+    gaps_detected: int = Field(..., description="Number of slots with no matching clips")
+    coverage_percentage: float = Field(..., description="Percentage of slots with clips")
+    average_similarity: float = Field(..., description="Average similarity score of selected clips")
+    total_duration_seconds: float = Field(..., description="Total video duration in seconds")
+
+
+class GenerateAdResponse(BaseModel):
+    """Response schema for ad generation endpoint."""
+
+    project_id: UUID
+    visual_script_id: UUID
+    payload_preview: dict = Field(
+        ..., description="Preview of the Remotion payload (composition, duration, timeline summary)"
+    )
+    stats: GenerationStats
+    gaps: list[dict] | None = Field(
+        None,
+        description="Detected gaps where no suitable clip was found",
+    )
+    warnings: list[str] | None = Field(
+        None,
+        description="Warnings about the assembly (duration mismatches, etc.)",
+    )
+    success: bool = True

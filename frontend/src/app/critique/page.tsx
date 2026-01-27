@@ -623,7 +623,7 @@ function CritiqueResults({
             {timeline.length > 0 && duration > 0 && (
               <div className="mb-4">
                 <div className="relative h-6 bg-gray-200 rounded overflow-hidden">
-                  {timeline.map((beat, index) => {
+                  {timeline.map((beat: EnhancedNarrativeBeat, index: number) => {
                     const startPercent = (parseTimestamp(beat.start_time) / duration) * 100;
                     const endPercent = (parseTimestamp(beat.end_time) / duration) * 100;
                     const widthPercent = endPercent - startPercent;
@@ -926,7 +926,7 @@ function CritiqueResults({
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
-                {critique.quick_wins.map((win, index) => (
+                {critique.quick_wins.map((win: string, index: number) => (
                   <li key={index} className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-100 flex items-center justify-center">
                       <Zap className="h-3 w-3 text-yellow-600" />
@@ -954,7 +954,7 @@ function CritiqueResults({
           <CardContent>
             <ScrollArea className="h-[500px]">
               <div className="space-y-3">
-                {timeline.map((beat, index) => (
+                {timeline.map((beat: EnhancedNarrativeBeat, index: number) => (
                   <button
                     key={index}
                     className={`w-full text-left flex items-start gap-4 p-3 rounded-lg border transition-colors ${

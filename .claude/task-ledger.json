@@ -164,7 +164,7 @@
       "description": "Add project-scoped search to semantic search service",
       "status": "completed",
       "branch": "feature/project-scoped-semantic-search",
-      "prNumber": null,
+      "prNumber": 21,
       "files": [
         "app/services/semantic_search_service.py",
         "tests/test_services/test_semantic_search.py"
@@ -179,7 +179,7 @@
       "description": "Implement Director agent that selects clips and generates Remotion payload",
       "status": "completed",
       "branch": "feature/director-agent",
-      "prNumber": null,
+      "prNumber": 21,
       "files": [
         "app/services/director_agent.py",
         "app/schemas/remotion_payload.py",

@@ -11,9 +11,9 @@ from app.models.project_file import ProjectFile
 from app.models.user_video_segment import UserVideoSegment
 from app.models.visual_script import VisualScript
 from app.schemas.remotion_payload import (
-    GeneratedBRollSource,
     CompositionType,
     DirectorAgentInput,
+    GeneratedBRollSource,
     RemotionPayload,
     SegmentType,
     TextPosition,
@@ -869,5 +869,3 @@ class TestPayloadUpdate:
             assert len(alternatives) == 2
             assert alternatives[0]["similarity_score"] == 0.89
             assert "visual_description" in alternatives[0]
-
-

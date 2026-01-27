@@ -11,6 +11,9 @@ from app.models.project import Project
 from app.models.project_file import ProjectFile
 from app.models.user_video_segment import UserVideoSegment
 from app.schemas.project import (
+    GenerateAdRequest,
+    GenerateAdResponse,
+    GenerationStats,
     ProjectCreate,
     ProjectFileResponse,
     ProjectFilesListResponse,
@@ -21,11 +24,15 @@ from app.schemas.project import (
     ProjectUploadResponse,
     UploadFailure,
 )
+from app.schemas.remotion_payload import CompositionType, DirectorAgentInput
 from app.schemas.user_video_segment import (
     AnalysisProgress,
     ProjectSegmentsResponse,
     UserVideoSegmentResponse,
 )
+from app.schemas.visual_script import VisualScriptGenerateRequest
+from app.services.content_planner import ContentPlanningAgent, ContentPlanningError
+from app.services.director_agent import DirectorAgent, DirectorAgentError
 from app.services.upload_service import (
     UploadError,
     UploadService,
@@ -555,4 +562,178 @@ async def list_project_segments(
         project_id=project_id,
         total_segments=len(segments),
         segments=[UserVideoSegmentResponse.model_validate(s) for s in segments],
+    )
+
+
+# =============================================================================
+# AD GENERATION ENDPOINT
+# =============================================================================
+
+
+@router.post(
+    "/{project_id}/generate",
+    response_model=GenerateAdResponse,
+    responses={
+        400: {"description": "Invalid request or validation error"},
+        404: {"description": "Project or recipe not found"},
+        422: {"description": "Project has no analyzed segments"},
+        500: {"description": "Generation failed"},
+    },
+)
+async def generate_ad(
+    db: DbSession,
+    project_id: UUID,
+    request: GenerateAdRequest,
+) -> GenerateAdResponse:
+    """
+    Generate an ad from a project using the full agentic pipeline.
+
+    This endpoint orchestrates:
+    1. **Writer Agent**: Generates a visual script with slots based on the recipe
+    2. **Semantic Retrieval**: Finds the best matching user clips for each slot
+    3. **Director Agent**: Selects final clips and generates Remotion payload
+
+    **Prerequisites:**
+    - Project must exist with uploaded and analyzed video files
+    - Recipe must exist (extracted from an inspiration ad)
+
+    **Returns:**
+    - Generated Remotion payload preview
+    - Assembly statistics (clips used, gaps found)
+    - Warnings about any issues
+
+    **Note:** Generation typically takes 10-30 seconds depending on project size.
+    """
+    # Step 1: Verify project exists and has segments
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Check project has analyzed segments
+    segment_count = (
+        await db.execute(select(func.count()).where(UserVideoSegment.project_id == project_id))
+    ).scalar() or 0
+
+    if segment_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Project has no analyzed video segments. Please upload and analyze videos first.",
+        )
+
+    # Step 2: Validate composition type
+    try:
+        composition_type = CompositionType(request.composition_type)
+    except ValueError:
+        valid_types = [t.value for t in CompositionType]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid composition_type. Must be one of: {valid_types}",
+        )
+
+    # Validate gap handling
+    valid_gap_handling = ["broll", "text_slide", "skip"]
+    if request.gap_handling not in valid_gap_handling:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid gap_handling. Must be one of: {valid_gap_handling}",
+        )
+
+    # Step 3: Generate visual script using Content Planning Agent (Writer)
+    logger.info(f"Starting ad generation for project {project_id}")
+
+    try:
+        content_planner = ContentPlanningAgent()
+        script_request = VisualScriptGenerateRequest(
+            project_id=project_id,
+            recipe_id=request.recipe_id,
+            user_prompt=request.user_prompt,
+        )
+        visual_script_response = await content_planner.generate(db, script_request)
+        logger.info(
+            f"Generated visual script {visual_script_response.id} "
+            f"with {len(visual_script_response.slots)} slots"
+        )
+    except ContentPlanningError as e:
+        logger.error(f"Content planning failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate visual script: {e}",
+        )
+
+    # Step 4: Assemble clips using Director Agent
+    try:
+        director = DirectorAgent()
+        director_input = DirectorAgentInput(
+            project_id=project_id,
+            visual_script_id=visual_script_response.id,
+            composition_type=composition_type,
+            min_similarity_threshold=request.min_similarity_threshold,
+            gap_handling=request.gap_handling,
+            audio_url=request.audio_url,
+        )
+        director_output = await director.assemble(db, director_input)
+        logger.info(
+            f"Director assembled payload: {director_output.stats['clips_selected']}/"
+            f"{director_output.stats['total_slots']} clips selected"
+        )
+    except DirectorAgentError as e:
+        logger.error(f"Director agent failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to assemble ad: {e}",
+        )
+
+    # Step 5: Build response with payload preview
+    payload = director_output.payload
+    timeline_summary = []
+    for segment in payload.timeline[:10]:  # Limit preview to first 10 segments
+        timeline_summary.append(
+            {
+                "id": segment.id,
+                "type": segment.type.value,
+                "beat_type": segment.beat_type,
+                "duration_frames": segment.duration_frames,
+                "duration_seconds": round(segment.duration_frames / payload.fps, 2),
+                "has_overlay": segment.overlay is not None,
+                "similarity_score": segment.similarity_score,
+            }
+        )
+
+    payload_preview = {
+        "composition_id": payload.composition_id.value,
+        "width": payload.width,
+        "height": payload.height,
+        "fps": payload.fps,
+        "duration_in_frames": payload.duration_in_frames,
+        "duration_seconds": round(payload.duration_in_frames / payload.fps, 2),
+        "timeline_segments": len(payload.timeline),
+        "timeline_preview": timeline_summary,
+        "has_audio": payload.audio_track is not None,
+        "has_brand_profile": payload.brand_profile is not None,
+    }
+
+    # Update project status to indicate ad was generated
+    project.status = Project.STATUS_READY
+    await db.commit()
+
+    return GenerateAdResponse(
+        project_id=project_id,
+        visual_script_id=visual_script_response.id,
+        payload_preview=payload_preview,
+        stats=GenerationStats(
+            total_slots=director_output.stats["total_slots"],
+            clips_selected=director_output.stats["clips_selected"],
+            gaps_detected=director_output.stats["gaps_detected"],
+            coverage_percentage=director_output.stats["coverage_percentage"],
+            average_similarity=director_output.stats["average_similarity"],
+            total_duration_seconds=director_output.stats["total_duration_seconds"],
+        ),
+        gaps=payload.gaps,
+        warnings=payload.warnings,
+        success=director_output.success,
     )

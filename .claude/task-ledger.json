@@ -1,5 +1,5 @@
 {
-  "currentSprint": 2,
+  "currentSprint": 3,
   "lastUpdated": "2026-01-27",
   "tasks": [
     {
@@ -193,16 +193,17 @@
       "sprint": 2,
       "title": "Frontend: Inspiration selection UI",
       "description": "Build inspiration gallery and source selector components",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/inspiration-selection-ui",
+      "prNumber": 25,
       "files": [
         "frontend/src/components/inspiration-gallery.tsx",
         "frontend/src/components/inspiration-source-selector.tsx",
-        "frontend/src/app/projects/[id]/inspire/page.tsx"
+        "frontend/src/app/projects/[id]/inspire/page.tsx",
+        "frontend/tests/e2e/inspiration.spec.ts"
       ],
       "prdSection": "1.3 Inspiration Selection UI",
-      "notes": "Three sources: library, upload reference, paste URL"
+      "notes": "Implemented complete inspiration selection UI with: InspirationGallery component (grid of ad cards with search/filter/sort, selection up to 3 ads, score badges, video/image previews), InspirationSourceSelector with 3 tabs (Library, Upload, URL), inspire page with how-it-works instructions, selected ads summary with chips, recipe extraction on continue. Upload and URL fetch show 'not available yet' warnings (implemented in Sprint 4). All 17 e2e tests pass, build passes, lint passes."
     },
     {
       "id": "s2-t5",
@@ -239,33 +240,42 @@
       "sprint": 3,
       "title": "Remotion compositions",
       "description": "Create Remotion compositions for vertical, horizontal, square formats",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/remotion-rendering",
+      "prNumber": 23,
       "files": [
         "remotion/",
-        "remotion/src/compositions/vertical-ad.tsx",
-        "remotion/src/compositions/horizontal-ad.tsx",
-        "remotion/src/compositions/square-ad.tsx"
+        "remotion/src/compositions/VerticalAd.tsx",
+        "remotion/src/compositions/HorizontalAd.tsx",
+        "remotion/src/compositions/SquareAd.tsx",
+        "remotion/src/compositions/BaseAdComposition.tsx",
+        "remotion/src/components/TextOverlay.tsx",
+        "remotion/src/components/VideoClipSegment.tsx",
+        "remotion/src/components/TextSlideSegment.tsx",
+        "remotion/src/components/BRollSegment.tsx",
+        "remotion/src/components/AudioTrack.tsx",
+        "remotion/src/utils/transitions.ts",
+        "remotion/src/types.ts"
       ],
       "prdSection": "4.1 Remotion Integration",
-      "notes": "9:16, 16:9, 1:1 aspect ratios"
+      "notes": "Implemented 3 compositions (vertical 9:16, horizontal 16:9, square 1:1) with reusable components for video clips, text slides, B-Roll, text overlays, and transitions. TypeScript types match backend RemotionPayload schema."
     },
     {
       "id": "s3-t3",
       "sprint": 3,
       "title": "Render service + API",
       "description": "Implement render service and API endpoints",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/remotion-rendering",
+      "prNumber": 23,
       "files": [
         "app/services/remotion_renderer.py",
         "app/api/render.py",
-        "tests/test_api/test_render.py"
+        "app/schemas/render.py",
+        "app/main.py"
       ],
       "prdSection": "4.1 Remotion Integration",
-      "notes": "POST /render, GET /render/{id}, PUT /render/{id}/payload"
+      "notes": "Implemented RemotionRendererService with local CLI and Lambda modes. API endpoints: POST /api/render, GET /api/render/{id}, PUT /api/render/{id}/payload, GET /api/render/project/{id}, POST /api/render/{id}/cancel, DELETE /api/render/{id}, GET /api/render/stats/queue. Includes Supabase storage integration for output videos."
     },
     {
       "id": "s3-t4",

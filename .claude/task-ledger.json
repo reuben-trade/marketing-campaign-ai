@@ -226,15 +226,21 @@
       "sprint": 3,
       "title": "Remotion Lambda infrastructure",
       "description": "Set up Remotion Lambda on AWS for cloud rendering",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/remotion-lambda-infrastructure",
       "prNumber": null,
       "files": [
-        "infrastructure/remotion/",
-        "docs/remotion-setup.md"
+        "infrastructure/remotion/deploy.py",
+        "infrastructure/remotion/iam-policy.json",
+        "infrastructure/remotion/README.md",
+        "docs/remotion-setup.md",
+        "app/config.py",
+        "app/services/remotion_renderer.py",
+        "pyproject.toml",
+        "tests/test_services/test_remotion_renderer.py"
       ],
       "prdSection": "4.1 Remotion Integration",
-      "notes": "AWS Lambda + S3, IAM roles, API Gateway"
+      "notes": "Implemented complete Remotion Lambda infrastructure: deployment script with CLI for deploying/checking/cleanup, IAM policy with minimal required permissions, Lambda rendering implementation in remotion_renderer.py with boto3 integration, auto mode selection (Lambda when configured, local otherwise), environment variables for AWS configuration (REMOTION_AWS_REGION, REMOTION_FUNCTION_NAME, REMOTION_SITE_NAME), comprehensive documentation. All 15 tests pass."
     },
     {
       "id": "s3-t2",

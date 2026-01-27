@@ -1,0 +1,96 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RemotionLambdaPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:AttachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:GetRole",
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::*:role/remotion-*"
+      ]
+    },
+    {
+      "Sid": "S3BucketPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:PutBucketPolicy",
+        "s3:GetBucketPolicy",
+        "s3:PutBucketCors",
+        "s3:GetBucketCors",
+        "s3:PutBucketLifecycleConfiguration",
+        "s3:GetBucketLifecycleConfiguration",
+        "s3:ListBucket",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:PutObjectAcl",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::remotionlambda-*",
+        "arn:aws:s3:::remotionlambda-*/*"
+      ]
+    },
+    {
+      "Sid": "LambdaDeployPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:DeleteFunction",
+        "lambda:GetFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:ListFunctions",
+        "lambda:InvokeFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:ListTags"
+      ],
+      "Resource": [
+        "arn:aws:lambda:*:*:function:remotion-*"
+      ]
+    },
+    {
+      "Sid": "LambdaLayerPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:PublishLayerVersion",
+        "lambda:DeleteLayerVersion",
+        "lambda:GetLayerVersion"
+      ],
+      "Resource": [
+        "arn:aws:lambda:*:*:layer:remotion-*"
+      ]
+    },
+    {
+      "Sid": "LogsPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:*:log-group:/aws/lambda/remotion-*"
+      ]
+    },
+    {
+      "Sid": "ServiceQuotasPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "servicequotas:GetServiceQuota"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/lib/api/projects';
-import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress } from '@/types/project';
+import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest } from '@/types/project';
 import type { UploadProgressCallback } from '@/lib/api/client';
 
 export function useProjects(filters?: ProjectFilters) {
@@ -138,5 +138,20 @@ export function useAnalyzeFile() {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
+  });
+}
+
+/**
+ * Hook to search for segments within a project using semantic similarity
+ */
+export function useSearchSegments() {
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      request,
+    }: {
+      projectId: string;
+      request: SegmentSearchRequest;
+    }) => projectsApi.searchSegments(projectId, request),
   });
 }

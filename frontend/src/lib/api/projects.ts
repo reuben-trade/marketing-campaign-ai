@@ -9,6 +9,8 @@ import type {
   ProjectUploadResponse,
   ProjectSegmentsResponse,
   AnalysisProgress,
+  SegmentSearchRequest,
+  SegmentSearchResponse,
 } from '@/types/project';
 
 export const projectsApi = {
@@ -91,5 +93,12 @@ export const projectsApi = {
 
   analyzeFile: async (projectId: string, fileId: string): Promise<void> => {
     return post<void>(`/api/projects/${projectId}/files/${fileId}/analyze`);
+  },
+
+  searchSegments: async (
+    projectId: string,
+    request: SegmentSearchRequest
+  ): Promise<SegmentSearchResponse> => {
+    return post<SegmentSearchResponse>(`/api/projects/${projectId}/segments/search`, request);
   },
 };

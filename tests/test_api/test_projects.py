@@ -256,3 +256,67 @@ async def test_create_project_with_inspiration_ads(client: AsyncClient):
     data = response.json()
     assert data["inspiration_ads"] is not None
     assert len(data["inspiration_ads"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_segments_project_not_found(client: AsyncClient):
+    """Test searching segments for non-existent project."""
+    fake_project_id = "00000000-0000-0000-0000-000000000000"
+    response = await client.post(
+        f"/api/projects/{fake_project_id}/segments/search",
+        json={"query": "energetic action"},
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason="Requires pgvector - cannot test with SQLite")
+async def test_search_segments_empty_project(client: AsyncClient, sample_project):
+    """Test searching segments in a project with no segments."""
+    # Create a project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    # Search for segments (should return empty results, not error)
+    # Note: This will return empty because there are no segments
+    response = await client.post(
+        f"/api/projects/{project_id}/segments/search",
+        json={"query": "energetic action", "limit": 10, "min_similarity": 0.3},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project_id"] == project_id
+    assert data["query"] == "energetic action"
+    assert data["total_results"] == 0
+    assert data["results"] == []
+
+
+@pytest.mark.asyncio
+async def test_search_segments_validation(client: AsyncClient, sample_project):
+    """Test search segments request validation."""
+    # Create a project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    # Test with empty query
+    response = await client.post(
+        f"/api/projects/{project_id}/segments/search",
+        json={"query": ""},
+    )
+    assert response.status_code == 422
+
+    # Test with invalid limit
+    response = await client.post(
+        f"/api/projects/{project_id}/segments/search",
+        json={"query": "test", "limit": 0},
+    )
+    assert response.status_code == 422
+
+    # Test with invalid min_similarity
+    response = await client.post(
+        f"/api/projects/{project_id}/segments/search",
+        json={"query": "test", "min_similarity": 1.5},
+    )
+    assert response.status_code == 422

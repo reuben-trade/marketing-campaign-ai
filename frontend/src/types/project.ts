@@ -115,3 +115,21 @@ export interface FileUploadProgress {
   status: 'pending' | 'uploading' | 'completed' | 'failed';
   error?: string;
 }
+
+// Segment search types
+export interface UserVideoSegmentWithSimilarity extends UserVideoSegment {
+  similarity_score: number;
+}
+
+export interface SegmentSearchRequest {
+  query: string;
+  limit?: number;
+  min_similarity?: number;
+}
+
+export interface SegmentSearchResponse {
+  project_id: string;
+  query: string;
+  total_results: number;
+  results: UserVideoSegmentWithSimilarity[];
+}

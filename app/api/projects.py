@@ -28,11 +28,15 @@ from app.schemas.remotion_payload import CompositionType, DirectorAgentInput
 from app.schemas.user_video_segment import (
     AnalysisProgress,
     ProjectSegmentsResponse,
+    SegmentSearchRequest,
+    SegmentSearchResponse,
     UserVideoSegmentResponse,
+    UserVideoSegmentWithSimilarity,
 )
 from app.schemas.visual_script import VisualScriptGenerateRequest
 from app.services.content_planner import ContentPlanningAgent, ContentPlanningError
 from app.services.director_agent import DirectorAgent, DirectorAgentError
+from app.services.semantic_search_service import SemanticSearchService
 from app.services.upload_service import (
     UploadError,
     UploadService,
@@ -562,6 +566,72 @@ async def list_project_segments(
         project_id=project_id,
         total_segments=len(segments),
         segments=[UserVideoSegmentResponse.model_validate(s) for s in segments],
+    )
+
+
+@router.post(
+    "/{project_id}/segments/search",
+    response_model=SegmentSearchResponse,
+    responses={
+        404: {"description": "Project not found"},
+    },
+)
+async def search_project_segments(
+    db: DbSession,
+    project_id: UUID,
+    request: SegmentSearchRequest,
+) -> SegmentSearchResponse:
+    """
+    Search for video segments within a project using semantic similarity.
+
+    Uses vector similarity search to find segments matching the query.
+    This is useful for the clip swap modal in the timeline editor.
+    """
+    # Verify project exists
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Search segments using semantic search service
+    search_service = SemanticSearchService()
+    results = await search_service.search_project_segments(
+        db=db,
+        project_id=project_id,
+        query=request.query,
+        limit=request.limit,
+        min_similarity=request.min_similarity,
+    )
+
+    # Convert to response format
+    segments_with_similarity = [
+        UserVideoSegmentWithSimilarity(
+            id=segment.id,
+            project_id=segment.project_id,
+            source_file_id=segment.source_file_id,
+            source_file_name=segment.source_file_name,
+            source_file_url=segment.source_file_url,
+            timestamp_start=segment.timestamp_start,
+            timestamp_end=segment.timestamp_end,
+            duration_seconds=segment.duration_seconds,
+            visual_description=segment.visual_description,
+            action_tags=segment.action_tags,
+            thumbnail_url=segment.thumbnail_url,
+            created_at=segment.created_at,
+            similarity_score=similarity,
+        )
+        for segment, similarity in results
+    ]
+
+    return SegmentSearchResponse(
+        project_id=project_id,
+        query=request.query,
+        total_results=len(segments_with_similarity),
+        results=segments_with_similarity,
     )
 
 

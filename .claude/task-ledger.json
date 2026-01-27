@@ -308,15 +308,22 @@
       "sprint": 3,
       "title": "Frontend: Timeline editor",
       "description": "Build timeline with editable slots, clip swap modal",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/timeline-editor",
       "prNumber": null,
       "files": [
         "frontend/src/components/timeline-editor.tsx",
-        "frontend/src/components/clip-swap-modal.tsx"
+        "frontend/src/components/clip-swap-modal.tsx",
+        "frontend/src/app/projects/[id]/editor/page.tsx",
+        "frontend/src/hooks/useProjects.ts",
+        "frontend/src/lib/api/projects.ts",
+        "frontend/src/types/project.ts",
+        "app/api/projects.py",
+        "app/schemas/user_video_segment.py",
+        "tests/test_api/test_projects.py"
       ],
       "prdSection": "4.1 Remotion Integration",
-      "notes": "Click slot to replace, edit text fields, adjust timing"
+      "notes": "Implemented: TimelineEditor component with visual timeline, segment blocks, zoom controls, playhead indicator. ClipSwapModal with tabs for alternatives/search/broll/edit, segment search, overlay editing, duration adjustment. Added POST /api/projects/{id}/segments/search endpoint for semantic clip search. Editor page updated to integrate both components with local state management for payload editing. Build passes, 20 tests pass."
     },
     {
       "id": "s4-t1",

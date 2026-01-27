@@ -75,7 +75,8 @@ export default function InspirePage({ params }: PageProps) {
         })
       );
 
-      await Promise.all(extractionPromises);
+      const results = await Promise.all(extractionPromises);
+      const failures = results.filter((r) => r === null).length;
 
       // Update project with selected inspiration ads
       await updateProject.mutateAsync({
@@ -83,7 +84,13 @@ export default function InspirePage({ params }: PageProps) {
         data: { inspiration_ads: selectedAdIds },
       });
 
-      toast.success('Inspiration selected! Recipes extracted.');
+      if (failures === selectedAdIds.length) {
+        toast.error('Failed to extract recipes from selected ads');
+      } else if (failures > 0) {
+        toast.warning(`Inspiration saved. ${failures} recipe(s) failed to extract.`);
+      } else {
+        toast.success('Inspiration selected! Recipes extracted.');
+      }
 
       // Navigate to the generation page (or back to project for now)
       router.push(`/projects/${projectId}`);

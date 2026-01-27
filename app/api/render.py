@@ -1,5 +1,6 @@
 """API endpoints for video rendering."""
 
+import secrets
 import uuid
 from typing import Annotated
 
@@ -298,7 +299,7 @@ async def render_callback(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Render callback secret not configured",
         )
-    if x_render_callback_secret != settings.render_callback_secret:
+    if not secrets.compare_digest(x_render_callback_secret, settings.render_callback_secret):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid callback secret",

@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rendered_video import RenderedVideo
@@ -64,11 +64,13 @@ class RemotionRendererService:
         page_size: int = 20,
     ) -> tuple[list[RenderedVideo], int]:
         """Get all renders for a project with pagination."""
-        # Count total
+        # Count total using SQL COUNT for efficiency
         count_result = await self.db.execute(
-            select(RenderedVideo).where(RenderedVideo.project_id == project_id)
+            select(func.count())
+            .select_from(RenderedVideo)
+            .where(RenderedVideo.project_id == project_id)
         )
-        total = len(count_result.scalars().all())
+        total = count_result.scalar() or 0
 
         # Get paginated results
         offset = (page - 1) * page_size
@@ -291,35 +293,41 @@ class RemotionRendererService:
 
         today = date.today()
 
-        # Count by status
+        # Count by status using SQL COUNT for efficiency
         pending_result = await self.db.execute(
-            select(RenderedVideo).where(RenderedVideo.status == RenderStatus.PENDING.value)
+            select(func.count())
+            .select_from(RenderedVideo)
+            .where(RenderedVideo.status == RenderStatus.PENDING.value)
         )
-        pending_count = len(pending_result.scalars().all())
+        pending_count = pending_result.scalar() or 0
 
         rendering_result = await self.db.execute(
-            select(RenderedVideo).where(RenderedVideo.status == RenderStatus.RENDERING.value)
+            select(func.count())
+            .select_from(RenderedVideo)
+            .where(RenderedVideo.status == RenderStatus.RENDERING.value)
         )
-        rendering_count = len(rendering_result.scalars().all())
+        rendering_count = rendering_result.scalar() or 0
 
         # Count completed/failed today
-        from sqlalchemy import func
-
         completed_result = await self.db.execute(
-            select(RenderedVideo).where(
+            select(func.count())
+            .select_from(RenderedVideo)
+            .where(
                 RenderedVideo.status == RenderStatus.COMPLETED.value,
                 func.date(RenderedVideo.created_at) == today,
             )
         )
-        completed_today = len(completed_result.scalars().all())
+        completed_today = completed_result.scalar() or 0
 
         failed_result = await self.db.execute(
-            select(RenderedVideo).where(
+            select(func.count())
+            .select_from(RenderedVideo)
+            .where(
                 RenderedVideo.status == RenderStatus.FAILED.value,
                 func.date(RenderedVideo.created_at) == today,
             )
         )
-        failed_today = len(failed_result.scalars().all())
+        failed_today = failed_result.scalar() or 0
 
         # Calculate average render time
         avg_render_time = None

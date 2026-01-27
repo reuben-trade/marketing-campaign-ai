@@ -291,7 +291,7 @@
       "description": "Embed Remotion Player for real-time preview",
       "status": "completed",
       "branch": "feature/remotion-player-integration",
-      "prNumber": null,
+      "prNumber": 28,
       "files": [
         "frontend/src/types/render.ts",
         "frontend/src/lib/api/render.ts",

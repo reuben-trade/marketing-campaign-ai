@@ -7,10 +7,13 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models.rendered_video import RenderedVideo
 from app.schemas.remotion_payload import RemotionPayload
 from app.schemas.render import RenderMode, RenderStatus
@@ -108,15 +111,25 @@ class RemotionRendererService:
     async def start_render(
         self,
         render_id: uuid.UUID,
-        mode: RenderMode = RenderMode.LOCAL,
+        mode: RenderMode | None = None,
     ) -> RenderedVideo:
-        """Start rendering a video."""
+        """Start rendering a video.
+
+        If mode is None, automatically selects Lambda if configured, otherwise local.
+        """
         render = await self.get_render(render_id)
         if not render:
             raise ValueError(f"Render job {render_id} not found")
 
         if render.status != RenderStatus.PENDING.value:
             raise ValueError(f"Cannot start render in status: {render.status}")
+
+        # Auto-select mode if not specified
+        if mode is None:
+            settings = get_settings()
+            mode = RenderMode.LAMBDA if settings.remotion_lambda_enabled else RenderMode.LOCAL
+
+        logger.info(f"Starting render {render_id} in {mode.value} mode")
 
         # Update status to rendering
         render.status = RenderStatus.RENDERING.value
@@ -226,10 +239,204 @@ class RemotionRendererService:
             }
 
     async def _render_lambda(self, render: RenderedVideo) -> dict:
-        """Render video using AWS Lambda (Remotion Lambda)."""
-        # TODO: Implement Lambda rendering
-        # This would use @remotion/lambda to render in AWS
-        raise NotImplementedError("Lambda rendering not yet implemented")
+        """Render video using AWS Lambda (Remotion Lambda).
+
+        This method uses the Remotion Lambda API to render videos in AWS.
+        The render is triggered via the @remotion/lambda renderMediaOnLambda API.
+        """
+        settings = get_settings()
+
+        if not settings.remotion_lambda_enabled:
+            raise ValueError(
+                "Remotion Lambda not configured. "
+                "Set REMOTION_AWS_REGION and REMOTION_FUNCTION_NAME in .env"
+            )
+
+        start_time = time.time()
+
+        # Get the Remotion payload
+        payload = RemotionPayload.model_validate(render.remotion_payload)
+
+        # Build the Lambda render request
+        lambda_input = self._build_lambda_input(render, payload, settings)
+
+        # Invoke Lambda and wait for completion
+        result = await self._invoke_lambda_render(lambda_input, settings)
+
+        # Calculate render time
+        render_time = time.time() - start_time
+
+        # Download the rendered video and upload to Supabase
+        video_url = await self._transfer_lambda_output(
+            result["outputUrl"],
+            render.project_id,
+            render.id,
+        )
+
+        duration_seconds = payload.duration_in_frames / payload.fps
+
+        return {
+            "video_url": video_url,
+            "thumbnail_url": None,  # TODO: Generate thumbnail from Lambda output
+            "duration_seconds": duration_seconds,
+            "file_size_bytes": result.get("fileSizeBytes"),
+            "render_time_seconds": render_time,
+        }
+
+    def _build_lambda_input(
+        self,
+        render: RenderedVideo,
+        payload: RemotionPayload,
+        settings: Any,
+    ) -> dict:
+        """Build the input for Remotion Lambda render."""
+        serve_url = settings.remotion_serve_url
+        if not serve_url:
+            # Construct the default serve URL from site name
+            region = settings.remotion_aws_region
+            site_name = settings.remotion_site_name
+            serve_url = (
+                f"https://remotionlambda-{region}.s3.{region}.amazonaws.com/"
+                f"sites/{site_name}/index.html"
+            )
+
+        return {
+            "type": "start",
+            "serveUrl": serve_url,
+            "composition": payload.composition_id.value,
+            "inputProps": payload.model_dump(mode="json"),
+            "codec": "h264",
+            "imageFormat": "jpeg",
+            "maxRetries": 1,
+            "privacy": "public",
+            "framesPerLambda": 20,  # Distribute rendering
+            "downloadBehavior": {
+                "type": "download",
+                "fileName": f"{render.id}.mp4",
+            },
+            "outName": f"{render.id}.mp4",
+            "logLevel": "warn",
+        }
+
+    async def _invoke_lambda_render(self, lambda_input: dict, settings: Any) -> dict:
+        """Invoke Remotion Lambda and poll for completion."""
+        import boto3
+        from botocore.config import Config
+
+        # Create boto3 client
+        boto_config = Config(
+            region_name=settings.remotion_aws_region,
+            signature_version="v4",
+        )
+
+        # Use explicit credentials if provided, otherwise use default credential chain
+        if settings.aws_access_key_id and settings.aws_secret_access_key:
+            lambda_client = boto3.client(
+                "lambda",
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key,
+                config=boto_config,
+            )
+        else:
+            lambda_client = boto3.client("lambda", config=boto_config)
+
+        function_name = settings.remotion_function_name
+
+        # Start the render
+        logger.info(f"Invoking Remotion Lambda: {function_name}")
+
+        start_response = await asyncio.to_thread(
+            lambda_client.invoke,
+            FunctionName=function_name,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(lambda_input),
+        )
+
+        # Parse the response
+        response_payload = json.loads(start_response["Payload"].read().decode())
+
+        if "errorMessage" in response_payload:
+            raise RuntimeError(f"Lambda invocation failed: {response_payload['errorMessage']}")
+
+        render_id = response_payload.get("renderId")
+        bucket_name = response_payload.get("bucketName")
+
+        if not render_id or not bucket_name:
+            raise RuntimeError(f"Invalid Lambda response: {response_payload}")
+
+        logger.info(f"Remotion render started: {render_id}")
+
+        # Poll for completion
+        progress_input = {
+            "type": "status",
+            "bucketName": bucket_name,
+            "renderId": render_id,
+        }
+
+        max_attempts = 180  # 15 minutes with 5-second intervals
+        for attempt in range(max_attempts):
+            await asyncio.sleep(5)  # Poll every 5 seconds
+
+            progress_response = await asyncio.to_thread(
+                lambda_client.invoke,
+                FunctionName=function_name,
+                InvocationType="RequestResponse",
+                Payload=json.dumps(progress_input),
+            )
+
+            progress = json.loads(progress_response["Payload"].read().decode())
+
+            if "errorMessage" in progress:
+                raise RuntimeError(f"Progress check failed: {progress['errorMessage']}")
+
+            overall_progress = progress.get("overallProgress", 0)
+            logger.debug(f"Render progress: {overall_progress * 100:.1f}%")
+
+            if progress.get("done"):
+                logger.info(f"Render completed: {render_id}")
+
+                # Get the output URL
+                output_url = progress.get("outputFile")
+                if not output_url:
+                    raise RuntimeError("Render completed but no output URL")
+
+                return {
+                    "outputUrl": output_url,
+                    "fileSizeBytes": progress.get("outputSizeInBytes"),
+                    "renderMetadata": progress.get("renderMetadata"),
+                }
+
+            if progress.get("fatalErrorEncountered"):
+                errors = progress.get("errors", [])
+                error_msg = "; ".join(str(e) for e in errors) if errors else "Unknown error"
+                raise RuntimeError(f"Render failed: {error_msg}")
+
+        raise RuntimeError(f"Render timed out after {max_attempts * 5} seconds")
+
+    async def _transfer_lambda_output(
+        self,
+        lambda_output_url: str,
+        project_id: uuid.UUID,
+        render_id: uuid.UUID,
+    ) -> str:
+        """Download Lambda output and upload to Supabase storage."""
+        # Download from S3
+        async with httpx.AsyncClient() as client:
+            response = await client.get(lambda_output_url, follow_redirects=True)
+            response.raise_for_status()
+            video_data = response.content
+
+        # Upload to Supabase
+        storage_path = f"renders/{project_id}/{render_id}.mp4"
+        url = await asyncio.to_thread(
+            self.storage.upload_file,
+            self.RENDER_OUTPUT_BUCKET,
+            storage_path,
+            video_data,
+            content_type="video/mp4",
+        )
+
+        return url
 
     async def _upload_to_storage(self, file_path: Path, storage_path: str) -> str:
         """Upload rendered video to Supabase storage."""

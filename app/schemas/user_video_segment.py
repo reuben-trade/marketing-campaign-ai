@@ -121,3 +121,22 @@ class ProjectSegmentsResponse(BaseModel):
     project_id: uuid.UUID
     total_segments: int
     segments: list[UserVideoSegmentResponse]
+
+
+class SegmentSearchRequest(BaseModel):
+    """Request schema for searching segments."""
+
+    query: str = Field(..., min_length=1, description="Search query for semantic matching")
+    limit: int = Field(default=10, ge=1, le=50, description="Maximum number of results")
+    min_similarity: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Minimum similarity threshold"
+    )
+
+
+class SegmentSearchResponse(BaseModel):
+    """Response containing search results with similarity scores."""
+
+    project_id: uuid.UUID
+    query: str
+    total_results: int
+    results: list[UserVideoSegmentWithSimilarity]

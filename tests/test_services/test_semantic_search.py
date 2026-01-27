@@ -115,33 +115,22 @@ class TestSemanticSearchService:
             # Mock database session
             mock_db = AsyncMock()
 
-            # Mock the raw SQL query result
+            # Mock the raw SQL query result (simplified: only id and similarity)
             mock_row = MagicMock()
-            mock_row._mapping = {
-                "id": sample_segments[0].id,
-                "project_id": sample_project.id,
-                "source_file_id": sample_segments[0].source_file_id,
-                "source_file_name": sample_segments[0].source_file_name,
-                "source_file_url": sample_segments[0].source_file_url,
-                "timestamp_start": sample_segments[0].timestamp_start,
-                "timestamp_end": sample_segments[0].timestamp_end,
-                "duration_seconds": sample_segments[0].duration_seconds,
-                "visual_description": sample_segments[0].visual_description,
-                "action_tags": sample_segments[0].action_tags,
-                "thumbnail_url": sample_segments[0].thumbnail_url,
-                "created_at": sample_segments[0].created_at,
-                "similarity": 0.85,
-            }
+            mock_row.id = sample_segments[0].id
+            mock_row.similarity = 0.85
 
             # First execute returns the search query results
             mock_result = MagicMock()
             mock_result.fetchall.return_value = [mock_row]
 
-            # Second execute returns the full segment object
-            mock_segment_result = MagicMock()
-            mock_segment_result.scalar_one_or_none.return_value = sample_segments[0]
+            # Second execute returns the batch-fetched segments
+            mock_scalars = MagicMock()
+            mock_scalars.all.return_value = [sample_segments[0]]
+            mock_batch_result = MagicMock()
+            mock_batch_result.scalars.return_value = mock_scalars
 
-            mock_db.execute = AsyncMock(side_effect=[mock_result, mock_segment_result])
+            mock_db.execute = AsyncMock(side_effect=[mock_result, mock_batch_result])
 
             results = await service.search_project_segments(
                 db=mock_db,
@@ -179,33 +168,20 @@ class TestSemanticSearchService:
             mock_rows = []
             for i, seg in enumerate(sample_segments[:3]):
                 mock_row = MagicMock()
-                mock_row._mapping = {
-                    "id": seg.id,
-                    "project_id": sample_project.id,
-                    "source_file_id": seg.source_file_id,
-                    "source_file_name": seg.source_file_name,
-                    "source_file_url": seg.source_file_url,
-                    "timestamp_start": seg.timestamp_start,
-                    "timestamp_end": seg.timestamp_end,
-                    "duration_seconds": seg.duration_seconds,
-                    "visual_description": seg.visual_description,
-                    "action_tags": seg.action_tags,
-                    "thumbnail_url": seg.thumbnail_url,
-                    "created_at": seg.created_at,
-                    "similarity": similarities[i],
-                }
+                mock_row.id = seg.id
+                mock_row.similarity = similarities[i]
                 mock_rows.append(mock_row)
 
             mock_result = MagicMock()
             mock_result.fetchall.return_value = mock_rows
 
-            # Create segment result mocks for each row that passes the filter
-            # Only first 2 pass 0.5 threshold (0.9 and 0.6)
-            mock_segment_results = [MagicMock() for _ in range(2)]
-            mock_segment_results[0].scalar_one_or_none.return_value = sample_segments[0]
-            mock_segment_results[1].scalar_one_or_none.return_value = sample_segments[1]
+            # Batch fetch returns only segments that passed the filter (first 2)
+            mock_scalars = MagicMock()
+            mock_scalars.all.return_value = [sample_segments[0], sample_segments[1]]
+            mock_batch_result = MagicMock()
+            mock_batch_result.scalars.return_value = mock_scalars
 
-            mock_db.execute = AsyncMock(side_effect=[mock_result] + mock_segment_results)
+            mock_db.execute = AsyncMock(side_effect=[mock_result, mock_batch_result])
 
             results = await service.search_project_segments(
                 db=mock_db,
@@ -382,21 +358,21 @@ class TestSemanticSearchService:
             mock_source_result = MagicMock()
             mock_source_result.scalar_one_or_none.return_value = source_segment
 
-            # Second call returns similar segment rows
+            # Second call returns similar segment rows (simplified: only id and similarity)
             mock_row = MagicMock()
-            mock_row._mapping = {
-                "id": sample_segments[1].id,
-                "similarity": 0.75,
-            }
+            mock_row.id = sample_segments[1].id
+            mock_row.similarity = 0.75
             mock_search_result = MagicMock()
             mock_search_result.fetchall.return_value = [mock_row]
 
-            # Third call returns the full similar segment
-            mock_similar_result = MagicMock()
-            mock_similar_result.scalar_one_or_none.return_value = sample_segments[1]
+            # Third call batch fetches the full similar segments
+            mock_scalars = MagicMock()
+            mock_scalars.all.return_value = [sample_segments[1]]
+            mock_batch_result = MagicMock()
+            mock_batch_result.scalars.return_value = mock_scalars
 
             mock_db.execute = AsyncMock(
-                side_effect=[mock_source_result, mock_search_result, mock_similar_result]
+                side_effect=[mock_source_result, mock_search_result, mock_batch_result]
             )
 
             results = await service.find_similar_segments_in_project(

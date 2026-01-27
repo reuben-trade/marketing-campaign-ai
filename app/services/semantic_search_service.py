@@ -256,21 +256,11 @@ class SemanticSearchService:
         query_embedding = await self.embedding_service.generate_embedding(query)
 
         # Search using pgvector cosine distance, scoped to project
+        # Only select id and similarity - we'll batch fetch full objects after
         search_query = text(
             """
             SELECT
                 id,
-                project_id,
-                source_file_id,
-                source_file_name,
-                source_file_url,
-                timestamp_start,
-                timestamp_end,
-                duration_seconds,
-                visual_description,
-                action_tags,
-                thumbnail_url,
-                created_at,
                 (1 - (embedding <=> CAST(:query_embedding AS vector))) as similarity
             FROM user_video_segments
             WHERE project_id = :project_id
@@ -291,22 +281,31 @@ class SemanticSearchService:
 
         rows = result.fetchall()
 
-        # Convert rows to UserVideoSegment objects with similarity scores
-        results = []
+        # Filter by min_similarity and collect IDs
+        id_to_similarity = {}
         for row in rows:
-            row_dict = dict(row._mapping)
-            similarity = row_dict.pop("similarity")
-
-            # Only include results above threshold
+            similarity = row.similarity
             if similarity >= min_similarity:
-                # Fetch the full segment object to ensure all relationships are loaded
-                segment_result = await db.execute(
-                    select(UserVideoSegment).where(UserVideoSegment.id == row_dict["id"])
-                )
-                segment = segment_result.scalar_one_or_none()
+                id_to_similarity[row.id] = similarity
 
-                if segment:
-                    results.append((segment, similarity))
+        if not id_to_similarity:
+            logger.info(
+                f"Project segment search for '{query[:50]}...' in project {project_id} "
+                f"found 0 results"
+            )
+            return []
+
+        # Batch fetch all matching segments in a single query
+        segment_result = await db.execute(
+            select(UserVideoSegment).where(UserVideoSegment.id.in_(id_to_similarity.keys()))
+        )
+        segments_by_id = {s.id: s for s in segment_result.scalars().all()}
+
+        # Build results maintaining similarity order
+        results = []
+        for segment_id, similarity in id_to_similarity.items():
+            if segment_id in segments_by_id:
+                results.append((segments_by_id[segment_id], similarity))
 
         logger.info(
             f"Project segment search for '{query[:50]}...' in project {project_id} "
@@ -482,20 +481,27 @@ class SemanticSearchService:
 
         rows = result.fetchall()
 
-        # Fetch full segment objects
-        results = []
+        # Filter by min_similarity and collect IDs
+        id_to_similarity = {}
         for row in rows:
-            row_dict = dict(row._mapping)
-            similarity = row_dict["similarity"]
+            if row.similarity >= min_similarity:
+                id_to_similarity[row.id] = row.similarity
 
-            if similarity >= min_similarity:
-                segment_result = await db.execute(
-                    select(UserVideoSegment).where(UserVideoSegment.id == row_dict["id"])
-                )
-                segment = segment_result.scalar_one_or_none()
+        if not id_to_similarity:
+            logger.info(f"Found 0 segments similar to segment {segment_id} in project {project_id}")
+            return []
 
-                if segment:
-                    results.append((segment, similarity))
+        # Batch fetch all matching segments in a single query
+        segment_result = await db.execute(
+            select(UserVideoSegment).where(UserVideoSegment.id.in_(id_to_similarity.keys()))
+        )
+        segments_by_id = {s.id: s for s in segment_result.scalars().all()}
+
+        # Build results maintaining similarity order
+        results = []
+        for seg_id, similarity in id_to_similarity.items():
+            if seg_id in segments_by_id:
+                results.append((segments_by_id[seg_id], similarity))
 
         logger.info(
             f"Found {len(results)} segments similar to segment {segment_id} "

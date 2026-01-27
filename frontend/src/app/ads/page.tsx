@@ -288,7 +288,7 @@ function AdsPageContent() {
           {isSearchMode && (
             <div className="mt-2">
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                Showing {searchResults.length} search results for "{searchQuery}"
+                Showing {searchResults.length} search results for &quot;{searchQuery}&quot;
               </Badge>
             </div>
           )}

@@ -231,9 +231,7 @@ class DirectorAgent:
             logger.error(f"Director Agent failed: {e}")
             raise DirectorAgentError(f"Assembly failed: {e}") from e
 
-    async def _get_visual_script(
-        self, db: AsyncSession, script_id: uuid.UUID
-    ) -> VisualScript:
+    async def _get_visual_script(self, db: AsyncSession, script_id: uuid.UUID) -> VisualScript:
         """Fetch visual script by ID."""
         result = await db.execute(select(VisualScript).where(VisualScript.id == script_id))
         script = result.scalar_one_or_none()
@@ -260,9 +258,7 @@ class DirectorAgent:
         self, db: AsyncSession, project_id: uuid.UUID
     ) -> dict[uuid.UUID, str]:
         """Build a map of file IDs to URLs for the project."""
-        result = await db.execute(
-            select(ProjectFile).where(ProjectFile.project_id == project_id)
-        )
+        result = await db.execute(select(ProjectFile).where(ProjectFile.project_id == project_id))
         files = result.scalars().all()
         return {f.id: f.file_url for f in files if f.file_url}
 
@@ -292,10 +288,7 @@ class DirectorAgent:
         # Build alternatives list
         alternatives = []
         for segment, similarity in search_results:
-            source_url = (
-                segment.source_file_url
-                or file_url_map.get(segment.source_file_id)
-            )
+            source_url = segment.source_file_url or file_url_map.get(segment.source_file_id)
             alternatives.append(
                 {
                     "segment_id": str(segment.id),
@@ -317,10 +310,7 @@ class DirectorAgent:
             if similarity < min_similarity:
                 continue
 
-            source_url = (
-                segment.source_file_url
-                or file_url_map.get(segment.source_file_id)
-            )
+            source_url = segment.source_file_url or file_url_map.get(segment.source_file_id)
             if not source_url:
                 continue
 

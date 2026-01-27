@@ -252,7 +252,7 @@ export function InspirationSourceSelector({
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
                   />
-                  <Button onClick={handleFetchUrl} disabled={isFetching || !urlInput.trim()}>
+                  <Button onClick={handleFetchUrl} disabled={isFetching || !urlInput.trim() || !onFetchUrl}>
                     {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Fetch
                   </Button>

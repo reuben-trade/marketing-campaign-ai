@@ -297,7 +297,7 @@ class ContentPlanningAgent:
         slots = []
         for slot_data in raw.get("slots", []):
             slot = VisualScriptSlot(
-                id=slot_data.get("id", f"slot_{len(slots)+1:02d}"),
+                id=slot_data.get("id", f"slot_{len(slots) + 1:02d}"),
                 beat_type=slot_data.get("beat_type", "Unknown"),
                 target_duration=float(slot_data.get("target_duration", 3.0)),
                 search_query=slot_data.get("search_query", ""),

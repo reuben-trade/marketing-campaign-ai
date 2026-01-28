@@ -107,8 +107,7 @@ class SemanticSearchService:
         relevant_ads = [ad for ad, _ in results]
 
         logger.info(
-            f"Filtered to {len(relevant_ads)} relevant ads "
-            f"for intent: {intent_description[:50]}..."
+            f"Filtered to {len(relevant_ads)} relevant ads for intent: {intent_description[:50]}..."
         )
 
         return relevant_ads
@@ -504,8 +503,7 @@ class SemanticSearchService:
                 results.append((segments_by_id[seg_id], similarity))
 
         logger.info(
-            f"Found {len(results)} segments similar to segment {segment_id} "
-            f"in project {project_id}"
+            f"Found {len(results)} segments similar to segment {segment_id} in project {project_id}"
         )
 
         return results

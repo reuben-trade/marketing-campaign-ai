@@ -16,6 +16,7 @@ celery_app = Celery(
         "app.tasks.retrieval_tasks",
         "app.tasks.analysis_tasks",
         "app.tasks.scoring_tasks",
+        "app.tasks.subtitle_tasks",
     ],
 )
 
@@ -62,6 +63,7 @@ celery_app.conf.task_queues = {
     "retrieval": {},
     "analysis": {},
     "scoring": {},
+    "subtitles": {},
 }
 
 celery_app.conf.task_routes = {
@@ -69,4 +71,5 @@ celery_app.conf.task_routes = {
     "app.tasks.retrieval_tasks.*": {"queue": "retrieval"},
     "app.tasks.analysis_tasks.*": {"queue": "analysis"},
     "app.tasks.scoring_tasks.*": {"queue": "scoring"},
+    "app.tasks.subtitle_tasks.*": {"queue": "subtitles"},
 }

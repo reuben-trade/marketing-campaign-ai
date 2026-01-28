@@ -21,6 +21,8 @@ For frontend changes:
 cd frontend && npm run lint -- --fix
 ```
 
+Before writing any prompts (for LLM agents), first ask if I am happy with the proposed prompt. 
+
 ## Making changes 
 When making changes you must run tests to ensure nothing has broken. 
 If changes are in the frontend, you must use the playwright-mcp tool to verify  

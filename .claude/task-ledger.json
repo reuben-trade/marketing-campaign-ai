@@ -415,11 +415,11 @@
       "sprint": 4,
       "title": "End-to-end testing",
       "description": "Comprehensive Playwright tests for full user flow",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/e2e-testing-full-flow",
+      "prNumber": 37,
       "files": [
-        "frontend/tests/e2e/onboarding.spec.ts",
+        "frontend/tests/e2e/full-user-flow.spec.ts",
         "frontend/tests/e2e/project-creation.spec.ts",
         "frontend/tests/e2e/ad-generation.spec.ts"
       ],

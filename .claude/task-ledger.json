@@ -433,7 +433,7 @@
       "description": "Create component for video-over-video with main audio continuity (J-Cut/L-Cut support)",
       "status": "completed",
       "branch": "feature/broll-overlay-component",
-      "prNumber": null,
+      "prNumber": 39,
       "parallelGroup": "A",
       "files": [
         "remotion/src/components/BRollOverlay.tsx",

@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { InspirationSourceSelector } from '@/components/inspiration-source-selector';
 import { useProject, useUpdateProject } from '@/hooks/useProjects';
 import { useAds } from '@/hooks/useAds';
-import { useExtractRecipe } from '@/hooks/useRecipes';
+import { useExtractRecipe, useUploadReferenceAd, useFetchReferenceAd } from '@/hooks/useRecipes';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -38,10 +38,14 @@ export default function InspirePage({ params }: PageProps) {
   const { data: project, isLoading: projectLoading, error: projectError } = useProject(projectId);
   const updateProject = useUpdateProject();
   const extractRecipe = useExtractRecipe();
+  const uploadReference = useUploadReferenceAd();
+  const fetchReference = useFetchReferenceAd();
 
   // Local state for selected ads
   const [selectedAdIds, setSelectedAdIds] = useState<string[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
   // Fetch details of selected ads for display
   const { data: adsData } = useAds({
@@ -103,6 +107,66 @@ export default function InspirePage({ params }: PageProps) {
 
   const removeSelection = (adId: string) => {
     setSelectedAdIds(selectedAdIds.filter((id) => id !== adId));
+  };
+
+  const handleUploadReference = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const result = await uploadReference.mutateAsync({ file });
+      if (result.status === 'success' || result.status === 'partial') {
+        // Add the new ad to selection
+        setSelectedAdIds((prev) => {
+          if (prev.length >= 3) {
+            toast.warning('Maximum 3 ads selected. Replacing oldest selection.');
+            return [...prev.slice(1), result.ad_id];
+          }
+          return [...prev, result.ad_id];
+        });
+        if (result.recipe) {
+          toast.success('Reference ad analyzed and recipe extracted!');
+        } else {
+          toast.warning('Ad uploaded but recipe extraction failed. You can still use it.');
+        }
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast.error('Failed to upload reference ad');
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFetchUrl = async (url: string) => {
+    setIsFetching(true);
+    try {
+      const result = await fetchReference.mutateAsync({ url });
+      if (result.status === 'success' || result.status === 'partial') {
+        // Add the new ad to selection
+        setSelectedAdIds((prev) => {
+          if (prev.length >= 3) {
+            toast.warning('Maximum 3 ads selected. Replacing oldest selection.');
+            return [...prev.slice(1), result.ad_id];
+          }
+          return [...prev, result.ad_id];
+        });
+        if (result.recipe) {
+          toast.success('Reference ad fetched and recipe extracted!');
+        } else {
+          toast.warning('Ad fetched but recipe extraction failed. You can still use it.');
+        }
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Fetch failed:', error);
+      toast.error('Failed to fetch ad from URL');
+      throw error;
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   if (projectLoading) {
@@ -283,7 +347,10 @@ export default function InspirePage({ params }: PageProps) {
         selectedAdIds={selectedAdIds}
         onSelectionChange={setSelectedAdIds}
         maxSelections={3}
-        // Upload and URL fetch are disabled for now (Sprint 4 features)
+        onUploadReference={handleUploadReference}
+        onFetchUrl={handleFetchUrl}
+        isUploading={isUploading}
+        isFetching={isFetching}
       />
     </div>
   );

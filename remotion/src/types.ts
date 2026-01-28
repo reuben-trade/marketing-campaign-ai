@@ -5,7 +5,11 @@
 
 export type CompositionType = 'vertical_ad_v1' | 'horizontal_ad_v1' | 'square_ad_v1';
 
-export type SegmentType = 'video_clip' | 'generated_broll' | 'text_slide';
+export type SegmentType =
+  | 'video_clip'
+  | 'generated_broll'
+  | 'text_slide'
+  | 'b_roll_overlay';
 
 export type TransitionType =
   | 'cut'
@@ -69,6 +73,29 @@ export interface TextSlideContent {
   text_color?: string;
 }
 
+/**
+ * B-Roll overlay source for J-Cut/L-Cut video editing.
+ * Overlays video on top while maintaining the main audio track.
+ */
+export interface BRollOverlaySource {
+  // Main video that provides the continuous audio track
+  main_video: VideoClipSource;
+  // B-Roll video that overlays on top (video only, no audio)
+  overlay_video: VideoClipSource;
+  // When to start the overlay relative to segment start (in frames)
+  overlay_start_offset_frames?: number;
+  // Duration of the overlay in frames (if different from segment duration)
+  overlay_duration_frames?: number;
+  // Opacity of the overlay video (0-1)
+  overlay_opacity?: number;
+  // Position/scale of the overlay (for picture-in-picture effects)
+  overlay_position?: 'full' | 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left';
+  overlay_scale?: number;
+  // Transition for the overlay appearing/disappearing
+  overlay_transition_in?: Transition | null;
+  overlay_transition_out?: Transition | null;
+}
+
 export interface TimelineSegment {
   id: string;
   type: SegmentType;
@@ -79,6 +106,7 @@ export interface TimelineSegment {
   source?: VideoClipSource | null;
   generated_source?: GeneratedBRollSource | null;
   text_content?: TextSlideContent | null;
+  broll_overlay_source?: BRollOverlaySource | null;
 
   // Visual overlays
   overlay?: TextOverlay | null;

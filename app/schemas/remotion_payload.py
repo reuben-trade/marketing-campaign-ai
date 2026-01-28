@@ -21,6 +21,17 @@ class SegmentType(str, Enum):
     VIDEO_CLIP = "video_clip"
     GENERATED_BROLL = "generated_broll"
     TEXT_SLIDE = "text_slide"
+    BROLL_OVERLAY = "b_roll_overlay"
+
+
+class OverlayPosition(str, Enum):
+    """Position options for B-Roll overlay (PiP mode)."""
+
+    FULL = "full"
+    TOP_RIGHT = "top-right"
+    BOTTOM_RIGHT = "bottom-right"
+    TOP_LEFT = "top-left"
+    BOTTOM_LEFT = "bottom-left"
 
 
 class TransitionType(str, Enum):
@@ -135,6 +146,61 @@ class TextSlideContent(BaseModel):
     text_color: str = Field(default="#FFFFFF", description="Text color in hex")
 
 
+class BRollOverlaySource(BaseModel):
+    """Source configuration for B-Roll overlay (J-Cut/L-Cut editing).
+
+    This enables professional video editing techniques:
+    - J-Cut: Audio from the next clip starts before the visual cuts
+    - L-Cut: Audio from the current clip continues over the next visual
+
+    The main video provides continuous audio, while the overlay video
+    appears/disappears with transitions, creating visual interest
+    while maintaining audio continuity.
+    """
+
+    main_video: VideoClipSource = Field(
+        ...,
+        description="Main video that provides continuous audio track",
+    )
+    overlay_video: VideoClipSource = Field(
+        ...,
+        description="B-Roll video that overlays on top (video only, muted)",
+    )
+    overlay_start_offset_frames: int = Field(
+        default=0,
+        ge=0,
+        description="When to start the overlay relative to segment start (in frames)",
+    )
+    overlay_duration_frames: int | None = Field(
+        default=None,
+        description="Duration of the overlay in frames (defaults to remaining segment duration)",
+    )
+    overlay_opacity: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Opacity of the overlay video (0-1)",
+    )
+    overlay_position: OverlayPosition = Field(
+        default=OverlayPosition.FULL,
+        description="Position of the overlay (full screen or PiP corners)",
+    )
+    overlay_scale: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=2.0,
+        description="Scale factor for the overlay video",
+    )
+    overlay_transition_in: "Transition | None" = Field(
+        default=None,
+        description="Transition for the overlay appearing",
+    )
+    overlay_transition_out: "Transition | None" = Field(
+        default=None,
+        description="Transition for the overlay disappearing",
+    )
+
+
 class TimelineSegment(BaseModel):
     """A single segment in the video timeline."""
 
@@ -155,6 +221,10 @@ class TimelineSegment(BaseModel):
     text_content: TextSlideContent | None = Field(
         default=None,
         description="Content for text_slide type",
+    )
+    broll_overlay_source: BRollOverlaySource | None = Field(
+        default=None,
+        description="Source for b_roll_overlay type (J-Cut/L-Cut)",
     )
 
     # Visual overlays

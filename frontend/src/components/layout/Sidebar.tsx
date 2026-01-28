@@ -12,10 +12,14 @@ import {
   Lightbulb,
   MessageSquareText,
   FolderKanban,
+  Film,
+  UserCircle,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Editor', href: '/editor', icon: Film },
+  { name: 'Onboarding', href: '/onboarding', icon: UserCircle },
   { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Business Setup', href: '/setup', icon: Building2 },
   { name: 'Competitors', href: '/competitors', icon: Users },

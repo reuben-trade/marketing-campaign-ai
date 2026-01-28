@@ -10,7 +10,8 @@ export type SegmentType =
   | 'generated_broll'
   | 'text_slide'
   | 'b_roll_overlay'
-  | 'title_card';
+  | 'title_card'
+  | 'split_screen';
 
 export type TransitionType =
   | 'cut'
@@ -141,6 +142,54 @@ export interface CaptionOverlayConfig {
 }
 
 /**
+ * Layout options for split screen.
+ */
+export type SplitScreenLayout = 'horizontal' | 'vertical' | 'pip';
+
+/**
+ * Which side of the split screen provides audio.
+ */
+export type SplitScreenAudioSource = 'left' | 'right' | 'none';
+
+/**
+ * Position for picture-in-picture overlay.
+ */
+export type PipPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+/**
+ * Content for a split screen segment.
+ * Displays two videos side-by-side for comparisons, before/after, etc.
+ */
+export interface SplitScreenContent {
+  layout: SplitScreenLayout;
+
+  // Video sources (left/right for horizontal, top/bottom for vertical)
+  left_video: VideoClipSource; // Also used as "main" for pip layout
+  right_video: VideoClipSource; // Also used as "overlay" for pip layout
+
+  // Split configuration
+  split_ratio?: number; // 0.0-1.0, default 0.5 (50/50). For pip, controls overlay size.
+
+  // Labels (optional, e.g., "BEFORE" / "AFTER")
+  left_label?: string | null;
+  right_label?: string | null;
+  label_font_size?: number;
+  label_color?: string;
+  label_background?: string | null;
+
+  // Divider line between panels
+  show_divider?: boolean;
+  divider_width?: number;
+  divider_color?: string;
+
+  // Audio source
+  audio_source?: SplitScreenAudioSource; // Default: 'left'
+
+  // PiP-specific settings
+  pip_position?: PipPosition; // Default: 'bottom-right'
+}
+
+/**
  * Content for a title card segment.
  * Title cards are animated text screens with branding support.
  */
@@ -199,6 +248,7 @@ export interface TimelineSegment {
   text_content?: TextSlideContent | null;
   broll_overlay_source?: BRollOverlaySource | null;
   title_card_content?: TitleCardContent | null;
+  split_screen_content?: SplitScreenContent | null;
 
   // Visual overlays
   overlay?: TextOverlay | null;

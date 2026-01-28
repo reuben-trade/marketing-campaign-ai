@@ -372,17 +372,22 @@
       "sprint": 4,
       "title": "User onboarding questionnaire",
       "description": "Implement onboarding flow to capture brand profile",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/user-onboarding-questionnaire",
       "prNumber": null,
       "files": [
         "app/schemas/brand_profile.py",
         "app/api/onboarding.py",
         "frontend/src/app/onboarding/page.tsx",
-        "tests/test_api/test_onboarding.py"
+        "frontend/src/types/onboarding.ts",
+        "frontend/src/lib/api/onboarding.ts",
+        "frontend/src/hooks/useOnboarding.ts",
+        "frontend/tests/e2e/onboarding.spec.ts",
+        "tests/test_api/test_onboarding.py",
+        "app/main.py"
       ],
       "prdSection": "1.1 User Onboarding Questionnaire",
-      "notes": "3-step flow: industry, core offer, competitors"
+      "notes": "Implemented complete 3-step onboarding flow: Step 1 (Industry/Niche selection), Step 2 (Core Offer + Keywords), Step 3 (Brand Voice + Forbidden Terms + Color). Backend: BrandProfile schemas with validation, Onboarding API endpoints (status, create, get, update, delete, list, options). Frontend: TypeScript types, API client, React Query hooks, multi-step form with validation, progress indicator, back/next navigation. All 19 backend tests pass, frontend build passes, lint passes."
     },
     {
       "id": "s4-t4",

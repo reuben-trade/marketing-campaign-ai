@@ -12,6 +12,7 @@ from app.api import (
     competitors,
     critique,
     notifications,
+    onboarding,
     projects,
     recipes,
     recommendations,
@@ -60,6 +61,7 @@ app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(recipes.router, prefix="/api", tags=["Recipes"])
 app.include_router(render.router, tags=["Render"])
 app.include_router(broll.router, tags=["B-Roll Generation"])
+app.include_router(onboarding.router, prefix="/api/onboarding", tags=["Onboarding"])
 
 
 @app.get("/health")

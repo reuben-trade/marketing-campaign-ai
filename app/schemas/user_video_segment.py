@@ -6,6 +6,14 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class TranscriptWord(BaseModel):
+    """Schema for a single word in a transcript with timestamps."""
+
+    word: str = Field(..., description="The transcribed word")
+    start: float = Field(..., ge=0, description="Start time in seconds")
+    end: float = Field(..., ge=0, description="End time in seconds")
+
+
 class UserVideoSegmentBase(BaseModel):
     """Base schema for user video segments."""
 
@@ -26,6 +34,24 @@ class UserVideoSegmentCreate(UserVideoSegmentBase):
     embedding: list[float] | None = None
     thumbnail_url: str | None = None
 
+    # Clip ordering fields
+    segment_index: int = Field(default=0, ge=0)
+    total_segments_in_source: int = Field(default=1, ge=1)
+
+    # Transcript fields
+    transcript_text: str | None = None
+    transcript_words: list[TranscriptWord] | None = None
+    speaker_label: str | None = None
+
+    # V2 analysis fields
+    beat_type: str | None = None
+    attention_score: int | None = Field(None, ge=1, le=10)
+    emotion_intensity: int | None = Field(None, ge=1, le=10)
+    color_grading: str | None = None
+    lighting_style: str | None = None
+    has_speech: bool = False
+    power_words_detected: list[str] | None = None
+
 
 class UserVideoSegmentUpdate(BaseModel):
     """Schema for updating a user video segment."""
@@ -34,6 +60,11 @@ class UserVideoSegmentUpdate(BaseModel):
     action_tags: list[str] | None = None
     embedding: list[float] | None = None
     thumbnail_url: str | None = None
+
+    # V2 analysis fields (can be updated)
+    beat_type: str | None = None
+    attention_score: int | None = Field(None, ge=1, le=10)
+    emotion_intensity: int | None = Field(None, ge=1, le=10)
 
 
 class UserVideoSegmentResponse(UserVideoSegmentBase):
@@ -44,6 +75,26 @@ class UserVideoSegmentResponse(UserVideoSegmentBase):
     duration_seconds: float | None = None
     thumbnail_url: str | None = None
     created_at: datetime
+
+    # Clip ordering fields
+    previous_segment_id: uuid.UUID | None = None
+    next_segment_id: uuid.UUID | None = None
+    segment_index: int = 0
+    total_segments_in_source: int = 1
+
+    # Transcript fields
+    transcript_text: str | None = None
+    transcript_words: list[TranscriptWord] | None = None
+    speaker_label: str | None = None
+
+    # V2 analysis fields
+    beat_type: str | None = None
+    attention_score: int | None = None
+    emotion_intensity: int | None = None
+    color_grading: str | None = None
+    lighting_style: str | None = None
+    has_speech: bool = False
+    power_words_detected: list[str] | None = None
 
     model_config = {"from_attributes": True}
 
@@ -75,6 +126,39 @@ class SegmentAnalysis(BaseModel):
     has_text_overlay: bool = Field(default=False)
     has_face: bool = Field(default=False)
     has_product: bool = Field(default=False)
+
+    # =========================================================================
+    # Transcript Fields - Sprint 5 s5-t5
+    # =========================================================================
+    transcript_text: str | None = Field(None, description="Full transcript text for this segment")
+    transcript_words: list[TranscriptWord] | None = Field(
+        None, description="Word-level timestamps for captions"
+    )
+    speaker_label: str | None = Field(None, description="Speaker identifier (e.g., 'speaker_1')")
+
+    # =========================================================================
+    # V2 Analysis Fields - Sprint 5 s5-t7
+    # =========================================================================
+    beat_type: str | None = Field(
+        None,
+        description="Beat classification: hook, problem, solution, showcase, cta, testimonial, transition",
+    )
+    attention_score: int | None = Field(
+        None, ge=1, le=10, description="Thumb-stop potential score (1-10)"
+    )
+    emotion_intensity: int | None = Field(
+        None, ge=1, le=10, description="Emotional intensity score (1-10)"
+    )
+    color_grading: str | None = Field(
+        None, description="Color grading style (warm, cool, neutral, high-contrast, etc.)"
+    )
+    lighting_style: str | None = Field(
+        None, description="Lighting style (natural, studio, ring-light, golden-hour, etc.)"
+    )
+    has_speech: bool = Field(default=False, description="Whether segment contains speech")
+    power_words_detected: list[str] | None = Field(
+        None, description="Power words detected in transcript (free, guaranteed, etc.)"
+    )
 
 
 class VideoAnalysisResult(BaseModel):

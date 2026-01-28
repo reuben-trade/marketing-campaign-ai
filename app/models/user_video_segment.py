@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, Text, Uuid
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -50,6 +50,40 @@ class UserVideoSegment(Base):
     # Thumbnail
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
 
+    # =========================================================================
+    # Clip Ordering Fields (Doubly-Linked List) - Sprint 5 s5-t6
+    # =========================================================================
+    previous_segment_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("user_video_segments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    next_segment_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("user_video_segments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    segment_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_segments_in_source: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    # =========================================================================
+    # Transcript Fields - Sprint 5 s5-t5
+    # =========================================================================
+    transcript_text: Mapped[str | None] = mapped_column(Text)
+    transcript_words: Mapped[list | None] = mapped_column(JSONB)  # [{word, start, end}, ...]
+    speaker_label: Mapped[str | None] = mapped_column(String(20))
+
+    # =========================================================================
+    # V2 Analysis Fields - Sprint 5 s5-t7
+    # =========================================================================
+    beat_type: Mapped[str | None] = mapped_column(String(30))
+    attention_score: Mapped[int | None] = mapped_column(Integer)  # 1-10
+    emotion_intensity: Mapped[int | None] = mapped_column(Integer)  # 1-10
+    color_grading: Mapped[str | None] = mapped_column(String(30))
+    lighting_style: Mapped[str | None] = mapped_column(String(30))
+    has_speech: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    power_words_detected: Mapped[list | None] = mapped_column(JSONB)
+
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -62,9 +96,24 @@ class UserVideoSegment(Base):
         back_populates="video_segments",
     )
 
+    # Self-referential relationships for clip ordering
+    previous_segment: Mapped["UserVideoSegment | None"] = relationship(
+        "UserVideoSegment",
+        foreign_keys=[previous_segment_id],
+        remote_side="UserVideoSegment.id",
+        uselist=False,
+    )
+    next_segment: Mapped["UserVideoSegment | None"] = relationship(
+        "UserVideoSegment",
+        foreign_keys=[next_segment_id],
+        remote_side="UserVideoSegment.id",
+        uselist=False,
+    )
+
     __table_args__ = (
         Index("idx_user_video_segments_project_id", "project_id"),
         Index("idx_user_video_segments_source_file_id", "source_file_id"),
         Index("idx_user_video_segments_created_at", "created_at"),
+        Index("idx_segments_ordering", "source_file_id", "segment_index"),
         # HNSW index for embeddings is created in migration
     )

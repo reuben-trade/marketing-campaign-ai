@@ -10,8 +10,7 @@ export type SegmentType =
   | 'generated_broll'
   | 'text_slide'
   | 'b_roll_overlay'
-  | 'title_card'
-  | 'caption_overlay';
+  | 'title_card';
 
 export type TransitionType =
   | 'cut'
@@ -103,51 +102,42 @@ export type CaptionStyle = 'minimal' | 'bar' | 'karaoke';
 export type CaptionPosition = 'top' | 'center' | 'bottom';
 
 /**
- * A single word with timestamp information for word-level sync.
+ * How to handle speaker tags like [Speaker 1]: in SRT content.
  */
-export interface TranscriptWord {
-  word: string;
-  start: number; // Start time in seconds
-  end: number; // End time in seconds
-}
-
-/**
- * A single caption entry with timing and optional highlighting.
- */
-export interface CaptionEntry {
-  text: string;
-  start_time: number; // Start time in seconds
-  end_time: number; // End time in seconds
-  highlight_words?: string[] | null; // Power words to highlight
-}
+export type SpeakerTagStyle = 'hidden' | 'dimmed' | 'colored';
 
 /**
  * Configuration for caption overlay display.
- * Supports word-level sync, power word highlighting, and multiple styles.
+ * Parses SRT content and displays captions synced to video clips.
+ *
+ * The component handles:
+ * 1. Parsing SRT content into cues
+ * 2. Filtering cues by clip time range (clipTimestampStart to clipTimestampEnd)
+ * 3. Offsetting timestamps to timeline position
+ * 4. Optionally stripping/styling speaker tags
  */
 export interface CaptionOverlayConfig {
-  // Caption content - either captions array or transcript_words for word-level sync
-  captions?: CaptionEntry[] | null;
-  transcript_words?: TranscriptWord[] | null;
+  // SRT content (full SRT for the source video)
+  srt_content: string;
+
+  // Clip timing - defines which portion of SRT to show
+  // These map to source.start_time and source.end_time of the video clip
+  clip_timestamp_start: number; // Source video in-point (seconds)
+  clip_timestamp_end: number; // Source video out-point (seconds)
 
   // Display settings
   style?: CaptionStyle;
   position?: CaptionPosition;
-  max_words_per_line?: number; // For word-level display (default 5)
+
+  // Speaker tag handling
+  speaker_tag_style?: SpeakerTagStyle; // Default: 'hidden' (strip tags)
 
   // Text styling
   font_size?: number;
   font_family?: string;
   text_color?: string;
-  highlight_color?: string; // Color for power words
   background_color?: string; // Background for bar style
   background_opacity?: number;
-
-  // Animation
-  word_animation?: 'none' | 'pop' | 'fade';
-
-  // Additional power words to highlight (in addition to per-caption highlights)
-  power_words?: string[] | null;
 }
 
 /**

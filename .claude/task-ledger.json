@@ -478,7 +478,7 @@
         "app/schemas/remotion_payload.py"
       ],
       "prdSection": "5.3 Director Agent Refactor",
-      "notes": "Implemented CaptionOverlay component with: word-level sync via transcript_words, sentence-level captions support, 3 styles (minimal, bar, karaoke), power word highlighting, configurable position (top/center/bottom), word animations (pop/fade/none), brand profile integration. Backend schema updated with CaptionOverlayConfig, TranscriptWord, CaptionEntry, CaptionStyle, CaptionPosition, CaptionWordAnimation. TypeScript types synced."
+      "notes": "Implemented CaptionOverlay component with SRT-based approach: parses SRT content using @remotion/captions, filters cues by clip time range, offsets timestamps to timeline position, handles speaker tags (hidden/dimmed/colored). 3 display styles (minimal, bar, karaoke) with cue-level animation. Backend schema: CaptionOverlayConfig with srt_content, clip timing, SpeakerTagStyle. GitHub issue #43 created for @remotion/whisper investigation."
     },
     {
       "id": "s5-t4",

@@ -14,6 +14,7 @@
     "preview": "remotion preview"
   },
   "dependencies": {
+    "@remotion/captions": "^4.0.410",
     "@remotion/cli": "^4.0.0",
     "@remotion/media-utils": "^4.0.0",
     "@remotion/player": "^4.0.0",

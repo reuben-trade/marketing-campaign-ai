@@ -415,16 +415,16 @@
       "sprint": 4,
       "title": "End-to-end testing",
       "description": "Comprehensive Playwright tests for full user flow",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/e2e-testing-full-flow",
       "prNumber": null,
       "files": [
-        "frontend/tests/e2e/onboarding.spec.ts",
+        "frontend/tests/e2e/full-user-flow.spec.ts",
         "frontend/tests/e2e/project-creation.spec.ts",
         "frontend/tests/e2e/ad-generation.spec.ts"
       ],
       "prdSection": "7. Success Criteria",
-      "notes": "Test full pipeline: onboarding -> project -> upload -> inspire -> generate -> edit"
+      "notes": "Implemented 81 comprehensive e2e tests covering: full user flow navigation (onboarding -> projects -> inspire -> editor), project creation (dialog, validation, list display, empty state, navigation, responsive, accessibility), ad generation flow (inspiration selection, library gallery, editor page, render history, timeline, error states, recipe extraction, responsive, navigation). All tests pass, lint clean."
     }
   ]
 }

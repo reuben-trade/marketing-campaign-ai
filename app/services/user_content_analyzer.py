@@ -29,95 +29,194 @@ logger = logging.getLogger(__name__)
 
 
 USER_CONTENT_ANALYSIS_PROMPT = """
-You are an expert video content analyzer. Your job is to segment this user-uploaded video into
-distinct, reusable clips for ad creation. Each segment should be a self-contained visual unit
-that could be used as a clip in a video advertisement.
+You are an expert video content analyzer for short-form video editing. Your job is to segment this
+video into distinct, reusable clips with rich metadata - like YouTube chapters but more granular.
 
-ANALYSIS GOALS:
-1. Identify distinct visual segments based on scene changes, camera movement, or content shifts
-2. Describe each segment in detail for semantic search and clip matching
-3. Extract actionable tags for each segment to enable content discovery
+================================================================================
+ANALYSIS GOALS
+================================================================================
+1. Segment the video at natural cut points (scene changes, camera moves, content shifts)
+2. Extract GLOBAL SUBTITLES in SRT format for the entire video (used for Remotion captions)
+3. Classify each segment with a section type AND descriptive label
+4. Extract relevant keywords (topic terms + any persuasive words)
+5. Provide quality scores for intelligent clip selection
 
-SEGMENT IDENTIFICATION RULES:
+================================================================================
+SEGMENT IDENTIFICATION RULES
+================================================================================
 - Minimum segment length: 1 second
 - Maximum segment length: 15 seconds (break longer scenes into smaller units)
-- Segment boundaries should be at natural cut points (scene changes, camera moves, etc.)
+- Segment boundaries should be at natural cut points
 - Each segment should be describable as a single, coherent visual idea
 
-FOR EACH SEGMENT, PROVIDE:
-1. **Precise timestamps** (start and end in seconds, e.g., 0.0-3.5)
-2. **Visual description**: Detailed description of what's visible (who, what, where, how)
-   - Be specific enough that someone could search for this clip by description
-   - Include: subjects, actions, setting, colors, lighting, camera angle
-3. **Action tags**: 3-8 short tags describing the action/content (e.g., "product-demo", "hands", "close-up")
-4. **Scene type**: Categorize as one of:
-   - product_demo: Product being shown or demonstrated
-   - testimonial: Person speaking to camera
-   - b_roll: Supplementary footage (lifestyle, environment, abstract)
-   - unboxing: Product unboxing/reveal
-   - before_after: Comparison or transformation
-   - text_slide: Text-heavy frame
-   - logo_end_card: Logo or branding element
-   - transition: Transition effect or filler
-   - lifestyle: Product in real-world use context
-   - talking_head: Person speaking (not testimonial format)
-   - hands_demo: Close-up of hands demonstrating
-   - screen_recording: Screen capture content
-5. **Emotion**: Dominant emotion (excitement, calm, urgency, trust, curiosity, joy, neutral)
-6. **Camera shot**: close-up, medium, wide, extreme-close-up, POV, over-shoulder
-7. **Motion type**: static, handheld, tracking, pan, zoom, dolly
-8. **Content flags**: has_text_overlay, has_face, has_product (boolean)
+================================================================================
+GLOBAL SUBTITLES (at video level, NOT per segment)
+================================================================================
+Provide full video subtitles in SRT format. This will be used for Remotion animated captions.
+Format: Standard SRT with numbered entries, timestamps (HH:MM:SS,mmm --> HH:MM:SS,mmm), and text.
+- 2-4 second chunks per subtitle
+- Natural phrase boundaries
+- Include ALL spoken content
+- For multi-speaker videos, prefix each line with speaker tag: [Speaker 1]: text
 
-ALSO PROVIDE VIDEO-LEVEL SUMMARY:
+Example SRT format:
+1
+00:00:00,000 --> 00:00:03,500
+[Speaker 1]: This product completely changed my life
+
+2
+00:00:03,500 --> 00:00:06,000
+[Speaker 1]: I guarantee you'll love it
+
+================================================================================
+FOR EACH SEGMENT, PROVIDE:
+================================================================================
+
+**BASIC INFO:**
+1. Precise timestamps (start and end in seconds, e.g., 0.0-3.5)
+2. Visual description: Detailed storyboard-quality description
+3. Action tags: 3-8 lowercase, hyphenated tags (e.g., "bmx-trick", "cooking", "unboxing")
+
+**SECTION CLASSIFICATION (like YouTube chapters):**
+4. section_type: Choose from predefined list OR use "other":
+   - action: Sports, movement, dynamic footage, stunts, tricks
+   - tutorial: How-to, demonstration, explanation, teaching
+   - product_display: Product shots, features, close-ups, showcase
+   - testimonial: Reviews, endorsements, social proof, reactions
+   - interview: Talking head, Q&A, conversation, discussion
+   - b_roll: Supplementary/atmospheric footage, establishing shots
+   - transition: Visual bridges, filler, scene changes
+   - intro: Opening segment, hook, attention grabber
+   - outro: Closing segment, CTA, end screen
+   - montage: Quick cuts, compilation, highlight reel
+   - comparison: Before/after, side-by-side, A vs B
+   - reveal: Unboxing, transformation reveal, surprise moment
+   - reaction: Response shots, expressions, commentary
+   - other: Anything that doesn't fit above (MUST provide good section_label)
+
+5. section_label: ALWAYS provide a descriptive label for the segment
+   Examples: "BMX halfpipe trick", "Kitchen prep montage", "Product close-up shot",
+   "Customer testimonial", "Skateboard kickflip attempt", "Recipe ingredient overview"
+
+**KEYWORDS (topic terms + persuasive words):**
+6. keywords: Array of ALL relevant terms found in this segment:
+   - Topic/niche keywords (e.g., "BMX", "halfpipe", "trick", "skateboard", "cooking", "recipe")
+   - Activity keywords (e.g., "jump", "flip", "mix", "chop", "review")
+   - Persuasive words if present (e.g., "free", "guaranteed", "exclusive", "amazing")
+   - Product/brand mentions
+   Example: ["BMX", "halfpipe", "trick", "outdoor", "slow-motion", "landing"]
+
+**DETAILED BREAKDOWN (CRITICAL for Director agent):**
+7. detailed_breakdown: A rich narrative description with ACCURATE embedded timestamps describing
+   EVERYTHING that happens in this segment. This is essential for the Director agent and embeddings.
+   - Include timestamps in parentheses like (0.0s), (1.2s), (2.5s)
+   - Describe every action, movement, expression, camera change in sequence
+   - Be specific about what subjects do, how they move, what appears on screen
+   - Timestamps MUST be accurate relative to segment start (0.0s = segment start)
+   Example: "The rider approaches the halfpipe ramp at moderate speed (0.0s), pedaling twice
+   before reaching the edge. At the lip (0.8s), they launch upward with strong leg extension.
+   Mid-air (1.2s), they initiate a backside 360 spin by turning their shoulders. The rotation
+   continues (1.5s) as they reach peak height. They spot the landing (1.8s) and prepare to
+   absorb impact. Clean landing (2.2s) with both wheels touching down, followed by a small
+   celebratory fist pump (2.5s)."
+
+**SPEECH FLAG (per segment):**
+8. has_speech: true/false - whether segment contains spoken words
+   (The actual transcript is in the global srt_subtitles field, not per-segment)
+
+**QUALITY SCORES:**
+9. attention_score: 1-10 thumb-stop potential (how attention-grabbing is this?)
+10. emotion_intensity: 1-10 emotional impact level
+11. emotion: excitement | calm | urgency | trust | curiosity | joy | frustration | neutral
+
+**CINEMATICS:**
+12. camera_shot: close-up | medium | wide | extreme-close-up | POV | over-shoulder
+13. motion_type: static | handheld | tracking | pan | zoom | dolly
+14. color_grading: warm | cool | neutral | high-contrast | desaturated | vibrant
+15. lighting_style: natural | studio | ring-light | golden-hour | harsh | soft | dramatic
+
+**CONTENT FLAGS:**
+16. has_text_overlay: true/false
+17. has_face: true/false
+18. has_product: true/false
+
+================================================================================
+VIDEO-LEVEL SUMMARY
+================================================================================
 - Overall theme and content type
 - Production style (UGC, professional, hybrid)
 - Key subjects/products visible
 - Dominant mood/tone
 - Total duration
+- Global SRT subtitles for all spoken content
 
-Return analysis in this EXACT JSON structure:
+================================================================================
+RETURN THIS EXACT JSON STRUCTURE:
+================================================================================
 {{
   "video_level_summary": "2-3 sentence summary of what this video contains",
   "video_level_tags": ["tag1", "tag2", "tag3"],
   "total_duration_seconds": 30.0,
-  "dominant_theme": "product showcase | testimonial | lifestyle | demo | tutorial | unboxing | behind-the-scenes",
+  "dominant_theme": "product showcase | testimonial | lifestyle | demo | tutorial | unboxing | sports | entertainment | other",
   "production_style": "UGC | professional | hybrid | screen_recording",
-  "content_type": "demo | testimonial | lifestyle | b-roll | tutorial | unboxing | mixed",
+  "content_type": "demo | testimonial | lifestyle | b-roll | tutorial | unboxing | sports | entertainment | mixed | other",
+  "srt_subtitles": "1\\n00:00:03,500 --> 00:00:06,000\\n[Speaker 1]: This product completely changed my life\\n\\n2\\n00:00:06,000 --> 00:00:08,500\\n[Speaker 1]: I guarantee you'll love it",
   "segments": [
     {{
       "timestamp_start": 0.0,
       "timestamp_end": 3.5,
-      "visual_description": "Close-up of hands holding a sleek silver smartphone, tilting it to show the camera module. Soft natural lighting, white background.",
-      "action_tags": ["hands", "smartphone", "product-reveal", "close-up", "tech"],
-      "scene_type": "product_demo",
-      "emotion": "curiosity",
-      "camera_shot": "close-up",
-      "motion_type": "handheld",
+      "visual_description": "BMX rider approaches halfpipe ramp at speed, performs aerial 360 spin...",
+      "detailed_breakdown": "The rider approaches the halfpipe ramp at moderate speed (0.0s), pedaling twice before reaching the edge. At the lip (0.8s), they launch upward with strong leg extension. Mid-air (1.2s), they initiate a backside 360 spin by turning their shoulders. The rotation continues (1.8s) as they reach peak height of approximately 6 feet. They spot the landing (2.4s) and prepare to absorb impact. Clean landing (2.9s) with both wheels touching down simultaneously, followed by a small celebratory fist pump (3.2s).",
+      "action_tags": ["bmx", "halfpipe", "aerial", "trick", "outdoor"],
+      "section_type": "action",
+      "section_label": "BMX halfpipe 360 spin",
+      "keywords": ["BMX", "halfpipe", "360", "aerial", "trick", "spin", "extreme-sports"],
+      "emotion": "excitement",
+      "emotion_intensity": 9,
+      "attention_score": 9,
+      "camera_shot": "wide",
+      "motion_type": "tracking",
+      "color_grading": "vibrant",
+      "lighting_style": "natural",
       "has_text_overlay": false,
       "has_face": false,
-      "has_product": true
+      "has_product": false,
+      "has_speech": false
     }},
     {{
       "timestamp_start": 3.5,
       "timestamp_end": 8.0,
-      "visual_description": "Young woman in her 20s smiling at camera in a modern office. Speaking enthusiastically with hand gestures. Ring light visible in eye reflection.",
-      "action_tags": ["testimonial", "female", "office", "speaking", "enthusiastic"],
-      "scene_type": "testimonial",
+      "visual_description": "Young woman smiling at camera in modern office, speaking enthusiastically...",
+      "detailed_breakdown": "Woman looks directly at camera with bright smile (0.0s). She begins speaking with an enthusiastic tone (0.2s), gesturing with her right hand. Her expression intensifies as she says 'completely changed' (1.0s), leaning slightly forward for emphasis. Brief pause with maintained eye contact (1.8s). She raises eyebrows while saying 'guarantee' (2.2s), adding credibility. Finishes with a warm, confident nod (3.5s) and slight head tilt suggesting sincerity.",
+      "action_tags": ["testimonial", "female", "office", "speaking"],
+      "section_type": "testimonial",
+      "section_label": "Customer review testimonial",
+      "keywords": ["testimonial", "review", "customer", "guarantee", "recommendation"],
       "emotion": "excitement",
+      "emotion_intensity": 8,
+      "attention_score": 7,
       "camera_shot": "medium",
       "motion_type": "static",
+      "color_grading": "neutral",
+      "lighting_style": "ring-light",
       "has_text_overlay": false,
       "has_face": true,
-      "has_product": false
+      "has_product": false,
+      "has_speech": true
     }}
   ]
 }}
 
-CRITICAL INSTRUCTIONS:
+================================================================================
+CRITICAL INSTRUCTIONS
+================================================================================
 - Be EXHAUSTIVE - capture EVERY distinct visual moment
 - Timestamps must be precise and non-overlapping
-- Descriptions should be search-friendly (avoid vague language like "something" or "stuff")
-- Tags should be lowercase, hyphenated for multi-word (e.g., "product-demo")
+- Descriptions should be search-friendly (avoid vague language)
+- Tags should be lowercase, hyphenated for multi-word
+- ALWAYS provide both section_type AND section_label for every segment
+- keywords should include ALL relevant topic terms, not just persuasive words
+- PROVIDE GLOBAL SRT SUBTITLES at video level with ALL spoken content
 - Include ALL segments, even brief transitions or text cards
 - Return ONLY valid JSON, no markdown formatting
 """
@@ -245,6 +344,18 @@ class UserContentAnalyzer:
                 has_text_overlay=seg_data.get("has_text_overlay", False),
                 has_face=seg_data.get("has_face", False),
                 has_product=seg_data.get("has_product", False),
+                # Per-segment speech flag (transcript populated from global SRT by task)
+                has_speech=seg_data.get("has_speech", False),
+                # V2 analysis fields (Sprint 5 s5-t7)
+                section_type=seg_data.get("section_type"),
+                section_label=seg_data.get("section_label"),
+                attention_score=self._clamp_score(seg_data.get("attention_score")),
+                emotion_intensity=self._clamp_score(seg_data.get("emotion_intensity")),
+                color_grading=seg_data.get("color_grading"),
+                lighting_style=seg_data.get("lighting_style"),
+                keywords=seg_data.get("keywords"),
+                # Rich narrative breakdown - can add parsing later if needed
+                detailed_breakdown=seg_data.get("detailed_breakdown"),
             )
             # Calculate duration
             segment_duration = segment.timestamp_end - segment.timestamp_start
@@ -259,13 +370,25 @@ class UserContentAnalyzer:
             dominant_theme=raw.get("dominant_theme"),
             production_style=raw.get("production_style"),
             content_type=raw.get("content_type"),
+            # Global SRT subtitles for Remotion captions
+            srt_subtitles=raw.get("srt_subtitles"),
         )
+
+    def _clamp_score(self, value: Any) -> int | None:
+        """Clamp a score value to 1-10 range, return None if invalid."""
+        if value is None:
+            return None
+        try:
+            score = int(value)
+            return max(1, min(10, score))
+        except (TypeError, ValueError):
+            return None
 
     def _build_segment_text(self, segment: SegmentAnalysis) -> str:
         """
         Build rich text representation for embedding.
 
-        Combines visual description and tags for optimal semantic search matching.
+        Combines visual description, transcript, and metadata for optimal semantic search.
 
         Args:
             segment: The segment to build text for
@@ -275,17 +398,36 @@ class UserContentAnalyzer:
         """
         parts = [segment.visual_description]
 
+        # Include detailed breakdown for rich context (most important for embeddings)
+        if segment.detailed_breakdown:
+            parts.append(f"Details: {segment.detailed_breakdown}")
+
+        # Include section label for descriptive matching
+        if segment.section_label:
+            parts.append(f"Section: {segment.section_label}")
+
+        # Include transcript for speech-based matching
+        if segment.transcript_text:
+            parts.append(f"Speech: {segment.transcript_text}")
+
+        # Include keywords for topic matching
+        if segment.keywords:
+            parts.append(f"Keywords: {', '.join(segment.keywords)}")
+
         if segment.action_tags:
             parts.append(f"Actions: {', '.join(segment.action_tags)}")
 
-        if segment.scene_type:
-            parts.append(f"Scene type: {segment.scene_type}")
+        if segment.section_type:
+            parts.append(f"Type: {segment.section_type}")
 
         if segment.emotion:
             parts.append(f"Emotion: {segment.emotion}")
 
         if segment.camera_shot:
             parts.append(f"Camera: {segment.camera_shot}")
+
+        if segment.lighting_style:
+            parts.append(f"Lighting: {segment.lighting_style}")
 
         return " | ".join(parts)
 
@@ -348,13 +490,24 @@ class UserContentAnalyzer:
             # Analyze video
             analysis_result = await self.analyze_video(video_content, mime_type)
 
-            # Create segments
+            # Store global SRT subtitles on the project file
+            if analysis_result.srt_subtitles:
+                project_file.srt_content = analysis_result.srt_subtitles
+                logger.info(
+                    f"Stored SRT subtitles for file {project_file.id} "
+                    f"({len(analysis_result.srt_subtitles)} chars)"
+                )
+
+            # Create segments with all enhanced fields
+            total_segments = len(analysis_result.segments)
             created_segments = []
-            for segment_data in analysis_result.segments:
+
+            for idx, segment_data in enumerate(analysis_result.segments):
                 # Generate embedding for segment
                 embedding = await self.generate_segment_embedding(segment_data)
 
-                # Create segment record
+                # Create segment record with all enhanced fields
+                # Note: transcript_text and speaker_label are populated by post-processing task
                 segment = UserVideoSegment(
                     project_id=project_file.project_id,
                     source_file_id=project_file.id,
@@ -366,15 +519,48 @@ class UserContentAnalyzer:
                     visual_description=segment_data.visual_description,
                     action_tags=segment_data.action_tags,
                     embedding=embedding,
+                    # Clip ordering fields (Sprint 5 s5-t6)
+                    segment_index=idx,
+                    total_segments_in_source=total_segments,
+                    # V2 analysis fields (Sprint 5 s5-t7)
+                    section_type=segment_data.section_type,
+                    section_label=segment_data.section_label,
+                    attention_score=segment_data.attention_score,
+                    emotion_intensity=segment_data.emotion_intensity,
+                    color_grading=segment_data.color_grading,
+                    lighting_style=segment_data.lighting_style,
+                    has_speech=segment_data.has_speech,
+                    keywords=segment_data.keywords,
+                    # Rich narrative breakdown - can add parsing later if needed
+                    detailed_breakdown=segment_data.detailed_breakdown,
                 )
                 db.add(segment)
                 created_segments.append(segment)
+
+            # Flush to get IDs assigned
+            await db.flush()
+
+            # Set up doubly-linked list for clip ordering (Sprint 5 s5-t6)
+            for idx, segment in enumerate(created_segments):
+                if idx > 0:
+                    segment.previous_segment_id = created_segments[idx - 1].id
+                if idx < len(created_segments) - 1:
+                    segment.next_segment_id = created_segments[idx + 1].id
 
             # Update file status to completed
             project_file.status = ProjectFile.STATUS_COMPLETED
             await db.commit()
 
             logger.info(f"Created {len(created_segments)} segments for file {project_file.id}")
+
+            # Trigger post-processing task to populate transcript_text and speaker_label
+            # from the global SRT subtitles
+            if analysis_result.srt_subtitles:
+                from app.tasks.subtitle_tasks import process_segment_subtitles_task
+
+                process_segment_subtitles_task.delay(str(project_file.id))
+                logger.info(f"Queued subtitle processing task for file {project_file.id}")
+
             return created_segments
 
         except Exception as e:

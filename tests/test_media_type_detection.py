@@ -155,7 +155,7 @@ async def analyze_ad_page(url: str, expected_type: str) -> dict:
     """
     Analyze an ad page to understand what media elements are present.
     """
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Analyzing: {url}")
     print(f"Expected type: {expected_type}")
     print("=" * 80)

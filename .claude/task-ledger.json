@@ -497,13 +497,14 @@
       "sprint": 5,
       "title": "Add transcript extraction to video analysis",
       "description": "Extract full transcript with word-level timestamps for captions",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/enhanced-video-analysis",
+      "prNumber": 40,
       "parallelGroup": "B",
       "files": [
         "app/services/user_content_analyzer.py",
         "app/models/user_video_segment.py",
+        "app/schemas/user_video_segment.py",
         "alembic/versions/016_add_enhanced_analysis.py"
       ],
       "prdSection": "5.2 Enhanced Video Analysis",
@@ -514,12 +515,13 @@
       "sprint": 5,
       "title": "Add clip ordering (doubly-linked list)",
       "description": "Add previous_segment_id, next_segment_id, segment_index for sequence context",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/enhanced-video-analysis",
+      "prNumber": 40,
       "parallelGroup": "B",
       "files": [
         "app/models/user_video_segment.py",
+        "app/schemas/user_video_segment.py",
         "app/services/user_content_analyzer.py"
       ],
       "prdSection": "5.2 Enhanced Video Analysis",
@@ -530,14 +532,14 @@
       "sprint": 5,
       "title": "Add V2 analysis fields",
       "description": "Add beat_type, attention_score, emotion_intensity, power_words (shared with competitor analysis)",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/enhanced-video-analysis",
+      "prNumber": 40,
       "parallelGroup": "B",
       "files": [
         "app/services/user_content_analyzer.py",
-        "app/utils/prompts.py",
-        "app/models/user_video_segment.py"
+        "app/models/user_video_segment.py",
+        "app/schemas/user_video_segment.py"
       ],
       "prdSection": "5.2 Enhanced Video Analysis",
       "notes": "Match quality of competitor video analysis for user clips"

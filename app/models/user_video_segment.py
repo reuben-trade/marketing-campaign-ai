@@ -76,13 +76,20 @@ class UserVideoSegment(Base):
     # =========================================================================
     # V2 Analysis Fields - Sprint 5 s5-t7
     # =========================================================================
-    beat_type: Mapped[str | None] = mapped_column(String(30))
+    # Section classification (predefined list + other)
+    section_type: Mapped[str | None] = mapped_column(String(30))
+    # Descriptive label (always populated, e.g., "BMX halfpipe trick")
+    section_label: Mapped[str | None] = mapped_column(String(200))
     attention_score: Mapped[int | None] = mapped_column(Integer)  # 1-10
     emotion_intensity: Mapped[int | None] = mapped_column(Integer)  # 1-10
     color_grading: Mapped[str | None] = mapped_column(String(30))
     lighting_style: Mapped[str | None] = mapped_column(String(30))
     has_speech: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    power_words_detected: Mapped[list | None] = mapped_column(JSONB)
+    # Topic keywords + persuasive words (e.g., ["BMX", "trick", "outdoor", "guaranteed"])
+    keywords: Mapped[list | None] = mapped_column(JSONB)
+    # Rich narrative breakdown with embedded timestamps for Director agent decisions
+    # NOTE: Can add parsing later if we need structured format - timestamps must be accurate
+    detailed_breakdown: Mapped[str | None] = mapped_column(Text)
 
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(

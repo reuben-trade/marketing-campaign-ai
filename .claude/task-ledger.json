@@ -431,16 +431,18 @@
       "sprint": 5,
       "title": "BRollOverlay Remotion component",
       "description": "Create component for video-over-video with main audio continuity (J-Cut/L-Cut support)",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/broll-overlay-component",
       "prNumber": null,
       "parallelGroup": "A",
       "files": [
         "remotion/src/components/BRollOverlay.tsx",
-        "remotion/src/types.ts"
+        "remotion/src/types.ts",
+        "remotion/src/components/index.ts",
+        "app/schemas/remotion_payload.py"
       ],
       "prdSection": "5.3 Director Agent Refactor",
-      "notes": "Main audio continues while B-roll video overlays. Critical for professional edits."
+      "notes": "Implemented BRollOverlay component with: main video with audio, muted B-roll overlay, configurable timing (offset/duration), transition effects (fade default), picture-in-picture positioning (full/corners), opacity/scale controls. Backend schema updated with BRollOverlaySource and OverlayPosition. TypeScript types synced."
     },
     {
       "id": "s5-t2",

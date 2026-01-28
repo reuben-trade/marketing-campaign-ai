@@ -127,9 +127,6 @@ export const SplitScreen: React.FC<Props> = ({
   ) => {
     if (!label) return null;
 
-    const isTop = layout === 'vertical' && position === 'left';
-    const isBottom = layout === 'vertical' && position === 'right';
-
     return (
       <div
         style={{

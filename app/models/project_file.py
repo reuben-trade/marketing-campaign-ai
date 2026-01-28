@@ -39,6 +39,9 @@ class ProjectFile(Base):
     # Processing status: pending, processing, completed, failed
     status: Mapped[str] = mapped_column(String(50), default="pending")
 
+    # Global SRT subtitles for the entire video (used by Remotion for captions)
+    srt_content: Mapped[str | None] = mapped_column(Text)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

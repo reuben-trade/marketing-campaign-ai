@@ -51,9 +51,9 @@ class TestDuplicateDetectionWithUrls:
         distance = detector.hamming_distance(hash1, hash2)
         print(f"Hamming distance between duplicate URLs: {distance}")
 
-        assert detector.are_hashes_duplicate(
-            hash1, hash2
-        ), f"Known duplicate URLs not detected as duplicates. Distance: {distance}"
+        assert detector.are_hashes_duplicate(hash1, hash2), (
+            f"Known duplicate URLs not detected as duplicates. Distance: {distance}"
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not UNIQUE_URL or not DUPLICATE_URL_1, reason="No test URLs configured")

@@ -22,6 +22,7 @@ from app.schemas.project import (
     ProjectStats,
     ProjectUpdate,
     ProjectUploadResponse,
+    QuickCreateRequest,
     UploadFailure,
 )
 from app.schemas.remotion_payload import CompositionType, DirectorAgentInput
@@ -168,6 +169,117 @@ async def create_project(
     db.add(db_project)
     await db.commit()
     await db.refresh(db_project)
+
+    return await _build_project_response(db, db_project)
+
+
+@router.post(
+    "/quick-create",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        404: {"description": "Source project not found"},
+    },
+)
+async def quick_create_project(
+    db: DbSession,
+    request: QuickCreateRequest,
+) -> ProjectResponse:
+    """
+    Quick-create a project for the standalone editor.
+
+    This endpoint:
+    1. Auto-generates a project name based on timestamp
+    2. Optionally copies analyzed segments from source projects
+    3. Sets up inspiration ads for recipe extraction
+
+    **Use cases:**
+    - User opens /editor and wants to generate a video quickly
+    - User selects existing projects as clip sources instead of uploading
+    - User provides creative direction via user_prompt
+
+    **Returns:**
+    - Created project with auto-generated name
+    - If source_project_ids provided, segments are copied to new project
+    """
+    from datetime import datetime as dt
+
+    # Auto-generate project name
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+    auto_name = f"Quick Project {timestamp}"
+
+    # Convert inspiration_ad_ids to JSONB format
+    inspiration_ads_json = None
+    if request.inspiration_ad_ids:
+        inspiration_ads_json = [str(ad_id) for ad_id in request.inspiration_ad_ids]
+
+    # Create the project
+    db_project = Project(
+        name=auto_name,
+        brand_profile_id=request.brand_profile_id,
+        user_prompt=request.user_prompt,
+        inspiration_ads=inspiration_ads_json,
+        max_videos=20,  # Higher limit for quick projects with multiple sources
+        max_total_size_mb=1000,  # Higher limit for combined sources
+        status=Project.STATUS_DRAFT,
+    )
+    db.add(db_project)
+    await db.flush()  # Get the project ID before copying segments
+
+    # Copy segments from source projects if provided
+    if request.source_project_ids:
+        for source_project_id in request.source_project_ids:
+            # Verify source project exists
+            source_result = await db.execute(select(Project).where(Project.id == source_project_id))
+            source_project = source_result.scalar_one_or_none()
+
+            if not source_project:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Source project {source_project_id} not found",
+                )
+
+            # Copy segments from source project to new project
+            source_segments = await db.execute(
+                select(UserVideoSegment).where(UserVideoSegment.project_id == source_project_id)
+            )
+            for segment in source_segments.scalars().all():
+                # Create a copy of the segment for the new project
+                new_segment = UserVideoSegment(
+                    project_id=db_project.id,
+                    source_file_id=segment.source_file_id,
+                    source_file_name=segment.source_file_name,
+                    source_file_url=segment.source_file_url,
+                    timestamp_start=segment.timestamp_start,
+                    timestamp_end=segment.timestamp_end,
+                    duration_seconds=segment.duration_seconds,
+                    visual_description=segment.visual_description,
+                    action_tags=segment.action_tags,
+                    thumbnail_url=segment.thumbnail_url,
+                    embedding=segment.embedding,
+                    # Enhanced analysis fields (V2)
+                    transcript_text=segment.transcript_text,
+                    transcript_words=segment.transcript_words,
+                    speaker_label=segment.speaker_label,
+                    previous_segment_id=None,  # Reset ordering for new project
+                    next_segment_id=None,
+                    segment_index=segment.segment_index,
+                    section_type=segment.section_type,
+                    section_label=segment.section_label,
+                    attention_score=segment.attention_score,
+                    emotion_intensity=segment.emotion_intensity,
+                    power_words=segment.power_words,
+                    detailed_breakdown=segment.detailed_breakdown,
+                )
+                db.add(new_segment)
+
+    await db.commit()
+    await db.refresh(db_project)
+
+    logger.info(
+        f"Quick-created project {db_project.id} "
+        f"from {len(request.source_project_ids or [])} source projects"
+    )
 
     return await _build_project_response(db, db_project)
 

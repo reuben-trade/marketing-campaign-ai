@@ -598,8 +598,8 @@
       "sprint": 5,
       "title": "Create quick-create project API",
       "description": "POST /api/projects/quick-create for standalone editor",
-      "status": "pending",
-      "branch": null,
+      "status": "in_progress",
+      "branch": "feature/quick-create-project-api",
       "prNumber": null,
       "parallelGroup": "D",
       "files": [

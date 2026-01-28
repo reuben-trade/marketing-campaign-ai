@@ -577,9 +577,9 @@
       "sprint": 5,
       "title": "Update navigation sidebar",
       "description": "Add /editor (prominent) and /onboarding to navigation",
-      "status": "in_progress",
+      "status": "completed",
       "branch": "feature/navigation-sidebar-update",
-      "prNumber": null,
+      "prNumber": 44,
       "parallelGroup": "D",
       "files": [
         "frontend/src/components/layout/Sidebar.tsx",

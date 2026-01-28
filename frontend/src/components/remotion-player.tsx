@@ -120,7 +120,30 @@ const SegmentRenderer: React.FC<SegmentRendererProps> = ({ segment }) => {
   const renderContent = () => {
     switch (segment.type) {
       case 'video_clip':
-        if (!segment.source) return null;
+        if (!segment.source?.url) {
+          // Show placeholder for video clips without a valid URL
+          return (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#1a1a1a',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '10%',
+              }}
+            >
+              <div style={{ color: '#888', fontSize: 24, textAlign: 'center' }}>
+                Video Pending
+              </div>
+              <div style={{ color: '#666', fontSize: 16, marginTop: 10, textAlign: 'center' }}>
+                {segment.search_query || 'No video source available'}
+              </div>
+            </div>
+          );
+        }
         return (
           <Video
             src={segment.source.url}

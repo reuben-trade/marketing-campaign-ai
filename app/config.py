@@ -111,6 +111,32 @@ class Settings(BaseSettings):
         """Check if Remotion Lambda is configured."""
         return bool(self.remotion_aws_region and self.remotion_function_name)
 
+    # Veo 2 B-Roll Generation
+    veo_enabled: bool = Field(
+        default=True,
+        description="Enable Veo 2 B-Roll generation (uses GOOGLE_API_KEY)",
+    )
+    veo_model: str = Field(
+        default="veo-2.0-generate-001",
+        description="Veo model name for video generation",
+    )
+    veo_max_variants: int = Field(
+        default=4,
+        description="Maximum number of variants allowed per generation",
+    )
+    veo_max_duration_seconds: int = Field(
+        default=10,
+        description="Maximum duration allowed for generated clips",
+    )
+    veo_rate_limit_per_minute: int = Field(
+        default=10,
+        description="Rate limit for Veo 2 API calls per minute",
+    )
+    veo_prompt_model: str = Field(
+        default="gemini-2.0-flash",
+        description="Model to use for prompt enhancement",
+    )
+
     # Server Configuration
     port: int = Field(
         default=8000,

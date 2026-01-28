@@ -4,4 +4,5 @@ export { TextSlideSegment } from './TextSlideSegment';
 export { BRollSegment } from './BRollSegment';
 export { BRollOverlay } from './BRollOverlay';
 export { TitleCard } from './TitleCard';
+export { CaptionOverlay } from './CaptionOverlay';
 export { AudioTrackComponent } from './AudioTrack';

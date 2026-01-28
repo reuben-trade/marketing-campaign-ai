@@ -176,12 +176,109 @@ class TitleCardLogoPosition(str, Enum):
     BEHIND = "behind"
 
 
+class CaptionStyle(str, Enum):
+    """Style variants for caption overlays."""
+
+    MINIMAL = "minimal"
+    BAR = "bar"
+    KARAOKE = "karaoke"
+
+
+class CaptionPosition(str, Enum):
+    """Position options for caption overlays."""
+
+    TOP = "top"
+    CENTER = "center"
+    BOTTOM = "bottom"
+
+
+class SpeakerTagStyle(str, Enum):
+    """How to handle speaker tags like [Speaker 1]: in SRT content."""
+
+    HIDDEN = "hidden"
+    DIMMED = "dimmed"
+    COLORED = "colored"
+
+
 class BackgroundGradient(BaseModel):
     """Background gradient configuration."""
 
     start_color: str = Field(..., description="Gradient start color in hex")
     end_color: str = Field(..., description="Gradient end color in hex")
     angle: int = Field(default=135, ge=0, le=360, description="Gradient angle in degrees")
+
+
+class CaptionOverlayConfig(BaseModel):
+    """Configuration for caption overlay display.
+
+    Parses SRT content and displays captions synced to video clips.
+
+    The Remotion component handles:
+    1. Parsing SRT content into cues
+    2. Filtering cues by clip time range (clip_timestamp_start to clip_timestamp_end)
+    3. Offsetting timestamps to timeline position
+    4. Optionally stripping/styling speaker tags
+    """
+
+    # SRT content (full SRT for the source video)
+    srt_content: str = Field(
+        ...,
+        description="Full SRT content for the source video",
+    )
+
+    # Clip timing - defines which portion of SRT to show
+    # These map to source.start_time and source.end_time of the video clip
+    clip_timestamp_start: float = Field(
+        ...,
+        ge=0,
+        description="Source video in-point (seconds)",
+    )
+    clip_timestamp_end: float = Field(
+        ...,
+        description="Source video out-point (seconds)",
+    )
+
+    # Display settings
+    style: CaptionStyle = Field(
+        default=CaptionStyle.MINIMAL,
+        description="Caption display style (minimal, bar, karaoke)",
+    )
+    position: CaptionPosition = Field(
+        default=CaptionPosition.BOTTOM,
+        description="Position on screen",
+    )
+
+    # Speaker tag handling
+    speaker_tag_style: SpeakerTagStyle = Field(
+        default=SpeakerTagStyle.HIDDEN,
+        description="How to handle [Speaker X]: tags in captions",
+    )
+
+    # Text styling
+    font_size: int = Field(
+        default=48,
+        ge=12,
+        le=120,
+        description="Font size in pixels",
+    )
+    font_family: str | None = Field(
+        default=None,
+        description="Font family (uses brand profile if not specified)",
+    )
+    text_color: str = Field(
+        default="#FFFFFF",
+        description="Text color in hex format",
+    )
+    background_color: str = Field(
+        default="#000000",
+        description="Background color for bar style",
+    )
+    background_opacity: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Background opacity for bar style",
+    )
 
 
 class TitleCardContent(BaseModel):
@@ -319,6 +416,12 @@ class TimelineSegment(BaseModel):
 
     # Visual overlays
     overlay: TextOverlay | None = Field(default=None, description="Text overlay on this segment")
+
+    # Caption overlay configuration for word-level synced captions
+    caption_overlay: "CaptionOverlayConfig | None" = Field(
+        default=None,
+        description="Caption overlay configuration for timestamped captions",
+    )
 
     # Transitions
     transition_in: Transition | None = Field(default=None, description="Transition from previous")

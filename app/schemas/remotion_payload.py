@@ -22,6 +22,7 @@ class SegmentType(str, Enum):
     GENERATED_BROLL = "generated_broll"
     TEXT_SLIDE = "text_slide"
     BROLL_OVERLAY = "b_roll_overlay"
+    TITLE_CARD = "title_card"
 
 
 class OverlayPosition(str, Enum):
@@ -146,6 +147,91 @@ class TextSlideContent(BaseModel):
     text_color: str = Field(default="#FFFFFF", description="Text color in hex")
 
 
+class TitleAnimation(str, Enum):
+    """Animation styles for title card text elements."""
+
+    FADE_UP = "fade_up"
+    FADE_DOWN = "fade_down"
+    SCALE_IN = "scale_in"
+    SLIDE_LEFT = "slide_left"
+    SLIDE_RIGHT = "slide_right"
+    TYPEWRITER = "typewriter"
+    NONE = "none"
+
+
+class TitleCardLayout(str, Enum):
+    """Layout styles for title cards."""
+
+    CENTERED = "centered"
+    LEFT_ALIGNED = "left_aligned"
+    RIGHT_ALIGNED = "right_aligned"
+    STACKED = "stacked"
+
+
+class TitleCardLogoPosition(str, Enum):
+    """Logo position options for title cards."""
+
+    TOP = "top"
+    BOTTOM = "bottom"
+    BEHIND = "behind"
+
+
+class BackgroundGradient(BaseModel):
+    """Background gradient configuration."""
+
+    start_color: str = Field(..., description="Gradient start color in hex")
+    end_color: str = Field(..., description="Gradient end color in hex")
+    angle: int = Field(default=135, ge=0, le=360, description="Gradient angle in degrees")
+
+
+class TitleCardContent(BaseModel):
+    """Content for a title card segment.
+
+    Title cards are animated text screens with branding support,
+    featuring headline + subheadline with professional animations.
+    """
+
+    headline: str = Field(..., description="Main headline text")
+    subheadline: str | None = Field(default=None, description="Optional subheadline")
+    tagline: str | None = Field(default=None, description="Optional tagline with accent")
+    background_color: str = Field(
+        default="#1a1a2e",
+        description="Background color in hex (used if no gradient)",
+    )
+    text_color: str = Field(default="#FFFFFF", description="Text color in hex")
+    accent_color: str | None = Field(
+        default=None,
+        description="Accent color for tagline and decorative elements",
+    )
+    animation: TitleAnimation = Field(
+        default=TitleAnimation.FADE_UP,
+        description="Animation style for text entrance",
+    )
+    layout: TitleCardLayout = Field(
+        default=TitleCardLayout.CENTERED,
+        description="Layout alignment for content",
+    )
+    show_logo: bool = Field(default=True, description="Whether to show brand logo")
+    logo_position: TitleCardLogoPosition = Field(
+        default=TitleCardLogoPosition.BOTTOM,
+        description="Logo placement position",
+    )
+    background_gradient: BackgroundGradient | None = Field(
+        default=None,
+        description="Optional gradient background (overrides background_color)",
+    )
+    background_image_url: str | None = Field(
+        default=None,
+        description="Optional background image URL",
+    )
+    background_image_opacity: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Opacity of background image (0-1)",
+    )
+
+
 class BRollOverlaySource(BaseModel):
     """Source configuration for B-Roll overlay (J-Cut/L-Cut editing).
 
@@ -225,6 +311,10 @@ class TimelineSegment(BaseModel):
     broll_overlay_source: BRollOverlaySource | None = Field(
         default=None,
         description="Source for b_roll_overlay type (J-Cut/L-Cut)",
+    )
+    title_card_content: "TitleCardContent | None" = Field(
+        default=None,
+        description="Content for title_card type (animated title screen)",
     )
 
     # Visual overlays

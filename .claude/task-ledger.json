@@ -467,15 +467,18 @@
       "sprint": 5,
       "title": "CaptionOverlay Remotion component",
       "description": "Create timestamped caption component synced to transcript_words",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/caption-overlay-component",
       "prNumber": null,
       "parallelGroup": "A",
       "files": [
-        "remotion/src/components/CaptionOverlay.tsx"
+        "remotion/src/components/CaptionOverlay.tsx",
+        "remotion/src/types.ts",
+        "remotion/src/components/index.ts",
+        "app/schemas/remotion_payload.py"
       ],
       "prdSection": "5.3 Director Agent Refactor",
-      "notes": "Word-level sync, power word highlighting, multiple styles (minimal, bar, karaoke)"
+      "notes": "Implemented CaptionOverlay component with: word-level sync via transcript_words, sentence-level captions support, 3 styles (minimal, bar, karaoke), power word highlighting, configurable position (top/center/bottom), word animations (pop/fade/none), brand profile integration. Backend schema updated with CaptionOverlayConfig, TranscriptWord, CaptionEntry, CaptionStyle, CaptionPosition, CaptionWordAnimation. TypeScript types synced."
     },
     {
       "id": "s5-t4",

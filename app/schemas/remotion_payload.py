@@ -23,6 +23,7 @@ class SegmentType(str, Enum):
     TEXT_SLIDE = "text_slide"
     BROLL_OVERLAY = "b_roll_overlay"
     TITLE_CARD = "title_card"
+    CAPTION_OVERLAY = "caption_overlay"
 
 
 class OverlayPosition(str, Enum):
@@ -176,12 +177,133 @@ class TitleCardLogoPosition(str, Enum):
     BEHIND = "behind"
 
 
+class CaptionStyle(str, Enum):
+    """Style variants for caption overlays."""
+
+    MINIMAL = "minimal"
+    BAR = "bar"
+    KARAOKE = "karaoke"
+
+
+class CaptionPosition(str, Enum):
+    """Position options for caption overlays."""
+
+    TOP = "top"
+    CENTER = "center"
+    BOTTOM = "bottom"
+
+
+class CaptionWordAnimation(str, Enum):
+    """Word animation options for captions."""
+
+    NONE = "none"
+    POP = "pop"
+    FADE = "fade"
+
+
 class BackgroundGradient(BaseModel):
     """Background gradient configuration."""
 
     start_color: str = Field(..., description="Gradient start color in hex")
     end_color: str = Field(..., description="Gradient end color in hex")
     angle: int = Field(default=135, ge=0, le=360, description="Gradient angle in degrees")
+
+
+class TranscriptWord(BaseModel):
+    """A single word with timestamp information for word-level sync."""
+
+    word: str = Field(..., description="The word text")
+    start: float = Field(..., ge=0, description="Start time in seconds")
+    end: float = Field(..., description="End time in seconds")
+
+
+class CaptionEntry(BaseModel):
+    """A single caption entry with timing and optional highlighting."""
+
+    text: str = Field(..., description="Caption text")
+    start_time: float = Field(..., ge=0, description="Start time in seconds")
+    end_time: float = Field(..., description="End time in seconds")
+    highlight_words: list[str] | None = Field(
+        default=None,
+        description="Power words to highlight within this caption",
+    )
+
+
+class CaptionOverlayConfig(BaseModel):
+    """Configuration for caption overlay display.
+
+    Supports word-level sync, power word highlighting, and multiple styles.
+    Can be used with either transcript_words (word-level sync) or captions
+    (sentence-level sync).
+    """
+
+    # Caption content - one of these should be provided
+    captions: list[CaptionEntry] | None = Field(
+        default=None,
+        description="Caption entries with timing (sentence-level)",
+    )
+    transcript_words: list[TranscriptWord] | None = Field(
+        default=None,
+        description="Word-level transcript for precise sync",
+    )
+
+    # Display settings
+    style: CaptionStyle = Field(
+        default=CaptionStyle.MINIMAL,
+        description="Caption display style (minimal, bar, karaoke)",
+    )
+    position: CaptionPosition = Field(
+        default=CaptionPosition.BOTTOM,
+        description="Position on screen",
+    )
+    max_words_per_line: int = Field(
+        default=5,
+        ge=1,
+        le=15,
+        description="Maximum words to display per line",
+    )
+
+    # Text styling
+    font_size: int = Field(
+        default=48,
+        ge=12,
+        le=120,
+        description="Font size in pixels",
+    )
+    font_family: str | None = Field(
+        default=None,
+        description="Font family (uses brand profile if not specified)",
+    )
+    text_color: str = Field(
+        default="#FFFFFF",
+        description="Text color in hex format",
+    )
+    highlight_color: str | None = Field(
+        default="#FFD700",
+        description="Color for highlighted/power words",
+    )
+    background_color: str = Field(
+        default="#000000",
+        description="Background color for bar style",
+    )
+    background_opacity: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Background opacity for bar style",
+    )
+
+    # Animation
+    word_animation: CaptionWordAnimation = Field(
+        default=CaptionWordAnimation.POP,
+        description="Animation style for word appearance",
+    )
+
+    # Additional power words to highlight
+    power_words: list[str] | None = Field(
+        default=None,
+        description="Global power words to highlight across all captions",
+    )
 
 
 class TitleCardContent(BaseModel):
@@ -319,6 +441,12 @@ class TimelineSegment(BaseModel):
 
     # Visual overlays
     overlay: TextOverlay | None = Field(default=None, description="Text overlay on this segment")
+
+    # Caption overlay configuration for word-level synced captions
+    caption_overlay: "CaptionOverlayConfig | None" = Field(
+        default=None,
+        description="Caption overlay configuration for timestamped captions",
+    )
 
     # Transitions
     transition_in: Transition | None = Field(default=None, description="Transition from previous")

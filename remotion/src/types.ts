@@ -10,7 +10,8 @@ export type SegmentType =
   | 'generated_broll'
   | 'text_slide'
   | 'b_roll_overlay'
-  | 'title_card';
+  | 'title_card'
+  | 'caption_overlay';
 
 export type TransitionType =
   | 'cut'
@@ -92,6 +93,64 @@ export type TitleAnimation =
 export type TitleCardLayout = 'centered' | 'left_aligned' | 'right_aligned' | 'stacked';
 
 /**
+ * Style variants for caption overlays.
+ */
+export type CaptionStyle = 'minimal' | 'bar' | 'karaoke';
+
+/**
+ * Position options for captions.
+ */
+export type CaptionPosition = 'top' | 'center' | 'bottom';
+
+/**
+ * A single word with timestamp information for word-level sync.
+ */
+export interface TranscriptWord {
+  word: string;
+  start: number; // Start time in seconds
+  end: number; // End time in seconds
+}
+
+/**
+ * A single caption entry with timing and optional highlighting.
+ */
+export interface CaptionEntry {
+  text: string;
+  start_time: number; // Start time in seconds
+  end_time: number; // End time in seconds
+  highlight_words?: string[] | null; // Power words to highlight
+}
+
+/**
+ * Configuration for caption overlay display.
+ * Supports word-level sync, power word highlighting, and multiple styles.
+ */
+export interface CaptionOverlayConfig {
+  // Caption content - either captions array or transcript_words for word-level sync
+  captions?: CaptionEntry[] | null;
+  transcript_words?: TranscriptWord[] | null;
+
+  // Display settings
+  style?: CaptionStyle;
+  position?: CaptionPosition;
+  max_words_per_line?: number; // For word-level display (default 5)
+
+  // Text styling
+  font_size?: number;
+  font_family?: string;
+  text_color?: string;
+  highlight_color?: string; // Color for power words
+  background_color?: string; // Background for bar style
+  background_opacity?: number;
+
+  // Animation
+  word_animation?: 'none' | 'pop' | 'fade';
+
+  // Additional power words to highlight (in addition to per-caption highlights)
+  power_words?: string[] | null;
+}
+
+/**
  * Content for a title card segment.
  * Title cards are animated text screens with branding support.
  */
@@ -153,6 +212,9 @@ export interface TimelineSegment {
 
   // Visual overlays
   overlay?: TextOverlay | null;
+
+  // Caption overlay configuration for word-level synced captions
+  caption_overlay?: CaptionOverlayConfig | null;
 
   // Transitions
   transition_in?: Transition | null;

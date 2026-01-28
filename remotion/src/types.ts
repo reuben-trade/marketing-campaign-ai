@@ -92,6 +92,55 @@ export type TitleAnimation =
 export type TitleCardLayout = 'centered' | 'left_aligned' | 'right_aligned' | 'stacked';
 
 /**
+ * Style variants for caption overlays.
+ */
+export type CaptionStyle = 'minimal' | 'bar' | 'karaoke';
+
+/**
+ * Position options for captions.
+ */
+export type CaptionPosition = 'top' | 'center' | 'bottom';
+
+/**
+ * How to handle speaker tags like [Speaker 1]: in SRT content.
+ */
+export type SpeakerTagStyle = 'hidden' | 'dimmed' | 'colored';
+
+/**
+ * Configuration for caption overlay display.
+ * Parses SRT content and displays captions synced to video clips.
+ *
+ * The component handles:
+ * 1. Parsing SRT content into cues
+ * 2. Filtering cues by clip time range (clipTimestampStart to clipTimestampEnd)
+ * 3. Offsetting timestamps to timeline position
+ * 4. Optionally stripping/styling speaker tags
+ */
+export interface CaptionOverlayConfig {
+  // SRT content (full SRT for the source video)
+  srt_content: string;
+
+  // Clip timing - defines which portion of SRT to show
+  // These map to source.start_time and source.end_time of the video clip
+  clip_timestamp_start: number; // Source video in-point (seconds)
+  clip_timestamp_end: number; // Source video out-point (seconds)
+
+  // Display settings
+  style?: CaptionStyle;
+  position?: CaptionPosition;
+
+  // Speaker tag handling
+  speaker_tag_style?: SpeakerTagStyle; // Default: 'hidden' (strip tags)
+
+  // Text styling
+  font_size?: number;
+  font_family?: string;
+  text_color?: string;
+  background_color?: string; // Background for bar style
+  background_opacity?: number;
+}
+
+/**
  * Content for a title card segment.
  * Title cards are animated text screens with branding support.
  */
@@ -153,6 +202,9 @@ export interface TimelineSegment {
 
   // Visual overlays
   overlay?: TextOverlay | null;
+
+  // Caption overlay configuration for word-level synced captions
+  caption_overlay?: CaptionOverlayConfig | null;
 
   // Transitions
   transition_in?: Transition | null;

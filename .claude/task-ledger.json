@@ -467,15 +467,18 @@
       "sprint": 5,
       "title": "CaptionOverlay Remotion component",
       "description": "Create timestamped caption component synced to transcript_words",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/caption-overlay-component",
+      "prNumber": 42,
       "parallelGroup": "A",
       "files": [
-        "remotion/src/components/CaptionOverlay.tsx"
+        "remotion/src/components/CaptionOverlay.tsx",
+        "remotion/src/types.ts",
+        "remotion/src/components/index.ts",
+        "app/schemas/remotion_payload.py"
       ],
       "prdSection": "5.3 Director Agent Refactor",
-      "notes": "Word-level sync, power word highlighting, multiple styles (minimal, bar, karaoke)"
+      "notes": "Implemented CaptionOverlay component with SRT-based approach: parses SRT content using @remotion/captions, filters cues by clip time range, offsets timestamps to timeline position, handles speaker tags (hidden/dimmed/colored). 3 display styles (minimal, bar, karaoke) with cue-level animation. Backend schema: CaptionOverlayConfig with srt_content, clip timing, SpeakerTagStyle. GitHub issue #43 created for @remotion/whisper investigation."
     },
     {
       "id": "s5-t4",

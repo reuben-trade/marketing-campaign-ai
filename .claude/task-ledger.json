@@ -469,7 +469,7 @@
       "description": "Create timestamped caption component synced to transcript_words",
       "status": "completed",
       "branch": "feature/caption-overlay-component",
-      "prNumber": null,
+      "prNumber": 42,
       "parallelGroup": "A",
       "files": [
         "remotion/src/components/CaptionOverlay.tsx",

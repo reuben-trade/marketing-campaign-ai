@@ -23,6 +23,7 @@ class SegmentType(str, Enum):
     TEXT_SLIDE = "text_slide"
     BROLL_OVERLAY = "b_roll_overlay"
     TITLE_CARD = "title_card"
+    SPLIT_SCREEN = "split_screen"
 
 
 class OverlayPosition(str, Enum):
@@ -200,6 +201,31 @@ class SpeakerTagStyle(str, Enum):
     COLORED = "colored"
 
 
+class SplitScreenLayout(str, Enum):
+    """Layout options for split screen."""
+
+    HORIZONTAL = "horizontal"  # Left/right split
+    VERTICAL = "vertical"  # Top/bottom split
+    PIP = "pip"  # Picture-in-picture
+
+
+class SplitScreenAudioSource(str, Enum):
+    """Which side of the split screen provides audio."""
+
+    LEFT = "left"
+    RIGHT = "right"
+    NONE = "none"
+
+
+class PipPosition(str, Enum):
+    """Position for picture-in-picture overlay."""
+
+    TOP_LEFT = "top-left"
+    TOP_RIGHT = "top-right"
+    BOTTOM_LEFT = "bottom-left"
+    BOTTOM_RIGHT = "bottom-right"
+
+
 class BackgroundGradient(BaseModel):
     """Background gradient configuration."""
 
@@ -278,6 +304,89 @@ class CaptionOverlayConfig(BaseModel):
         ge=0.0,
         le=1.0,
         description="Background opacity for bar style",
+    )
+
+
+class SplitScreenContent(BaseModel):
+    """Content for a split screen segment.
+
+    Displays two videos side-by-side for comparisons, before/after, etc.
+    Supports horizontal (left/right), vertical (top/bottom), and PiP layouts.
+    """
+
+    layout: SplitScreenLayout = Field(
+        ...,
+        description="Split layout: horizontal, vertical, or pip",
+    )
+
+    # Video sources (left/right for horizontal, top/bottom for vertical)
+    left_video: "VideoClipSource" = Field(
+        ...,
+        description="Left (or top/main) video source",
+    )
+    right_video: "VideoClipSource" = Field(
+        ...,
+        description="Right (or bottom/overlay) video source",
+    )
+
+    # Split configuration
+    split_ratio: float = Field(
+        default=0.5,
+        ge=0.1,
+        le=0.9,
+        description="Split ratio (0.0-1.0), default 0.5 for 50/50",
+    )
+
+    # Labels (optional, e.g., "BEFORE" / "AFTER")
+    left_label: str | None = Field(
+        default=None,
+        description="Label for left/top panel (e.g., 'BEFORE')",
+    )
+    right_label: str | None = Field(
+        default=None,
+        description="Label for right/bottom panel (e.g., 'AFTER')",
+    )
+    label_font_size: int = Field(
+        default=24,
+        ge=12,
+        le=72,
+        description="Font size for labels in pixels",
+    )
+    label_color: str = Field(
+        default="#FFFFFF",
+        description="Label text color in hex",
+    )
+    label_background: str | None = Field(
+        default="rgba(0,0,0,0.6)",
+        description="Label background color",
+    )
+
+    # Divider line between panels
+    show_divider: bool = Field(
+        default=False,
+        description="Show divider line between panels",
+    )
+    divider_width: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Divider line width in pixels",
+    )
+    divider_color: str = Field(
+        default="#FFFFFF",
+        description="Divider line color in hex",
+    )
+
+    # Audio source
+    audio_source: SplitScreenAudioSource = Field(
+        default=SplitScreenAudioSource.LEFT,
+        description="Which side provides audio (left, right, or none)",
+    )
+
+    # PiP-specific settings
+    pip_position: PipPosition = Field(
+        default=PipPosition.BOTTOM_RIGHT,
+        description="Position for PiP overlay",
     )
 
 
@@ -412,6 +521,10 @@ class TimelineSegment(BaseModel):
     title_card_content: "TitleCardContent | None" = Field(
         default=None,
         description="Content for title_card type (animated title screen)",
+    )
+    split_screen_content: "SplitScreenContent | None" = Field(
+        default=None,
+        description="Content for split_screen type (side-by-side comparisons)",
     )
 
     # Visual overlays

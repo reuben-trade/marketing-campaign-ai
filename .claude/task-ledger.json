@@ -577,8 +577,8 @@
       "sprint": 5,
       "title": "Update navigation sidebar",
       "description": "Add /editor (prominent) and /onboarding to navigation",
-      "status": "pending",
-      "branch": null,
+      "status": "in_progress",
+      "branch": "feature/navigation-sidebar-update",
       "prNumber": null,
       "parallelGroup": "D",
       "files": [

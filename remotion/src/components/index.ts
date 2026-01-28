@@ -5,4 +5,5 @@ export { BRollSegment } from './BRollSegment';
 export { BRollOverlay } from './BRollOverlay';
 export { TitleCard } from './TitleCard';
 export { CaptionOverlay } from './CaptionOverlay';
+export { SplitScreen } from './SplitScreen';
 export { AudioTrackComponent } from './AudioTrack';

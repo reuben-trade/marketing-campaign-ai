@@ -36,7 +36,7 @@ video into distinct, reusable clips with rich metadata - like YouTube chapters b
 ANALYSIS GOALS
 ================================================================================
 1. Segment the video at natural cut points (scene changes, camera moves, content shifts)
-2. Extract FULL TRANSCRIPT with word-level timestamps for caption generation
+2. Extract GLOBAL SUBTITLES in SRT format for the entire video (used for Remotion captions)
 3. Classify each segment with a section type AND descriptive label
 4. Extract relevant keywords (topic terms + any persuasive words)
 5. Provide quality scores for intelligent clip selection
@@ -48,6 +48,25 @@ SEGMENT IDENTIFICATION RULES
 - Maximum segment length: 15 seconds (break longer scenes into smaller units)
 - Segment boundaries should be at natural cut points
 - Each segment should be describable as a single, coherent visual idea
+
+================================================================================
+GLOBAL SUBTITLES (at video level, NOT per segment)
+================================================================================
+Provide full video subtitles in SRT format. This will be used for Remotion animated captions.
+Format: Standard SRT with numbered entries, timestamps (HH:MM:SS,mmm --> HH:MM:SS,mmm), and text.
+- 2-4 second chunks per subtitle
+- Natural phrase boundaries
+- Include ALL spoken content
+- For multi-speaker videos, prefix each line with speaker tag: [Speaker 1]: text
+
+Example SRT format:
+1
+00:00:00,000 --> 00:00:03,500
+[Speaker 1]: This product completely changed my life
+
+2
+00:00:03,500 --> 00:00:06,000
+[Speaker 1]: I guarantee you'll love it
 
 ================================================================================
 FOR EACH SEGMENT, PROVIDE:
@@ -101,32 +120,25 @@ FOR EACH SEGMENT, PROVIDE:
    absorb impact. Clean landing (2.2s) with both wheels touching down, followed by a small
    celebratory fist pump (2.5s)."
 
-**TRANSCRIPT (CRITICAL FOR CAPTIONS):**
-8. transcript_text: Full verbatim transcript of ALL speech in this segment
-9. transcript_words: Array of word-level timestamps for caption sync:
-   [{{"word": "Hey", "start": 0.0, "end": 0.3}}, {{"word": "guys", "start": 0.35, "end": 0.6}}]
-10. speaker_label: "speaker_1", "speaker_2", etc. for multi-speaker videos
-11. has_speech: true/false - whether segment contains spoken words
+**SPEECH FLAG (per segment):**
+8. has_speech: true/false - whether segment contains spoken words
+   (The actual transcript is in the global srt_subtitles field, not per-segment)
 
 **QUALITY SCORES:**
-12. attention_score: 1-10 thumb-stop potential (how attention-grabbing is this?)
-13. emotion_intensity: 1-10 emotional impact level
-14. emotion: excitement | calm | urgency | trust | curiosity | joy | frustration | neutral
+9. attention_score: 1-10 thumb-stop potential (how attention-grabbing is this?)
+10. emotion_intensity: 1-10 emotional impact level
+11. emotion: excitement | calm | urgency | trust | curiosity | joy | frustration | neutral
 
 **CINEMATICS:**
-15. camera_shot: close-up | medium | wide | extreme-close-up | POV | over-shoulder
-16. motion_type: static | handheld | tracking | pan | zoom | dolly
-17. color_grading: warm | cool | neutral | high-contrast | desaturated | vibrant
-18. lighting_style: natural | studio | ring-light | golden-hour | harsh | soft | dramatic
+12. camera_shot: close-up | medium | wide | extreme-close-up | POV | over-shoulder
+13. motion_type: static | handheld | tracking | pan | zoom | dolly
+14. color_grading: warm | cool | neutral | high-contrast | desaturated | vibrant
+15. lighting_style: natural | studio | ring-light | golden-hour | harsh | soft | dramatic
 
 **CONTENT FLAGS:**
-19. has_text_overlay: true/false
-20. has_face: true/false
-21. has_product: true/false
-
-**LEGACY FIELD (for backwards compatibility):**
-22. scene_type: product_demo | testimonial | b_roll | unboxing | before_after |
-    text_slide | logo_end_card | transition | lifestyle | talking_head | hands_demo | screen_recording
+16. has_text_overlay: true/false
+17. has_face: true/false
+18. has_product: true/false
 
 ================================================================================
 VIDEO-LEVEL SUMMARY
@@ -136,6 +148,7 @@ VIDEO-LEVEL SUMMARY
 - Key subjects/products visible
 - Dominant mood/tone
 - Total duration
+- Global SRT subtitles for all spoken content
 
 ================================================================================
 RETURN THIS EXACT JSON STRUCTURE:
@@ -146,7 +159,8 @@ RETURN THIS EXACT JSON STRUCTURE:
   "total_duration_seconds": 30.0,
   "dominant_theme": "product showcase | testimonial | lifestyle | demo | tutorial | unboxing | sports | entertainment | other",
   "production_style": "UGC | professional | hybrid | screen_recording",
-  "content_type": "demo | testimonial | lifestyle | b-roll | tutorial | unboxing | sports | entertainment | mixed",
+  "content_type": "demo | testimonial | lifestyle | b-roll | tutorial | unboxing | sports | entertainment | mixed | other",
+  "srt_subtitles": "1\\n00:00:03,500 --> 00:00:06,000\\n[Speaker 1]: This product completely changed my life\\n\\n2\\n00:00:06,000 --> 00:00:08,500\\n[Speaker 1]: I guarantee you'll love it",
   "segments": [
     {{
       "timestamp_start": 0.0,
@@ -154,7 +168,6 @@ RETURN THIS EXACT JSON STRUCTURE:
       "visual_description": "BMX rider approaches halfpipe ramp at speed, performs aerial 360 spin...",
       "detailed_breakdown": "The rider approaches the halfpipe ramp at moderate speed (0.0s), pedaling twice before reaching the edge. At the lip (0.8s), they launch upward with strong leg extension. Mid-air (1.2s), they initiate a backside 360 spin by turning their shoulders. The rotation continues (1.8s) as they reach peak height of approximately 6 feet. They spot the landing (2.4s) and prepare to absorb impact. Clean landing (2.9s) with both wheels touching down simultaneously, followed by a small celebratory fist pump (3.2s).",
       "action_tags": ["bmx", "halfpipe", "aerial", "trick", "outdoor"],
-      "scene_type": "b_roll",
       "section_type": "action",
       "section_label": "BMX halfpipe 360 spin",
       "keywords": ["BMX", "halfpipe", "360", "aerial", "trick", "spin", "extreme-sports"],
@@ -168,10 +181,7 @@ RETURN THIS EXACT JSON STRUCTURE:
       "has_text_overlay": false,
       "has_face": false,
       "has_product": false,
-      "has_speech": false,
-      "transcript_text": null,
-      "transcript_words": null,
-      "speaker_label": null
+      "has_speech": false
     }},
     {{
       "timestamp_start": 3.5,
@@ -179,7 +189,6 @@ RETURN THIS EXACT JSON STRUCTURE:
       "visual_description": "Young woman smiling at camera in modern office, speaking enthusiastically...",
       "detailed_breakdown": "Woman looks directly at camera with bright smile (0.0s). She begins speaking with an enthusiastic tone (0.2s), gesturing with her right hand. Her expression intensifies as she says 'completely changed' (1.0s), leaning slightly forward for emphasis. Brief pause with maintained eye contact (1.8s). She raises eyebrows while saying 'guarantee' (2.2s), adding credibility. Finishes with a warm, confident nod (3.5s) and slight head tilt suggesting sincerity.",
       "action_tags": ["testimonial", "female", "office", "speaking"],
-      "scene_type": "testimonial",
       "section_type": "testimonial",
       "section_label": "Customer review testimonial",
       "keywords": ["testimonial", "review", "customer", "guarantee", "recommendation"],
@@ -193,22 +202,7 @@ RETURN THIS EXACT JSON STRUCTURE:
       "has_text_overlay": false,
       "has_face": true,
       "has_product": false,
-      "has_speech": true,
-      "transcript_text": "This product completely changed my life, I guarantee you'll love it",
-      "transcript_words": [
-        {{"word": "This", "start": 0.0, "end": 0.2}},
-        {{"word": "product", "start": 0.25, "end": 0.6}},
-        {{"word": "completely", "start": 0.65, "end": 1.1}},
-        {{"word": "changed", "start": 1.15, "end": 1.45}},
-        {{"word": "my", "start": 1.5, "end": 1.65}},
-        {{"word": "life", "start": 1.7, "end": 2.0}},
-        {{"word": "I", "start": 2.1, "end": 2.2}},
-        {{"word": "guarantee", "start": 2.25, "end": 2.8}},
-        {{"word": "you'll", "start": 2.85, "end": 3.05}},
-        {{"word": "love", "start": 3.1, "end": 3.35}},
-        {{"word": "it", "start": 3.4, "end": 3.6}}
-      ],
-      "speaker_label": "speaker_1"
+      "has_speech": true
     }}
   ]
 }}
@@ -222,7 +216,7 @@ CRITICAL INSTRUCTIONS
 - Tags should be lowercase, hyphenated for multi-word
 - ALWAYS provide both section_type AND section_label for every segment
 - keywords should include ALL relevant topic terms, not just persuasive words
-- TRANSCRIBE ALL SPEECH verbatim with word-level timestamps
+- PROVIDE GLOBAL SRT SUBTITLES at video level with ALL spoken content
 - Include ALL segments, even brief transitions or text cards
 - Return ONLY valid JSON, no markdown formatting
 """
@@ -338,16 +332,6 @@ class UserContentAnalyzer:
         """Parse raw Gemini response into VideoAnalysisResult schema."""
         segments = []
         for seg_data in raw.get("segments", []):
-            # Parse transcript_words if present
-            transcript_words = None
-            raw_words = seg_data.get("transcript_words")
-            if raw_words and isinstance(raw_words, list):
-                transcript_words = [
-                    {"word": w.get("word", ""), "start": w.get("start", 0), "end": w.get("end", 0)}
-                    for w in raw_words
-                    if isinstance(w, dict) and w.get("word")
-                ]
-
             segment = SegmentAnalysis(
                 timestamp_start=float(seg_data.get("timestamp_start", 0)),
                 timestamp_end=float(seg_data.get("timestamp_end", 0)),
@@ -360,10 +344,8 @@ class UserContentAnalyzer:
                 has_text_overlay=seg_data.get("has_text_overlay", False),
                 has_face=seg_data.get("has_face", False),
                 has_product=seg_data.get("has_product", False),
-                # Transcript fields (Sprint 5 s5-t5)
-                transcript_text=seg_data.get("transcript_text"),
-                transcript_words=transcript_words,
-                speaker_label=seg_data.get("speaker_label"),
+                # Per-segment speech flag (transcript populated from global SRT by task)
+                has_speech=seg_data.get("has_speech", False),
                 # V2 analysis fields (Sprint 5 s5-t7)
                 section_type=seg_data.get("section_type"),
                 section_label=seg_data.get("section_label"),
@@ -371,7 +353,6 @@ class UserContentAnalyzer:
                 emotion_intensity=self._clamp_score(seg_data.get("emotion_intensity")),
                 color_grading=seg_data.get("color_grading"),
                 lighting_style=seg_data.get("lighting_style"),
-                has_speech=seg_data.get("has_speech", False),
                 keywords=seg_data.get("keywords"),
                 # Rich narrative breakdown - can add parsing later if needed
                 detailed_breakdown=seg_data.get("detailed_breakdown"),
@@ -389,6 +370,8 @@ class UserContentAnalyzer:
             dominant_theme=raw.get("dominant_theme"),
             production_style=raw.get("production_style"),
             content_type=raw.get("content_type"),
+            # Global SRT subtitles for Remotion captions
+            srt_subtitles=raw.get("srt_subtitles"),
         )
 
     def _clamp_score(self, value: Any) -> int | None:
@@ -507,6 +490,14 @@ class UserContentAnalyzer:
             # Analyze video
             analysis_result = await self.analyze_video(video_content, mime_type)
 
+            # Store global SRT subtitles on the project file
+            if analysis_result.srt_subtitles:
+                project_file.srt_content = analysis_result.srt_subtitles
+                logger.info(
+                    f"Stored SRT subtitles for file {project_file.id} "
+                    f"({len(analysis_result.srt_subtitles)} chars)"
+                )
+
             # Create segments with all enhanced fields
             total_segments = len(analysis_result.segments)
             created_segments = []
@@ -515,17 +506,8 @@ class UserContentAnalyzer:
                 # Generate embedding for segment
                 embedding = await self.generate_segment_embedding(segment_data)
 
-                # Convert transcript_words to list of dicts for JSONB storage
-                transcript_words_json = None
-                if segment_data.transcript_words:
-                    transcript_words_json = [
-                        {"word": tw.word, "start": tw.start, "end": tw.end}
-                        if hasattr(tw, "word")
-                        else tw
-                        for tw in segment_data.transcript_words
-                    ]
-
                 # Create segment record with all enhanced fields
+                # Note: transcript_text and speaker_label are populated by post-processing task
                 segment = UserVideoSegment(
                     project_id=project_file.project_id,
                     source_file_id=project_file.id,
@@ -540,10 +522,6 @@ class UserContentAnalyzer:
                     # Clip ordering fields (Sprint 5 s5-t6)
                     segment_index=idx,
                     total_segments_in_source=total_segments,
-                    # Transcript fields (Sprint 5 s5-t5)
-                    transcript_text=segment_data.transcript_text,
-                    transcript_words=transcript_words_json,
-                    speaker_label=segment_data.speaker_label,
                     # V2 analysis fields (Sprint 5 s5-t7)
                     section_type=segment_data.section_type,
                     section_label=segment_data.section_label,
@@ -574,6 +552,15 @@ class UserContentAnalyzer:
             await db.commit()
 
             logger.info(f"Created {len(created_segments)} segments for file {project_file.id}")
+
+            # Trigger post-processing task to populate transcript_text and speaker_label
+            # from the global SRT subtitles
+            if analysis_result.srt_subtitles:
+                from app.tasks.subtitle_tasks import process_segment_subtitles_task
+
+                process_segment_subtitles_task.delay(str(project_file.id))
+                logger.info(f"Queued subtitle processing task for file {project_file.id}")
+
             return created_segments
 
         except Exception as e:

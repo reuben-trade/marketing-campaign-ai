@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB  # Still needed for action_tags, keywords
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -68,9 +68,9 @@ class UserVideoSegment(Base):
 
     # =========================================================================
     # Transcript Fields - Sprint 5 s5-t5
+    # Transcript text and speaker label populated by post-processing task from global SRT
     # =========================================================================
     transcript_text: Mapped[str | None] = mapped_column(Text)
-    transcript_words: Mapped[list | None] = mapped_column(JSONB)  # [{word, start, end}, ...]
     speaker_label: Mapped[str | None] = mapped_column(String(20))
 
     # =========================================================================

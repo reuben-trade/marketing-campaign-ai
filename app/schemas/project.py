@@ -83,6 +83,8 @@ class ProjectFileResponse(BaseModel):
     file_size_bytes: int
     file_url: str
     status: str
+    # Global SRT subtitles for this video (used by Remotion for captions)
+    srt_content: str | None = None
 
     model_config = {"from_attributes": True}
 

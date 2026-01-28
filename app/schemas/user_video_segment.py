@@ -6,14 +6,6 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-class TranscriptWord(BaseModel):
-    """Schema for a single word in a transcript with timestamps."""
-
-    word: str = Field(..., description="The transcribed word")
-    start: float = Field(..., ge=0, description="Start time in seconds")
-    end: float = Field(..., ge=0, description="End time in seconds")
-
-
 class UserVideoSegmentBase(BaseModel):
     """Base schema for user video segments."""
 
@@ -38,9 +30,8 @@ class UserVideoSegmentCreate(UserVideoSegmentBase):
     segment_index: int = Field(default=0, ge=0)
     total_segments_in_source: int = Field(default=1, ge=1)
 
-    # Transcript fields
+    # Transcript fields (populated by post-processing task from global SRT)
     transcript_text: str | None = None
-    transcript_words: list[TranscriptWord] | None = None
     speaker_label: str | None = None
 
     # V2 analysis fields
@@ -86,9 +77,8 @@ class UserVideoSegmentResponse(UserVideoSegmentBase):
     segment_index: int = 0
     total_segments_in_source: int = 1
 
-    # Transcript fields
+    # Transcript fields (populated by post-processing task from global SRT)
     transcript_text: str | None = None
-    transcript_words: list[TranscriptWord] | None = None
     speaker_label: str | None = None
 
     # V2 analysis fields
@@ -136,12 +126,10 @@ class SegmentAnalysis(BaseModel):
 
     # =========================================================================
     # Transcript Fields - Sprint 5 s5-t5
+    # Only has_speech is parsed per-segment; transcript_text/speaker_label are populated by
+    # post-processing from global SRT on project_file
     # =========================================================================
-    transcript_text: str | None = Field(None, description="Full transcript text for this segment")
-    transcript_words: list[TranscriptWord] | None = Field(
-        None, description="Word-level timestamps for captions"
-    )
-    speaker_label: str | None = Field(None, description="Speaker identifier (e.g., 'speaker_1')")
+    has_speech: bool = Field(default=False, description="Whether segment contains speech")
 
     # =========================================================================
     # V2 Analysis Fields - Sprint 5 s5-t7
@@ -168,7 +156,6 @@ class SegmentAnalysis(BaseModel):
     lighting_style: str | None = Field(
         None, description="Lighting style (natural, studio, ring-light, golden-hour, etc.)"
     )
-    has_speech: bool = Field(default=False, description="Whether segment contains speech")
     keywords: list[str] | None = Field(
         None,
         description="Topic keywords and persuasive words (e.g., ['BMX', 'trick', 'halfpipe', "
@@ -203,6 +190,12 @@ class VideoAnalysisResult(BaseModel):
     content_type: str | None = Field(
         None,
         description="Content type (e.g., 'demo', 'testimonial', 'lifestyle', 'b-roll')",
+    )
+    # Global SRT subtitles for Remotion animated captions
+    srt_subtitles: str | None = Field(
+        None,
+        description="Full video SRT subtitles for caption overlay. Standard SRT format with "
+        "speaker tags like [Speaker 1]: for multi-speaker videos.",
     )
 
 

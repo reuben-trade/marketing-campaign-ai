@@ -417,7 +417,7 @@
       "description": "Comprehensive Playwright tests for full user flow",
       "status": "completed",
       "branch": "feature/e2e-testing-full-flow",
-      "prNumber": null,
+      "prNumber": 37,
       "files": [
         "frontend/tests/e2e/full-user-flow.spec.ts",
         "frontend/tests/e2e/project-creation.spec.ts",

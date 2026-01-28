@@ -7,16 +7,16 @@ import {
   LayoutDashboard,
   Users,
   MonitorPlay,
-  Lightbulb,
   FolderKanban,
+  Film,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Home', href: '/', icon: LayoutDashboard },
+  { name: 'Editor', href: '/editor', icon: Film },
   { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Competitors', href: '/competitors', icon: Users },
   { name: 'Ads', href: '/ads', icon: MonitorPlay },
-  { name: 'Ideas', href: '/ideas', icon: Lightbulb },
 ];
 
 export function MobileNav() {

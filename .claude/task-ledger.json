@@ -1,6 +1,6 @@
 {
-  "currentSprint": 3,
-  "lastUpdated": "2026-01-27",
+  "currentSprint": 4,
+  "lastUpdated": "2026-01-28",
   "tasks": [
     {
       "id": "s1-t1",
@@ -330,17 +330,23 @@
       "sprint": 4,
       "title": "Veo 2 B-Roll generation service",
       "description": "Integrate Veo 2 API for generating B-Roll clips",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/veo-broll-generation",
+      "prNumber": 31,
       "files": [
         "app/services/veo_generator.py",
         "app/schemas/veo_request.py",
         "app/api/broll.py",
+        "app/models/generated_broll.py",
+        "app/models/__init__.py",
+        "alembic/versions/015_add_generated_broll_tables.py",
+        "app/main.py",
+        "app/config.py",
+        ".env.example",
         "tests/test_services/test_veo_generator.py"
       ],
       "prdSection": "4.2 Veo 2 B-Roll Generation",
-      "notes": "POST /broll/generate, POST /broll/regenerate"
+      "notes": "Implemented VeoGeneratorService with Veo 2 integration via google-genai SDK. Features: generate B-Roll with prompt/style/aspect ratio, regenerate from existing generation, prompt enhancement using Gemini, clip selection for timeline. API endpoints: POST /api/broll/generate, POST /api/broll/regenerate, GET /api/broll/{id}, GET /api/broll, DELETE /api/broll/{id}, POST /api/broll/enhance-prompt, POST /api/broll/{id}/select. Database tables for tracking generation jobs and clips. All 28 tests pass."
     },
     {
       "id": "s4-t2",

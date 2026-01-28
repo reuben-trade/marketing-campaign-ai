@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     ads,
+    broll,
     competitors,
     critique,
     notifications,
@@ -58,6 +59,7 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["Not
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(recipes.router, prefix="/api", tags=["Recipes"])
 app.include_router(render.router, tags=["Render"])
+app.include_router(broll.router, tags=["B-Roll Generation"])
 
 
 @app.get("/health")

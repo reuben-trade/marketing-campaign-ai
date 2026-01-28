@@ -1,86 +1,119 @@
-import React from 'react';
-import { useCurrentFrame, useVideoConfig, interpolate, Easing, spring } from 'remotion';
-import type {
-  CaptionOverlayConfig,
-  CaptionEntry,
-  TranscriptWord,
-  CaptionStyle,
-  CaptionPosition,
-  BrandProfile,
-} from '../types';
+import React, { useMemo } from 'react';
+import { useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { parseSrt } from '@remotion/captions';
+import type { Caption } from '@remotion/captions';
+import type { CaptionOverlayConfig, CaptionStyle, CaptionPosition, BrandProfile } from '../types';
 
 interface Props {
   config: CaptionOverlayConfig;
   startFrame: number;
   durationFrames: number;
   brandProfile?: BrandProfile | null;
-  // Video start time in seconds (for syncing with transcript timestamps)
-  videoStartTime?: number;
+}
+
+// Regex to match speaker tags like [Speaker 1]: or [Speaker X]:
+const SPEAKER_TAG_REGEX = /^\[Speaker\s*\d*\]:\s*/i;
+
+/**
+ * Parse speaker tag from caption text.
+ * Returns { speaker: string | null, text: string }
+ */
+function parseSpeakerTag(text: string): { speaker: string | null; text: string } {
+  const match = text.match(SPEAKER_TAG_REGEX);
+  if (match) {
+    return {
+      speaker: match[0].replace(/[[\]:]/g, '').trim(),
+      text: text.slice(match[0].length),
+    };
+  }
+  return { speaker: null, text };
 }
 
 /**
- * CaptionOverlay component for timestamped captions synced to transcript_words.
+ * CaptionOverlay component for displaying SRT captions synced to video clips.
  *
  * Features:
- * - Word-level sync with transcript_words data
- * - Power word highlighting
- * - Multiple styles: minimal, bar, karaoke
- * - Smooth word-by-word animation
- * - Support for grouped caption entries
+ * - Parses SRT content using @remotion/captions
+ * - Filters cues by clip time range
+ * - Offsets timestamps to timeline position
+ * - Handles speaker tags (strip or style)
+ * - Multiple display styles: minimal, bar, karaoke
  */
 export const CaptionOverlay: React.FC<Props> = ({
   config,
   startFrame,
   durationFrames,
   brandProfile,
-  videoStartTime = 0,
 }) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width } = useVideoConfig();
   const localFrame = frame - startFrame;
 
   // Extract config with defaults
   const {
-    captions,
-    transcript_words,
+    srt_content,
+    clip_timestamp_start,
+    clip_timestamp_end,
     style = 'minimal',
     position = 'bottom',
-    max_words_per_line = 5,
+    speaker_tag_style = 'hidden',
     font_size = 48,
     font_family,
     text_color = '#FFFFFF',
-    highlight_color = '#FFD700',
     background_color = '#000000',
     background_opacity = 0.7,
-    word_animation = 'pop',
-    power_words = [],
   } = config;
 
   const fontFamilyToUse = font_family || brandProfile?.font_family || 'Inter';
-  const highlightColorToUse = highlight_color || brandProfile?.primary_color || '#FFD700';
 
-  // Calculate current time in seconds relative to video
-  const currentTimeInSegment = localFrame / fps;
-  const currentVideoTime = videoStartTime + currentTimeInSegment;
+  // Parse SRT and filter/transform cues (memoized)
+  const processedCues = useMemo(() => {
+    if (!srt_content) return [];
 
-  // Check if a word should be highlighted (power word)
-  const isHighlightWord = (word: string): boolean => {
-    const normalizedWord = word.toLowerCase().replace(/[^\w]/g, '');
-    const allPowerWords = [...(power_words || [])];
+    try {
+      const { captions } = parseSrt({ input: srt_content });
 
-    // Add per-caption highlight words if using captions
-    if (captions) {
-      captions.forEach((cap) => {
-        if (cap.highlight_words) {
-          allPowerWords.push(...cap.highlight_words);
-        }
+      // Convert clip timestamps to milliseconds for comparison
+      const clipStartMs = clip_timestamp_start * 1000;
+      const clipEndMs = clip_timestamp_end * 1000;
+
+      // Filter cues that fall within the clip range
+      // A cue is included if its start time falls within the clip range
+      const filteredCues = captions.filter(
+        (cue) => cue.startMs >= clipStartMs && cue.startMs < clipEndMs
+      );
+
+      // Transform timestamps: offset to timeline position
+      // displayTimeMs = (cue.startMs - clipStartMs) + (timelinePositionInSeconds * 1000)
+      // But since we're using frames, we calculate display frame instead
+      return filteredCues.map((cue) => {
+        const offsetFromClipStart = cue.startMs - clipStartMs;
+        const displayStartFrame = Math.round((offsetFromClipStart / 1000) * fps);
+        const displayEndFrame = Math.round(((cue.endMs - clipStartMs) / 1000) * fps);
+
+        // Parse speaker tag
+        const { speaker, text } = parseSpeakerTag(cue.text);
+
+        return {
+          ...cue,
+          displayStartFrame,
+          displayEndFrame,
+          speaker,
+          cleanText: text,
+        };
       });
+    } catch (error) {
+      console.error('Failed to parse SRT content:', error);
+      return [];
     }
+  }, [srt_content, clip_timestamp_start, clip_timestamp_end, fps]);
 
-    return allPowerWords.some(
-      (pw) => pw.toLowerCase() === normalizedWord
+  // Find the currently active cue
+  const activeCue = useMemo(() => {
+    return processedCues.find(
+      (cue) => localFrame >= cue.displayStartFrame && localFrame < cue.displayEndFrame
     );
-  };
+  }, [processedCues, localFrame]);
 
   // Get position styles based on position prop
   const getPositionStyles = (): React.CSSProperties => {
@@ -109,223 +142,6 @@ export const CaptionOverlay: React.FC<Props> = ({
     }
   };
 
-  // Render word with animation
-  const renderWord = (
-    word: string,
-    wordStartTime: number,
-    wordEndTime: number,
-    index: number,
-    isActive: boolean,
-    isPast: boolean
-  ): React.ReactNode => {
-    const isHighlight = isHighlightWord(word);
-    const wordLocalStartFrame = (wordStartTime - videoStartTime) * fps;
-    const wordProgress = Math.max(0, localFrame - wordLocalStartFrame);
-
-    // Animation based on word_animation setting
-    let animStyle: React.CSSProperties = {};
-    if (isActive && word_animation !== 'none') {
-      if (word_animation === 'pop') {
-        const scale = spring({
-          frame: wordProgress,
-          fps,
-          config: {
-            damping: 12,
-            stiffness: 200,
-            mass: 0.3,
-          },
-        });
-        animStyle = { transform: `scale(${scale})` };
-      } else if (word_animation === 'fade') {
-        const opacity = interpolate(wordProgress, [0, 5], [0, 1], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-        });
-        animStyle = { opacity };
-      }
-    }
-
-    // Karaoke style: highlight the active word
-    const isKaraokeActive = style === 'karaoke' && isActive;
-
-    return (
-      <span
-        key={`${word}-${index}`}
-        style={{
-          display: 'inline-block',
-          marginRight: 8,
-          color: isHighlight ? highlightColorToUse : text_color,
-          fontWeight: isHighlight || isKaraokeActive ? 'bold' : 'normal',
-          textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-          ...(isKaraokeActive && {
-            backgroundColor: highlightColorToUse,
-            color: '#000000',
-            padding: '2px 8px',
-            borderRadius: 4,
-          }),
-          ...(style === 'karaoke' && isPast && !isActive && {
-            opacity: 0.6,
-          }),
-          ...animStyle,
-        }}
-      >
-        {word}
-      </span>
-    );
-  };
-
-  // Render captions based on mode (transcript_words or captions)
-  const renderCaptions = () => {
-    // Mode 1: Word-level sync with transcript_words
-    if (transcript_words && transcript_words.length > 0) {
-      return renderTranscriptWords(transcript_words);
-    }
-
-    // Mode 2: Caption entries
-    if (captions && captions.length > 0) {
-      return renderCaptionEntries(captions);
-    }
-
-    return null;
-  };
-
-  // Render word-level synced captions from transcript_words
-  const renderTranscriptWords = (words: TranscriptWord[]) => {
-    // Find which words are currently visible
-    const visibleWords: Array<{
-      word: TranscriptWord;
-      isActive: boolean;
-      isPast: boolean;
-    }> = [];
-
-    // Find current and recent words (window of max_words_per_line * 2)
-    const windowSize = max_words_per_line * 2;
-    let activeIndex = -1;
-
-    // Find the active word
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      if (currentVideoTime >= w.start && currentVideoTime < w.end) {
-        activeIndex = i;
-        break;
-      }
-      // If we're between words, attach to the next one
-      if (i < words.length - 1 && currentVideoTime >= w.end && currentVideoTime < words[i + 1].start) {
-        activeIndex = i;
-        break;
-      }
-    }
-
-    // If no active word found, check if we're past all words
-    if (activeIndex === -1 && words.length > 0) {
-      if (currentVideoTime >= words[words.length - 1].end) {
-        activeIndex = words.length - 1;
-      } else if (currentVideoTime < words[0].start) {
-        // Not started yet
-        return null;
-      }
-    }
-
-    if (activeIndex === -1) return null;
-
-    // Calculate window around active word
-    const startIdx = Math.max(0, activeIndex - Math.floor(max_words_per_line / 2));
-    const endIdx = Math.min(words.length, startIdx + windowSize);
-
-    for (let i = startIdx; i < endIdx; i++) {
-      const w = words[i];
-      const isActive = currentVideoTime >= w.start && currentVideoTime < w.end;
-      const isPast = currentVideoTime >= w.end;
-      visibleWords.push({ word: w, isActive, isPast });
-    }
-
-    // Group into lines
-    const lines: Array<Array<typeof visibleWords[0]>> = [];
-    for (let i = 0; i < visibleWords.length; i += max_words_per_line) {
-      lines.push(visibleWords.slice(i, i + max_words_per_line));
-    }
-
-    return (
-      <div style={{ textAlign: 'center' }}>
-        {lines.map((line, lineIdx) => (
-          <div key={lineIdx} style={{ marginBottom: 8 }}>
-            {line.map((item, wordIdx) =>
-              renderWord(
-                item.word.word,
-                item.word.start,
-                item.word.end,
-                lineIdx * max_words_per_line + wordIdx,
-                item.isActive,
-                item.isPast
-              )
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Render caption entries (sentence-level)
-  const renderCaptionEntries = (entries: CaptionEntry[]) => {
-    // Find the currently active caption
-    const activeCaption = entries.find(
-      (cap) => currentVideoTime >= cap.start_time && currentVideoTime < cap.end_time
-    );
-
-    if (!activeCaption) return null;
-
-    // Calculate progress within caption for animation
-    const captionDuration = activeCaption.end_time - activeCaption.start_time;
-    const captionProgress = (currentVideoTime - activeCaption.start_time) / captionDuration;
-
-    // Split text into words for highlighting
-    const words = activeCaption.text.split(' ');
-    const highlightSet = new Set(
-      [...(activeCaption.highlight_words || []), ...(power_words || [])].map((w) =>
-        w.toLowerCase()
-      )
-    );
-
-    // For karaoke style, determine which word should be highlighted based on progress
-    const karaokeActiveIdx = style === 'karaoke'
-      ? Math.min(Math.floor(captionProgress * words.length), words.length - 1)
-      : -1;
-
-    return (
-      <div style={{ textAlign: 'center' }}>
-        {words.map((word, idx) => {
-          const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
-          const isHighlight = highlightSet.has(cleanWord);
-          const isKaraokeActive = idx === karaokeActiveIdx;
-
-          return (
-            <span
-              key={`${word}-${idx}`}
-              style={{
-                display: 'inline-block',
-                marginRight: 8,
-                color: isHighlight ? highlightColorToUse : text_color,
-                fontWeight: isHighlight || isKaraokeActive ? 'bold' : 'normal',
-                textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                ...(isKaraokeActive && style === 'karaoke' && {
-                  backgroundColor: highlightColorToUse,
-                  color: '#000000',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                }),
-                ...(style === 'karaoke' && idx < karaokeActiveIdx && {
-                  opacity: 0.6,
-                }),
-              }}
-            >
-              {word}
-            </span>
-          );
-        })}
-      </div>
-    );
-  };
-
   // Get style-specific container styles
   const getStyleContainerStyles = (): React.CSSProperties => {
     switch (style) {
@@ -347,30 +163,99 @@ export const CaptionOverlay: React.FC<Props> = ({
     }
   };
 
+  // Render caption text with optional speaker tag
+  const renderCaptionText = (cue: typeof processedCues[0]) => {
+    const { speaker, cleanText } = cue;
+
+    // Calculate progress for karaoke animation
+    const cueProgress =
+      style === 'karaoke' && cue.displayEndFrame > cue.displayStartFrame
+        ? (localFrame - cue.displayStartFrame) / (cue.displayEndFrame - cue.displayStartFrame)
+        : 1;
+
+    // For karaoke, split into words and highlight progressively
+    if (style === 'karaoke') {
+      const words = cleanText.split(' ');
+      const highlightUpTo = Math.floor(cueProgress * words.length);
+
+      return (
+        <span>
+          {speaker_tag_style !== 'hidden' && speaker && (
+            <span
+              style={{
+                opacity: speaker_tag_style === 'dimmed' ? 0.5 : 1,
+                color: speaker_tag_style === 'colored' ? brandProfile?.primary_color || '#FFD700' : text_color,
+                marginRight: 8,
+              }}
+            >
+              {speaker}:
+            </span>
+          )}
+          {words.map((word, idx) => (
+            <span
+              key={idx}
+              style={{
+                display: 'inline-block',
+                marginRight: 8,
+                opacity: idx < highlightUpTo ? 1 : 0.4,
+                fontWeight: idx < highlightUpTo ? 'bold' : 'normal',
+                transition: 'opacity 0.1s, font-weight 0.1s',
+              }}
+            >
+              {word}
+            </span>
+          ))}
+        </span>
+      );
+    }
+
+    // Non-karaoke styles: show full text
+    return (
+      <span>
+        {speaker_tag_style !== 'hidden' && speaker && (
+          <span
+            style={{
+              opacity: speaker_tag_style === 'dimmed' ? 0.5 : 1,
+              color: speaker_tag_style === 'colored' ? brandProfile?.primary_color || '#FFD700' : text_color,
+              marginRight: 8,
+            }}
+          >
+            {speaker}:
+          </span>
+        )}
+        {cleanText}
+      </span>
+    );
+  };
+
   // Early return if nothing to display
   if (localFrame < 0 || localFrame >= durationFrames) {
     return null;
   }
 
-  const captionContent = renderCaptions();
-  if (!captionContent) return null;
+  if (!activeCue) {
+    return null;
+  }
 
-  // Entry animation
-  const entryProgress = interpolate(localFrame, [0, 10], [0, 1], {
+  // Entry/exit animation for the caption
+  const cueLocalFrame = localFrame - activeCue.displayStartFrame;
+  const cueDuration = activeCue.displayEndFrame - activeCue.displayStartFrame;
+
+  const entryProgress = interpolate(cueLocalFrame, [0, 5], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing: Easing.out(Easing.cubic),
   });
 
-  // Exit animation
-  const exitFrameStart = durationFrames - 10;
-  const exitProgress = localFrame > exitFrameStart
-    ? interpolate(localFrame, [exitFrameStart, durationFrames], [1, 0], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-        easing: Easing.in(Easing.cubic),
-      })
-    : 1;
+  const exitFrameStart = cueDuration - 5;
+  const exitProgress =
+    cueLocalFrame > exitFrameStart
+      ? interpolate(cueLocalFrame, [exitFrameStart, cueDuration], [1, 0], {
+          extrapolateLeft: 'clamp',
+          extrapolateRight: 'clamp',
+          easing: Easing.in(Easing.cubic),
+        })
+      : 1;
 
   const overallOpacity = entryProgress * exitProgress;
 
@@ -393,10 +278,14 @@ export const CaptionOverlay: React.FC<Props> = ({
           fontFamily: `${fontFamilyToUse}, sans-serif`,
           lineHeight: 1.4,
           maxWidth: '100%',
+          color: text_color,
+          textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+          textAlign: 'center',
+          whiteSpace: 'pre-wrap', // Preserve spaces as recommended by @remotion/captions
           ...getStyleContainerStyles(),
         }}
       >
-        {captionContent}
+        {renderCaptionText(activeCue)}
       </div>
     </div>
   );

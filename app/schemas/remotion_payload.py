@@ -23,7 +23,6 @@ class SegmentType(str, Enum):
     TEXT_SLIDE = "text_slide"
     BROLL_OVERLAY = "b_roll_overlay"
     TITLE_CARD = "title_card"
-    CAPTION_OVERLAY = "caption_overlay"
 
 
 class OverlayPosition(str, Enum):
@@ -193,12 +192,12 @@ class CaptionPosition(str, Enum):
     BOTTOM = "bottom"
 
 
-class CaptionWordAnimation(str, Enum):
-    """Word animation options for captions."""
+class SpeakerTagStyle(str, Enum):
+    """How to handle speaker tags like [Speaker 1]: in SRT content."""
 
-    NONE = "none"
-    POP = "pop"
-    FADE = "fade"
+    HIDDEN = "hidden"
+    DIMMED = "dimmed"
+    COLORED = "colored"
 
 
 class BackgroundGradient(BaseModel):
@@ -209,42 +208,34 @@ class BackgroundGradient(BaseModel):
     angle: int = Field(default=135, ge=0, le=360, description="Gradient angle in degrees")
 
 
-class TranscriptWord(BaseModel):
-    """A single word with timestamp information for word-level sync."""
-
-    word: str = Field(..., description="The word text")
-    start: float = Field(..., ge=0, description="Start time in seconds")
-    end: float = Field(..., description="End time in seconds")
-
-
-class CaptionEntry(BaseModel):
-    """A single caption entry with timing and optional highlighting."""
-
-    text: str = Field(..., description="Caption text")
-    start_time: float = Field(..., ge=0, description="Start time in seconds")
-    end_time: float = Field(..., description="End time in seconds")
-    highlight_words: list[str] | None = Field(
-        default=None,
-        description="Power words to highlight within this caption",
-    )
-
-
 class CaptionOverlayConfig(BaseModel):
     """Configuration for caption overlay display.
 
-    Supports word-level sync, power word highlighting, and multiple styles.
-    Can be used with either transcript_words (word-level sync) or captions
-    (sentence-level sync).
+    Parses SRT content and displays captions synced to video clips.
+
+    The Remotion component handles:
+    1. Parsing SRT content into cues
+    2. Filtering cues by clip time range (clip_timestamp_start to clip_timestamp_end)
+    3. Offsetting timestamps to timeline position
+    4. Optionally stripping/styling speaker tags
     """
 
-    # Caption content - one of these should be provided
-    captions: list[CaptionEntry] | None = Field(
-        default=None,
-        description="Caption entries with timing (sentence-level)",
+    # SRT content (full SRT for the source video)
+    srt_content: str = Field(
+        ...,
+        description="Full SRT content for the source video",
     )
-    transcript_words: list[TranscriptWord] | None = Field(
-        default=None,
-        description="Word-level transcript for precise sync",
+
+    # Clip timing - defines which portion of SRT to show
+    # These map to source.start_time and source.end_time of the video clip
+    clip_timestamp_start: float = Field(
+        ...,
+        ge=0,
+        description="Source video in-point (seconds)",
+    )
+    clip_timestamp_end: float = Field(
+        ...,
+        description="Source video out-point (seconds)",
     )
 
     # Display settings
@@ -256,11 +247,11 @@ class CaptionOverlayConfig(BaseModel):
         default=CaptionPosition.BOTTOM,
         description="Position on screen",
     )
-    max_words_per_line: int = Field(
-        default=5,
-        ge=1,
-        le=15,
-        description="Maximum words to display per line",
+
+    # Speaker tag handling
+    speaker_tag_style: SpeakerTagStyle = Field(
+        default=SpeakerTagStyle.HIDDEN,
+        description="How to handle [Speaker X]: tags in captions",
     )
 
     # Text styling
@@ -278,10 +269,6 @@ class CaptionOverlayConfig(BaseModel):
         default="#FFFFFF",
         description="Text color in hex format",
     )
-    highlight_color: str | None = Field(
-        default="#FFD700",
-        description="Color for highlighted/power words",
-    )
     background_color: str = Field(
         default="#000000",
         description="Background color for bar style",
@@ -291,18 +278,6 @@ class CaptionOverlayConfig(BaseModel):
         ge=0.0,
         le=1.0,
         description="Background opacity for bar style",
-    )
-
-    # Animation
-    word_animation: CaptionWordAnimation = Field(
-        default=CaptionWordAnimation.POP,
-        description="Animation style for word appearance",
-    )
-
-    # Additional power words to highlight
-    power_words: list[str] | None = Field(
-        default=None,
-        description="Global power words to highlight across all captions",
     )
 
 

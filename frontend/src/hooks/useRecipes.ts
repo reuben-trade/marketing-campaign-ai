@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '@/lib/api/recipes';
-import type { RecipeFilters, RecipeExtractRequest } from '@/types/recipe';
+import type { RecipeFilters, RecipeExtractRequest, ReferenceAdFetchRequest } from '@/types/recipe';
 
 export function useRecipes(filters?: RecipeFilters) {
   return useQuery({
@@ -38,6 +38,31 @@ export function useDeleteRecipe() {
     mutationFn: (id: string) => recipesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
+    },
+  });
+}
+
+export function useUploadReferenceAd() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ file, name }: { file: File; name?: string }) =>
+      recipesApi.uploadReference(file, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      queryClient.invalidateQueries({ queryKey: ['ads'] });
+    },
+  });
+}
+
+export function useFetchReferenceAd() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: ReferenceAdFetchRequest) => recipesApi.fetchFromUrl(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      queryClient.invalidateQueries({ queryKey: ['ads'] });
     },
   });
 }

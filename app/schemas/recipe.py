@@ -111,3 +111,34 @@ class RecipeExtractResponse(BaseModel):
         default_factory=list,
         description="Notes about the extraction process",
     )
+
+
+class ReferenceAdFetchRequest(BaseModel):
+    """Schema for fetching a reference ad from URL."""
+
+    url: str = Field(
+        ...,
+        description="URL to fetch the video from",
+        pattern=r"^https?://",
+        json_schema_extra={"examples": ["https://example.com/video.mp4"]},
+    )
+    name: str | None = Field(
+        default=None,
+        description="Optional custom name for the recipe",
+    )
+
+
+class ReferenceAdResponse(BaseModel):
+    """Schema for reference ad upload/fetch response."""
+
+    ad_id: uuid.UUID = Field(..., description="ID of the created ad")
+    recipe: RecipeResponse | None = Field(
+        default=None,
+        description="Extracted recipe (None if extraction failed)",
+    )
+    status: str = Field(..., description="Status: success, partial, error")
+    message: str = Field(..., description="Status message")
+    processing_notes: list[str] = Field(
+        default_factory=list,
+        description="Notes about the processing",
+    )

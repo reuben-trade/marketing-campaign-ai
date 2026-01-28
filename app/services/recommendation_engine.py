@@ -624,11 +624,11 @@ CONTENT GENERATION REQUIREMENTS:
 
         for i, rec in enumerate(recommendations.get("recommendations", [])):
             if "concept" not in rec:
-                errors.append(f"Recommendation {i+1} missing 'concept'")
+                errors.append(f"Recommendation {i + 1} missing 'concept'")
             if "priority" not in rec:
-                errors.append(f"Recommendation {i+1} missing 'priority'")
+                errors.append(f"Recommendation {i + 1} missing 'priority'")
             if "ad_format" not in rec:
-                errors.append(f"Recommendation {i+1} missing 'ad_format'")
+                errors.append(f"Recommendation {i + 1} missing 'ad_format'")
 
         return errors
 

@@ -1,6 +1,7 @@
 """
 Duplicate content detection service for ad creatives.
 """
+
 import io
 import logging
 import re

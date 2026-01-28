@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -13,8 +13,11 @@ from app.schemas.recipe import (
     RecipeExtractResponse,
     RecipeListResponse,
     RecipeResponse,
+    ReferenceAdFetchRequest,
+    ReferenceAdResponse,
 )
 from app.services.recipe_extractor import RecipeExtractionError, RecipeExtractor
+from app.services.reference_ad_service import ReferenceAdError, ReferenceAdService
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
@@ -124,3 +127,81 @@ async def delete_recipe(
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Recipe not found")
+
+
+# Maximum file size: 500MB
+MAX_REFERENCE_FILE_SIZE = 500 * 1024 * 1024
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"}
+
+
+@router.post("/upload-reference", response_model=ReferenceAdResponse)
+async def upload_reference_ad(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(..., description="Video file to upload"),
+    name: Annotated[str | None, Form(description="Optional custom name")] = None,
+) -> ReferenceAdResponse:
+    """
+    Upload a reference ad video for analysis and recipe extraction.
+
+    This endpoint:
+    1. Uploads the video to storage
+    2. Analyzes it with Gemini to extract structure
+    3. Creates an ad record
+    4. Extracts a recipe from the analysis
+
+    Processing takes 2-3 minutes depending on video length.
+    """
+    # Validate file type
+    if file.content_type and file.content_type not in ALLOWED_VIDEO_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_VIDEO_TYPES)}",
+        )
+
+    # TODO: Consider streaming upload for large files to avoid memory issues
+    # See: https://github.com/reuben-trade/marketing-campaign-ai/issues/36
+    content = await file.read()
+
+    # Validate file size
+    if len(content) > MAX_REFERENCE_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size: {MAX_REFERENCE_FILE_SIZE // 1024 // 1024}MB",
+        )
+
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    service = ReferenceAdService()
+    try:
+        return await service.upload_reference_ad(
+            db=db,
+            file_content=content,
+            filename=file.filename or "upload.mp4",
+            custom_name=name,
+        )
+    except ReferenceAdError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/fetch-url", response_model=ReferenceAdResponse)
+async def fetch_reference_ad_from_url(
+    request: ReferenceAdFetchRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ReferenceAdResponse:
+    """
+    Fetch a reference ad from a URL for analysis and recipe extraction.
+
+    Currently supports direct video URLs (MP4, WebM, MOV).
+
+    Processing takes 2-3 minutes depending on video length and download speed.
+    """
+    service = ReferenceAdService()
+    try:
+        return await service.fetch_from_url(
+            db=db,
+            url=request.url,
+            custom_name=request.name,
+        )
+    except ReferenceAdError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

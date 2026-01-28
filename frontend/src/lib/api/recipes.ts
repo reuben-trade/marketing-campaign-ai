@@ -1,10 +1,12 @@
-import { get, post, del } from './client';
+import { get, post, del, apiClient } from './client';
 import type {
   Recipe,
   RecipeListResponse,
   RecipeFilters,
   RecipeExtractRequest,
   RecipeExtractResponse,
+  ReferenceAdFetchRequest,
+  ReferenceAdResponse,
 } from '@/types/recipe';
 
 export const recipesApi = {
@@ -30,5 +32,38 @@ export const recipesApi = {
 
   delete: async (id: string): Promise<void> => {
     return del<void>(`/api/recipes/${id}`);
+  },
+
+  uploadReference: async (
+    file: File,
+    name?: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ReferenceAdResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (name) {
+      formData.append('name', name);
+    }
+
+    const response = await apiClient.post<ReferenceAdResponse>(
+      '/api/recipes/upload-reference',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+          }
+        },
+      }
+    );
+    return response.data;
+  },
+
+  fetchFromUrl: async (request: ReferenceAdFetchRequest): Promise<ReferenceAdResponse> => {
+    return post<ReferenceAdResponse>('/api/recipes/fetch-url', request);
   },
 };

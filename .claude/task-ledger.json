@@ -1,5 +1,5 @@
 {
-  "currentSprint": 4,
+  "currentSprint": 5,
   "lastUpdated": "2026-01-28",
   "tasks": [
     {
@@ -374,7 +374,7 @@
       "description": "Implement onboarding flow to capture brand profile",
       "status": "completed",
       "branch": "feature/user-onboarding-questionnaire",
-      "prNumber": null,
+      "prNumber": 34,
       "files": [
         "app/schemas/brand_profile.py",
         "app/api/onboarding.py",
@@ -419,6 +419,332 @@
       ],
       "prdSection": "7. Success Criteria",
       "notes": "Test full pipeline: onboarding -> project -> upload -> inspire -> generate -> edit"
+    },
+    {
+      "id": "s5-t1",
+      "sprint": 5,
+      "title": "BRollOverlay Remotion component",
+      "description": "Create component for video-over-video with main audio continuity (J-Cut/L-Cut support)",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "A",
+      "files": [
+        "remotion/src/components/BRollOverlay.tsx",
+        "remotion/src/types.ts"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Main audio continues while B-roll video overlays. Critical for professional edits."
+    },
+    {
+      "id": "s5-t2",
+      "sprint": 5,
+      "title": "TitleCard Remotion component",
+      "description": "Create animated title card component with branding support",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "A",
+      "files": [
+        "remotion/src/components/TitleCard.tsx"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Animated headline + subheadline with brand colors/fonts"
+    },
+    {
+      "id": "s5-t3",
+      "sprint": 5,
+      "title": "CaptionOverlay Remotion component",
+      "description": "Create timestamped caption component synced to transcript_words",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "A",
+      "files": [
+        "remotion/src/components/CaptionOverlay.tsx"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Word-level sync, power word highlighting, multiple styles (minimal, bar, karaoke)"
+    },
+    {
+      "id": "s5-t4",
+      "sprint": 5,
+      "title": "SplitScreen Remotion component",
+      "description": "Create split-screen component for side-by-side comparisons",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "A",
+      "files": [
+        "remotion/src/components/SplitScreen.tsx"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Before/after, product comparison, testimonial + demo layouts"
+    },
+    {
+      "id": "s5-t5",
+      "sprint": 5,
+      "title": "Add transcript extraction to video analysis",
+      "description": "Extract full transcript with word-level timestamps for captions",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "B",
+      "files": [
+        "app/services/user_content_analyzer.py",
+        "app/models/user_video_segment.py",
+        "alembic/versions/016_add_enhanced_analysis.py"
+      ],
+      "prdSection": "5.2 Enhanced Video Analysis",
+      "notes": "transcript_text, transcript_words [{word, start, end}], speaker_label"
+    },
+    {
+      "id": "s5-t6",
+      "sprint": 5,
+      "title": "Add clip ordering (doubly-linked list)",
+      "description": "Add previous_segment_id, next_segment_id, segment_index for sequence context",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "B",
+      "files": [
+        "app/models/user_video_segment.py",
+        "app/services/user_content_analyzer.py"
+      ],
+      "prdSection": "5.2 Enhanced Video Analysis",
+      "notes": "Director can understand inherent ordering to maintain narrative flow"
+    },
+    {
+      "id": "s5-t7",
+      "sprint": 5,
+      "title": "Add V2 analysis fields",
+      "description": "Add beat_type, attention_score, emotion_intensity, power_words (shared with competitor analysis)",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "B",
+      "files": [
+        "app/services/user_content_analyzer.py",
+        "app/utils/prompts.py",
+        "app/models/user_video_segment.py"
+      ],
+      "prdSection": "5.2 Enhanced Video Analysis",
+      "notes": "Match quality of competitor video analysis for user clips"
+    },
+    {
+      "id": "s5-t8",
+      "sprint": 5,
+      "title": "Create Director JSON output schema",
+      "description": "Strict Pydantic schema for Director output matching Remotion components",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "C",
+      "files": [
+        "app/schemas/director_output.py"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "video_settings, timeline entries, captions array - model agnostic"
+    },
+    {
+      "id": "s5-t9",
+      "sprint": 5,
+      "title": "Create Director prompt with viral constraints",
+      "description": "Implement the Viral Director prompt with component descriptions and editing physics",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "C",
+      "files": [
+        "app/prompts/director_prompt.py"
+      ],
+      "prdSection": "5.3.1 Director Agent Prompt",
+      "notes": "3-second rule, Hook-Value-CTA arc, audio continuity, extended thinking"
+    },
+    {
+      "id": "s5-t10",
+      "sprint": 5,
+      "title": "Update navigation sidebar",
+      "description": "Add /editor (prominent) and /onboarding to navigation",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "D",
+      "files": [
+        "frontend/src/components/layout/Sidebar.tsx",
+        "frontend/src/components/layout/MobileNav.tsx"
+      ],
+      "prdSection": "5.5 Navigation Updates",
+      "notes": "Editor should be second item, Onboarding visible"
+    },
+    {
+      "id": "s5-t11",
+      "sprint": 5,
+      "title": "Create quick-create project API",
+      "description": "POST /api/projects/quick-create for standalone editor",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "D",
+      "files": [
+        "app/api/projects.py",
+        "app/schemas/project.py"
+      ],
+      "prdSection": "5.4 Standalone Editor Route",
+      "notes": "Auto-generates project name, accepts inspiration_ad_ids, source_project_ids, user_prompt"
+    },
+    {
+      "id": "s5-t12",
+      "sprint": 5,
+      "title": "Update BaseAdComposition for new segment types",
+      "description": "Add rendering logic for b_roll_overlay, title_card, caption overlay",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t1", "s5-t2", "s5-t3", "s5-t4"],
+      "files": [
+        "remotion/src/compositions/BaseAdComposition.tsx"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Add new segment types to renderSegment switch"
+    },
+    {
+      "id": "s5-t13",
+      "sprint": 5,
+      "title": "Create JSON validation & repair pipeline",
+      "description": "Validate Director output, auto-repair with Gemini Flash if invalid",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t8"],
+      "files": [
+        "app/services/director_validator.py"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Extract JSON, validate times, repair syntax errors automatically"
+    },
+    {
+      "id": "s5-t14",
+      "sprint": 5,
+      "title": "Create standalone /editor page",
+      "description": "New page with upload/project selector, inspiration, instructions field",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t10", "s5-t11"],
+      "files": [
+        "frontend/src/app/editor/page.tsx"
+      ],
+      "prdSection": "5.4 Standalone Editor Route",
+      "notes": "Upload OR select projects, optional inspiration, instruction textarea, Generate button"
+    },
+    {
+      "id": "s5-t15",
+      "sprint": 5,
+      "title": "Refactor DirectorAgent to clips-first approach",
+      "description": "Director receives all inputs (components, clips, inspiration, instructions) and outputs JSON",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t5", "s5-t6", "s5-t7", "s5-t8", "s5-t9", "s5-t13"],
+      "files": [
+        "app/services/director_agent.py",
+        "app/services/clip_inventory.py"
+      ],
+      "prdSection": "5.3 Director Agent Refactor",
+      "notes": "Core refactor - analyze clips first, use viral prompt, output strict JSON"
+    },
+    {
+      "id": "s5-t16",
+      "sprint": 5,
+      "title": "Add terminal debug output to Director",
+      "description": "Print clip inventory, selections, and timeline to terminal for debugging",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t15"],
+      "files": [
+        "app/services/director_agent.py"
+      ],
+      "prdSection": "5.6 Rendering Fixes",
+      "notes": "Visible debug output for development and troubleshooting"
+    },
+    {
+      "id": "s5-t17",
+      "sprint": 5,
+      "title": "Create Celery task for auto-analysis",
+      "description": "Background task triggered on file upload",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t5", "s5-t6", "s5-t7"],
+      "files": [
+        "app/tasks/content_analysis_tasks.py",
+        "app/tasks/celery_app.py"
+      ],
+      "prdSection": "5.1 Async File Processing",
+      "notes": "Celery task with retry logic for Gemini analysis"
+    },
+    {
+      "id": "s5-t18",
+      "sprint": 5,
+      "title": "Trigger analysis on upload",
+      "description": "Auto-queue Celery task when file uploaded",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t17"],
+      "files": [
+        "app/services/upload_service.py"
+      ],
+      "prdSection": "5.1 Async File Processing",
+      "notes": "Remove need for manual 'Analyze' button click"
+    },
+    {
+      "id": "s5-t19",
+      "sprint": 5,
+      "title": "Remove Analyze button, add status polling",
+      "description": "UI shows auto-processing status, removes manual trigger",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "dependsOn": ["s5-t18"],
+      "files": [
+        "frontend/src/components/video-segment-list.tsx",
+        "app/api/projects.py"
+      ],
+      "prdSection": "5.1 Async File Processing",
+      "notes": "Add GET /files/{id}/status endpoint, poll in frontend"
+    },
+    {
+      "id": "s5-t20",
+      "sprint": 5,
+      "title": "Add verbose logging to Remotion renderer",
+      "description": "Debug output for render commands, payload preview, errors",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "E",
+      "files": [
+        "app/services/remotion_renderer.py"
+      ],
+      "prdSection": "5.6 Rendering Fixes",
+      "notes": "Log command, working directory, payload preview, stdout/stderr"
+    },
+    {
+      "id": "s5-t21",
+      "sprint": 5,
+      "title": "Fix empty URL handling in VideoClipSegment",
+      "description": "Show placeholder for missing video sources, add error boundary",
+      "status": "pending",
+      "branch": null,
+      "prNumber": null,
+      "parallelGroup": "E",
+      "files": [
+        "remotion/src/components/VideoClipSegment.tsx"
+      ],
+      "prdSection": "5.6 Rendering Fixes",
+      "notes": "Graceful fallback when source.url is empty or invalid"
     }
   ]
 }

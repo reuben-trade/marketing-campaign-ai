@@ -61,16 +61,8 @@ class ReferenceAdService:
         return competitor
 
     def _get_mime_type(self, filename: str) -> str:
-        """Get MIME type from filename."""
-        extension = Path(filename).suffix.lower()
-        mime_types = {
-            ".mp4": "video/mp4",
-            ".webm": "video/webm",
-            ".mov": "video/quicktime",
-            ".avi": "video/x-msvideo",
-            ".mkv": "video/x-matroska",
-        }
-        return mime_types.get(extension, "video/mp4")
+        """Get MIME type from filename. Delegates to storage helper."""
+        return self.storage._get_content_type(filename)
 
     async def upload_reference_ad(
         self,

@@ -44,13 +44,16 @@ class UserVideoSegmentCreate(UserVideoSegmentBase):
     speaker_label: str | None = None
 
     # V2 analysis fields
-    beat_type: str | None = None
+    section_type: str | None = None
+    section_label: str | None = None
     attention_score: int | None = Field(None, ge=1, le=10)
     emotion_intensity: int | None = Field(None, ge=1, le=10)
     color_grading: str | None = None
     lighting_style: str | None = None
     has_speech: bool = False
-    power_words_detected: list[str] | None = None
+    keywords: list[str] | None = None
+    # Rich narrative breakdown with embedded timestamps - can add parsing later if needed
+    detailed_breakdown: str | None = None
 
 
 class UserVideoSegmentUpdate(BaseModel):
@@ -62,7 +65,8 @@ class UserVideoSegmentUpdate(BaseModel):
     thumbnail_url: str | None = None
 
     # V2 analysis fields (can be updated)
-    beat_type: str | None = None
+    section_type: str | None = None
+    section_label: str | None = None
     attention_score: int | None = Field(None, ge=1, le=10)
     emotion_intensity: int | None = Field(None, ge=1, le=10)
 
@@ -88,13 +92,16 @@ class UserVideoSegmentResponse(UserVideoSegmentBase):
     speaker_label: str | None = None
 
     # V2 analysis fields
-    beat_type: str | None = None
+    section_type: str | None = None
+    section_label: str | None = None
     attention_score: int | None = None
     emotion_intensity: int | None = None
     color_grading: str | None = None
     lighting_style: str | None = None
     has_speech: bool = False
-    power_words_detected: list[str] | None = None
+    keywords: list[str] | None = None
+    # Rich narrative breakdown with embedded timestamps - can add parsing later if needed
+    detailed_breakdown: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -139,9 +146,15 @@ class SegmentAnalysis(BaseModel):
     # =========================================================================
     # V2 Analysis Fields - Sprint 5 s5-t7
     # =========================================================================
-    beat_type: str | None = Field(
+    section_type: str | None = Field(
         None,
-        description="Beat classification: hook, problem, solution, showcase, cta, testimonial, transition",
+        description="Section type: action, tutorial, product_display, testimonial, interview, "
+        "b_roll, transition, intro, outro, montage, comparison, reveal, reaction, other",
+    )
+    section_label: str | None = Field(
+        None,
+        description="Descriptive label for the segment (e.g., 'BMX halfpipe trick', "
+        "'Kitchen prep montage', 'Product close-up shot')",
     )
     attention_score: int | None = Field(
         None, ge=1, le=10, description="Thumb-stop potential score (1-10)"
@@ -156,8 +169,17 @@ class SegmentAnalysis(BaseModel):
         None, description="Lighting style (natural, studio, ring-light, golden-hour, etc.)"
     )
     has_speech: bool = Field(default=False, description="Whether segment contains speech")
-    power_words_detected: list[str] | None = Field(
-        None, description="Power words detected in transcript (free, guaranteed, etc.)"
+    keywords: list[str] | None = Field(
+        None,
+        description="Topic keywords and persuasive words (e.g., ['BMX', 'trick', 'halfpipe', "
+        "'outdoor'] or ['skincare', 'guaranteed', 'transformation'])",
+    )
+    # Rich narrative breakdown with embedded timestamps - can add parsing later if needed
+    detailed_breakdown: str | None = Field(
+        None,
+        description="Rich narrative description with embedded timestamps detailing everything "
+        "that happens in the segment. E.g., 'The rider approaches the ramp (0.0s), launches "
+        "upward (0.8s), initiates a 360 spin (1.2s), and lands cleanly (2.2s).'",
     )
 
 

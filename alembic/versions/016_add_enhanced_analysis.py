@@ -78,7 +78,11 @@ def upgrade() -> None:
     # ===========================================================================
     op.add_column(
         "user_video_segments",
-        sa.Column("beat_type", sa.String(30), nullable=True),
+        sa.Column("section_type", sa.String(30), nullable=True),
+    )
+    op.add_column(
+        "user_video_segments",
+        sa.Column("section_label", sa.String(200), nullable=True),
     )
     op.add_column(
         "user_video_segments",
@@ -103,10 +107,16 @@ def upgrade() -> None:
     op.add_column(
         "user_video_segments",
         sa.Column(
-            "power_words_detected",
+            "keywords",
             postgresql.JSONB(astext_type=sa.Text()),
             nullable=True,
         ),
+    )
+    # Rich narrative description with embedded timestamps for Director agent
+    # NOTE: Can add parsing later if we need structured format - timestamps must be accurate
+    op.add_column(
+        "user_video_segments",
+        sa.Column("detailed_breakdown", sa.Text(), nullable=True),
     )
 
     # ===========================================================================
@@ -124,13 +134,15 @@ def downgrade() -> None:
     op.drop_index("idx_segments_ordering", table_name="user_video_segments")
 
     # Drop V2 analysis fields
-    op.drop_column("user_video_segments", "power_words_detected")
+    op.drop_column("user_video_segments", "detailed_breakdown")
+    op.drop_column("user_video_segments", "keywords")
     op.drop_column("user_video_segments", "has_speech")
     op.drop_column("user_video_segments", "lighting_style")
     op.drop_column("user_video_segments", "color_grading")
     op.drop_column("user_video_segments", "emotion_intensity")
     op.drop_column("user_video_segments", "attention_score")
-    op.drop_column("user_video_segments", "beat_type")
+    op.drop_column("user_video_segments", "section_label")
+    op.drop_column("user_video_segments", "section_type")
 
     # Drop transcript fields
     op.drop_column("user_video_segments", "speaker_label")

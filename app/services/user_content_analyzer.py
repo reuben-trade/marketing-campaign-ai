@@ -29,16 +29,17 @@ logger = logging.getLogger(__name__)
 
 
 USER_CONTENT_ANALYSIS_PROMPT = """
-You are an expert video content analyzer specializing in ad creation. Your job is to segment this
-user-uploaded video into distinct, reusable clips with rich metadata for intelligent video editing.
+You are an expert video content analyzer for short-form video editing. Your job is to segment this
+video into distinct, reusable clips with rich metadata - like YouTube chapters but more granular.
 
 ================================================================================
 ANALYSIS GOALS
 ================================================================================
 1. Segment the video at natural cut points (scene changes, camera moves, content shifts)
 2. Extract FULL TRANSCRIPT with word-level timestamps for caption generation
-3. Classify each segment by beat type for ad structure matching
-4. Provide quality scores for intelligent clip selection
+3. Classify each segment with a section type AND descriptive label
+4. Extract relevant keywords (topic terms + any persuasive words)
+5. Provide quality scores for intelligent clip selection
 
 ================================================================================
 SEGMENT IDENTIFICATION RULES
@@ -55,45 +56,77 @@ FOR EACH SEGMENT, PROVIDE:
 **BASIC INFO:**
 1. Precise timestamps (start and end in seconds, e.g., 0.0-3.5)
 2. Visual description: Detailed storyboard-quality description
-3. Action tags: 3-8 lowercase, hyphenated tags (e.g., "product-demo", "hands")
+3. Action tags: 3-8 lowercase, hyphenated tags (e.g., "bmx-trick", "cooking", "unboxing")
 
-**SCENE CLASSIFICATION:**
-4. scene_type: product_demo | testimonial | b_roll | unboxing | before_after |
-   text_slide | logo_end_card | transition | lifestyle | talking_head | hands_demo | screen_recording
-5. beat_type: hook | problem | solution | showcase | cta | testimonial | benefit | transition
-   - hook: Attention-grabbing opening moment
-   - problem: Shows pain point or frustration
-   - solution: Product/service as the answer
-   - showcase: Product demo or feature highlight
-   - cta: Call-to-action moment
-   - testimonial: Social proof or endorsement
-   - benefit: Value proposition or result
-   - transition: Visual bridge between sections
+**SECTION CLASSIFICATION (like YouTube chapters):**
+4. section_type: Choose from predefined list OR use "other":
+   - action: Sports, movement, dynamic footage, stunts, tricks
+   - tutorial: How-to, demonstration, explanation, teaching
+   - product_display: Product shots, features, close-ups, showcase
+   - testimonial: Reviews, endorsements, social proof, reactions
+   - interview: Talking head, Q&A, conversation, discussion
+   - b_roll: Supplementary/atmospheric footage, establishing shots
+   - transition: Visual bridges, filler, scene changes
+   - intro: Opening segment, hook, attention grabber
+   - outro: Closing segment, CTA, end screen
+   - montage: Quick cuts, compilation, highlight reel
+   - comparison: Before/after, side-by-side, A vs B
+   - reveal: Unboxing, transformation reveal, surprise moment
+   - reaction: Response shots, expressions, commentary
+   - other: Anything that doesn't fit above (MUST provide good section_label)
+
+5. section_label: ALWAYS provide a descriptive label for the segment
+   Examples: "BMX halfpipe trick", "Kitchen prep montage", "Product close-up shot",
+   "Customer testimonial", "Skateboard kickflip attempt", "Recipe ingredient overview"
+
+**KEYWORDS (topic terms + persuasive words):**
+6. keywords: Array of ALL relevant terms found in this segment:
+   - Topic/niche keywords (e.g., "BMX", "halfpipe", "trick", "skateboard", "cooking", "recipe")
+   - Activity keywords (e.g., "jump", "flip", "mix", "chop", "review")
+   - Persuasive words if present (e.g., "free", "guaranteed", "exclusive", "amazing")
+   - Product/brand mentions
+   Example: ["BMX", "halfpipe", "trick", "outdoor", "slow-motion", "landing"]
+
+**DETAILED BREAKDOWN (CRITICAL for Director agent):**
+7. detailed_breakdown: A rich narrative description with ACCURATE embedded timestamps describing
+   EVERYTHING that happens in this segment. This is essential for the Director agent and embeddings.
+   - Include timestamps in parentheses like (0.0s), (1.2s), (2.5s)
+   - Describe every action, movement, expression, camera change in sequence
+   - Be specific about what subjects do, how they move, what appears on screen
+   - Timestamps MUST be accurate relative to segment start (0.0s = segment start)
+   Example: "The rider approaches the halfpipe ramp at moderate speed (0.0s), pedaling twice
+   before reaching the edge. At the lip (0.8s), they launch upward with strong leg extension.
+   Mid-air (1.2s), they initiate a backside 360 spin by turning their shoulders. The rotation
+   continues (1.5s) as they reach peak height. They spot the landing (1.8s) and prepare to
+   absorb impact. Clean landing (2.2s) with both wheels touching down, followed by a small
+   celebratory fist pump (2.5s)."
 
 **TRANSCRIPT (CRITICAL FOR CAPTIONS):**
-6. transcript_text: Full verbatim transcript of ALL speech in this segment
-7. transcript_words: Array of word-level timestamps for caption sync:
+8. transcript_text: Full verbatim transcript of ALL speech in this segment
+9. transcript_words: Array of word-level timestamps for caption sync:
    [{{"word": "Hey", "start": 0.0, "end": 0.3}}, {{"word": "guys", "start": 0.35, "end": 0.6}}]
-8. speaker_label: "speaker_1", "speaker_2", etc. for multi-speaker videos
-9. has_speech: true/false - whether segment contains spoken words
+10. speaker_label: "speaker_1", "speaker_2", etc. for multi-speaker videos
+11. has_speech: true/false - whether segment contains spoken words
 
 **QUALITY SCORES:**
-10. attention_score: 1-10 thumb-stop potential (how attention-grabbing is this?)
-11. emotion_intensity: 1-10 emotional impact level
-12. emotion: excitement | calm | urgency | trust | curiosity | joy | frustration | neutral
+12. attention_score: 1-10 thumb-stop potential (how attention-grabbing is this?)
+13. emotion_intensity: 1-10 emotional impact level
+14. emotion: excitement | calm | urgency | trust | curiosity | joy | frustration | neutral
 
 **CINEMATICS:**
-13. camera_shot: close-up | medium | wide | extreme-close-up | POV | over-shoulder
-14. motion_type: static | handheld | tracking | pan | zoom | dolly
-15. color_grading: warm | cool | neutral | high-contrast | desaturated | vibrant
-16. lighting_style: natural | studio | ring-light | golden-hour | harsh | soft | dramatic
+15. camera_shot: close-up | medium | wide | extreme-close-up | POV | over-shoulder
+16. motion_type: static | handheld | tracking | pan | zoom | dolly
+17. color_grading: warm | cool | neutral | high-contrast | desaturated | vibrant
+18. lighting_style: natural | studio | ring-light | golden-hour | harsh | soft | dramatic
 
 **CONTENT FLAGS:**
-17. has_text_overlay: true/false
-18. has_face: true/false
-19. has_product: true/false
-20. power_words_detected: Array of persuasive words found in transcript
-    (e.g., ["free", "guaranteed", "exclusive", "instant", "proven", "secret"])
+19. has_text_overlay: true/false
+20. has_face: true/false
+21. has_product: true/false
+
+**LEGACY FIELD (for backwards compatibility):**
+22. scene_type: product_demo | testimonial | b_roll | unboxing | before_after |
+    text_slide | logo_end_card | transition | lifestyle | talking_head | hands_demo | screen_recording
 
 ================================================================================
 VIDEO-LEVEL SUMMARY
@@ -111,46 +144,45 @@ RETURN THIS EXACT JSON STRUCTURE:
   "video_level_summary": "2-3 sentence summary of what this video contains",
   "video_level_tags": ["tag1", "tag2", "tag3"],
   "total_duration_seconds": 30.0,
-  "dominant_theme": "product showcase | testimonial | lifestyle | demo | tutorial | unboxing | behind-the-scenes",
+  "dominant_theme": "product showcase | testimonial | lifestyle | demo | tutorial | unboxing | sports | entertainment | other",
   "production_style": "UGC | professional | hybrid | screen_recording",
-  "content_type": "demo | testimonial | lifestyle | b-roll | tutorial | unboxing | mixed",
+  "content_type": "demo | testimonial | lifestyle | b-roll | tutorial | unboxing | sports | entertainment | mixed",
   "segments": [
     {{
       "timestamp_start": 0.0,
       "timestamp_end": 3.5,
-      "visual_description": "Close-up of hands holding a sleek silver smartphone...",
-      "action_tags": ["hands", "smartphone", "product-reveal", "close-up"],
-      "scene_type": "product_demo",
-      "beat_type": "hook",
-      "emotion": "curiosity",
-      "emotion_intensity": 7,
-      "attention_score": 8,
-      "camera_shot": "close-up",
-      "motion_type": "handheld",
-      "color_grading": "warm",
+      "visual_description": "BMX rider approaches halfpipe ramp at speed, performs aerial 360 spin...",
+      "detailed_breakdown": "The rider approaches the halfpipe ramp at moderate speed (0.0s), pedaling twice before reaching the edge. At the lip (0.8s), they launch upward with strong leg extension. Mid-air (1.2s), they initiate a backside 360 spin by turning their shoulders. The rotation continues (1.8s) as they reach peak height of approximately 6 feet. They spot the landing (2.4s) and prepare to absorb impact. Clean landing (2.9s) with both wheels touching down simultaneously, followed by a small celebratory fist pump (3.2s).",
+      "action_tags": ["bmx", "halfpipe", "aerial", "trick", "outdoor"],
+      "scene_type": "b_roll",
+      "section_type": "action",
+      "section_label": "BMX halfpipe 360 spin",
+      "keywords": ["BMX", "halfpipe", "360", "aerial", "trick", "spin", "extreme-sports"],
+      "emotion": "excitement",
+      "emotion_intensity": 9,
+      "attention_score": 9,
+      "camera_shot": "wide",
+      "motion_type": "tracking",
+      "color_grading": "vibrant",
       "lighting_style": "natural",
       "has_text_overlay": false,
       "has_face": false,
-      "has_product": true,
-      "has_speech": true,
-      "transcript_text": "Hey guys, check this out",
-      "transcript_words": [
-        {{"word": "Hey", "start": 0.1, "end": 0.3}},
-        {{"word": "guys", "start": 0.35, "end": 0.55}},
-        {{"word": "check", "start": 0.6, "end": 0.8}},
-        {{"word": "this", "start": 0.85, "end": 1.0}},
-        {{"word": "out", "start": 1.05, "end": 1.3}}
-      ],
-      "speaker_label": "speaker_1",
-      "power_words_detected": []
+      "has_product": false,
+      "has_speech": false,
+      "transcript_text": null,
+      "transcript_words": null,
+      "speaker_label": null
     }},
     {{
       "timestamp_start": 3.5,
       "timestamp_end": 8.0,
-      "visual_description": "Young woman smiling at camera in modern office...",
+      "visual_description": "Young woman smiling at camera in modern office, speaking enthusiastically...",
+      "detailed_breakdown": "Woman looks directly at camera with bright smile (0.0s). She begins speaking with an enthusiastic tone (0.2s), gesturing with her right hand. Her expression intensifies as she says 'completely changed' (1.0s), leaning slightly forward for emphasis. Brief pause with maintained eye contact (1.8s). She raises eyebrows while saying 'guarantee' (2.2s), adding credibility. Finishes with a warm, confident nod (3.5s) and slight head tilt suggesting sincerity.",
       "action_tags": ["testimonial", "female", "office", "speaking"],
       "scene_type": "testimonial",
-      "beat_type": "testimonial",
+      "section_type": "testimonial",
+      "section_label": "Customer review testimonial",
+      "keywords": ["testimonial", "review", "customer", "guarantee", "recommendation"],
       "emotion": "excitement",
       "emotion_intensity": 8,
       "attention_score": 7,
@@ -164,20 +196,19 @@ RETURN THIS EXACT JSON STRUCTURE:
       "has_speech": true,
       "transcript_text": "This product completely changed my life, I guarantee you'll love it",
       "transcript_words": [
-        {{"word": "This", "start": 3.5, "end": 3.7}},
-        {{"word": "product", "start": 3.75, "end": 4.1}},
-        {{"word": "completely", "start": 4.15, "end": 4.6}},
-        {{"word": "changed", "start": 4.65, "end": 4.95}},
-        {{"word": "my", "start": 5.0, "end": 5.15}},
-        {{"word": "life", "start": 5.2, "end": 5.5}},
-        {{"word": "I", "start": 5.6, "end": 5.7}},
-        {{"word": "guarantee", "start": 5.75, "end": 6.3}},
-        {{"word": "you'll", "start": 6.35, "end": 6.55}},
-        {{"word": "love", "start": 6.6, "end": 6.85}},
-        {{"word": "it", "start": 6.9, "end": 7.1}}
+        {{"word": "This", "start": 0.0, "end": 0.2}},
+        {{"word": "product", "start": 0.25, "end": 0.6}},
+        {{"word": "completely", "start": 0.65, "end": 1.1}},
+        {{"word": "changed", "start": 1.15, "end": 1.45}},
+        {{"word": "my", "start": 1.5, "end": 1.65}},
+        {{"word": "life", "start": 1.7, "end": 2.0}},
+        {{"word": "I", "start": 2.1, "end": 2.2}},
+        {{"word": "guarantee", "start": 2.25, "end": 2.8}},
+        {{"word": "you'll", "start": 2.85, "end": 3.05}},
+        {{"word": "love", "start": 3.1, "end": 3.35}},
+        {{"word": "it", "start": 3.4, "end": 3.6}}
       ],
-      "speaker_label": "speaker_1",
-      "power_words_detected": ["guarantee"]
+      "speaker_label": "speaker_1"
     }}
   ]
 }}
@@ -189,6 +220,8 @@ CRITICAL INSTRUCTIONS
 - Timestamps must be precise and non-overlapping
 - Descriptions should be search-friendly (avoid vague language)
 - Tags should be lowercase, hyphenated for multi-word
+- ALWAYS provide both section_type AND section_label for every segment
+- keywords should include ALL relevant topic terms, not just persuasive words
 - TRANSCRIBE ALL SPEECH verbatim with word-level timestamps
 - Include ALL segments, even brief transitions or text cards
 - Return ONLY valid JSON, no markdown formatting
@@ -332,13 +365,16 @@ class UserContentAnalyzer:
                 transcript_words=transcript_words,
                 speaker_label=seg_data.get("speaker_label"),
                 # V2 analysis fields (Sprint 5 s5-t7)
-                beat_type=seg_data.get("beat_type"),
+                section_type=seg_data.get("section_type"),
+                section_label=seg_data.get("section_label"),
                 attention_score=self._clamp_score(seg_data.get("attention_score")),
                 emotion_intensity=self._clamp_score(seg_data.get("emotion_intensity")),
                 color_grading=seg_data.get("color_grading"),
                 lighting_style=seg_data.get("lighting_style"),
                 has_speech=seg_data.get("has_speech", False),
-                power_words_detected=seg_data.get("power_words_detected"),
+                keywords=seg_data.get("keywords"),
+                # Rich narrative breakdown - can add parsing later if needed
+                detailed_breakdown=seg_data.get("detailed_breakdown"),
             )
             # Calculate duration
             segment_duration = segment.timestamp_end - segment.timestamp_start
@@ -379,18 +415,27 @@ class UserContentAnalyzer:
         """
         parts = [segment.visual_description]
 
+        # Include detailed breakdown for rich context (most important for embeddings)
+        if segment.detailed_breakdown:
+            parts.append(f"Details: {segment.detailed_breakdown}")
+
+        # Include section label for descriptive matching
+        if segment.section_label:
+            parts.append(f"Section: {segment.section_label}")
+
         # Include transcript for speech-based matching
         if segment.transcript_text:
             parts.append(f"Speech: {segment.transcript_text}")
 
+        # Include keywords for topic matching
+        if segment.keywords:
+            parts.append(f"Keywords: {', '.join(segment.keywords)}")
+
         if segment.action_tags:
             parts.append(f"Actions: {', '.join(segment.action_tags)}")
 
-        if segment.scene_type:
-            parts.append(f"Scene type: {segment.scene_type}")
-
-        if segment.beat_type:
-            parts.append(f"Beat: {segment.beat_type}")
+        if segment.section_type:
+            parts.append(f"Type: {segment.section_type}")
 
         if segment.emotion:
             parts.append(f"Emotion: {segment.emotion}")
@@ -500,13 +545,16 @@ class UserContentAnalyzer:
                     transcript_words=transcript_words_json,
                     speaker_label=segment_data.speaker_label,
                     # V2 analysis fields (Sprint 5 s5-t7)
-                    beat_type=segment_data.beat_type,
+                    section_type=segment_data.section_type,
+                    section_label=segment_data.section_label,
                     attention_score=segment_data.attention_score,
                     emotion_intensity=segment_data.emotion_intensity,
                     color_grading=segment_data.color_grading,
                     lighting_style=segment_data.lighting_style,
                     has_speech=segment_data.has_speech,
-                    power_words_detected=segment_data.power_words_detected,
+                    keywords=segment_data.keywords,
+                    # Rich narrative breakdown - can add parsing later if needed
+                    detailed_breakdown=segment_data.detailed_breakdown,
                 )
                 db.add(segment)
                 created_segments.append(segment)

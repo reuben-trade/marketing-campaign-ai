@@ -170,20 +170,23 @@ class TestDirectorAgent:
         mock_db = AsyncMock()
 
         # Mock database queries
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={sample_project_files[0].id: sample_project_files[0].file_url},
-        ), patch.object(
-            director_agent.semantic_search,
-            "search_slots_in_project",
-            return_value={
-                "slot_01_hook": [(sample_segments[0], 0.89)],
-                "slot_02_problem": [(sample_segments[1], 0.85)],
-                "slot_03_solution": [(sample_segments[2], 0.92)],
-            },
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(director_agent, "_get_project", return_value=sample_project),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={sample_project_files[0].id: sample_project_files[0].file_url},
+            ),
+            patch.object(
+                director_agent.semantic_search,
+                "search_slots_in_project",
+                return_value={
+                    "slot_01_hook": [(sample_segments[0], 0.89)],
+                    "slot_02_problem": [(sample_segments[1], 0.85)],
+                    "slot_03_solution": [(sample_segments[2], 0.92)],
+                },
+            ),
         ):
             input_data = DirectorAgentInput(
                 project_id=sample_project.id,
@@ -214,20 +217,23 @@ class TestDirectorAgent:
         """Test assembly with gaps (no matching clips for some slots)."""
         mock_db = AsyncMock()
 
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={sample_project_files[0].id: sample_project_files[0].file_url},
-        ), patch.object(
-            director_agent.semantic_search,
-            "search_slots_in_project",
-            return_value={
-                "slot_01_hook": [(sample_segments[0], 0.89)],
-                "slot_02_problem": [],  # No results - gap
-                "slot_03_solution": [(sample_segments[2], 0.92)],
-            },
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(director_agent, "_get_project", return_value=sample_project),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={sample_project_files[0].id: sample_project_files[0].file_url},
+            ),
+            patch.object(
+                director_agent.semantic_search,
+                "search_slots_in_project",
+                return_value={
+                    "slot_01_hook": [(sample_segments[0], 0.89)],
+                    "slot_02_problem": [],  # No results - gap
+                    "slot_03_solution": [(sample_segments[2], 0.92)],
+                },
+            ),
         ):
             input_data = DirectorAgentInput(
                 project_id=sample_project.id,
@@ -258,20 +264,23 @@ class TestDirectorAgent:
         """Test gap handling with text slides."""
         mock_db = AsyncMock()
 
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={sample_project_files[0].id: sample_project_files[0].file_url},
-        ), patch.object(
-            director_agent.semantic_search,
-            "search_slots_in_project",
-            return_value={
-                "slot_01_hook": [],  # Gap
-                "slot_02_problem": [],  # Gap
-                "slot_03_solution": [(sample_segments[2], 0.92)],
-            },
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(director_agent, "_get_project", return_value=sample_project),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={sample_project_files[0].id: sample_project_files[0].file_url},
+            ),
+            patch.object(
+                director_agent.semantic_search,
+                "search_slots_in_project",
+                return_value={
+                    "slot_01_hook": [],  # Gap
+                    "slot_02_problem": [],  # Gap
+                    "slot_03_solution": [(sample_segments[2], 0.92)],
+                },
+            ),
         ):
             input_data = DirectorAgentInput(
                 project_id=sample_project.id,
@@ -298,20 +307,23 @@ class TestDirectorAgent:
         """Test gap handling with skip option."""
         mock_db = AsyncMock()
 
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={sample_project_files[0].id: sample_project_files[0].file_url},
-        ), patch.object(
-            director_agent.semantic_search,
-            "search_slots_in_project",
-            return_value={
-                "slot_01_hook": [],  # Gap - will be skipped
-                "slot_02_problem": [(sample_segments[1], 0.85)],
-                "slot_03_solution": [(sample_segments[2], 0.92)],
-            },
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(director_agent, "_get_project", return_value=sample_project),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={sample_project_files[0].id: sample_project_files[0].file_url},
+            ),
+            patch.object(
+                director_agent.semantic_search,
+                "search_slots_in_project",
+                return_value={
+                    "slot_01_hook": [],  # Gap - will be skipped
+                    "slot_02_problem": [(sample_segments[1], 0.85)],
+                    "slot_03_solution": [(sample_segments[2], 0.92)],
+                },
+            ),
         ):
             input_data = DirectorAgentInput(
                 project_id=sample_project.id,
@@ -338,20 +350,23 @@ class TestDirectorAgent:
         """Test different composition types set correct dimensions."""
         mock_db = AsyncMock()
 
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={sample_project_files[0].id: sample_project_files[0].file_url},
-        ), patch.object(
-            director_agent.semantic_search,
-            "search_slots_in_project",
-            return_value={
-                "slot_01_hook": [(sample_segments[0], 0.89)],
-                "slot_02_problem": [(sample_segments[1], 0.85)],
-                "slot_03_solution": [(sample_segments[2], 0.92)],
-            },
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(director_agent, "_get_project", return_value=sample_project),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={sample_project_files[0].id: sample_project_files[0].file_url},
+            ),
+            patch.object(
+                director_agent.semantic_search,
+                "search_slots_in_project",
+                return_value={
+                    "slot_01_hook": [(sample_segments[0], 0.89)],
+                    "slot_02_problem": [(sample_segments[1], 0.85)],
+                    "slot_03_solution": [(sample_segments[2], 0.92)],
+                },
+            ),
         ):
             # Test vertical (9:16)
             input_data = DirectorAgentInput(
@@ -387,20 +402,23 @@ class TestDirectorAgent:
         """Test assembly with audio track."""
         mock_db = AsyncMock()
 
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(director_agent, "_get_project", return_value=sample_project), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={sample_project_files[0].id: sample_project_files[0].file_url},
-        ), patch.object(
-            director_agent.semantic_search,
-            "search_slots_in_project",
-            return_value={
-                "slot_01_hook": [(sample_segments[0], 0.89)],
-                "slot_02_problem": [(sample_segments[1], 0.85)],
-                "slot_03_solution": [(sample_segments[2], 0.92)],
-            },
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(director_agent, "_get_project", return_value=sample_project),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={sample_project_files[0].id: sample_project_files[0].file_url},
+            ),
+            patch.object(
+                director_agent.semantic_search,
+                "search_slots_in_project",
+                return_value={
+                    "slot_01_hook": [(sample_segments[0], 0.89)],
+                    "slot_02_problem": [(sample_segments[1], 0.85)],
+                    "slot_03_solution": [(sample_segments[2], 0.92)],
+                },
+            ),
         ):
             input_data = DirectorAgentInput(
                 project_id=sample_project.id,
@@ -437,10 +455,11 @@ class TestDirectorAgent:
         """Test error when project not found."""
         mock_db = AsyncMock()
 
-        with patch.object(
-            director_agent, "_get_visual_script", return_value=sample_visual_script
-        ), patch.object(
-            director_agent, "_get_project", side_effect=DirectorAgentError("not found")
+        with (
+            patch.object(director_agent, "_get_visual_script", return_value=sample_visual_script),
+            patch.object(
+                director_agent, "_get_project", side_effect=DirectorAgentError("not found")
+            ),
         ):
             input_data = DirectorAgentInput(
                 project_id=uuid.uuid4(),
@@ -844,19 +863,22 @@ class TestPayloadUpdate:
         mock_db = AsyncMock()
         project_id = uuid.uuid4()
 
-        with patch.object(
-            director_agent.semantic_search,
-            "search_project_segments",
-            return_value=[
-                (sample_segments[0], 0.89),
-                (sample_segments[1], 0.75),
-            ],
-        ), patch.object(
-            director_agent,
-            "_build_file_url_map",
-            return_value={
-                sample_segments[0].source_file_id: "https://example.com/video.mp4",
-            },
+        with (
+            patch.object(
+                director_agent.semantic_search,
+                "search_project_segments",
+                return_value=[
+                    (sample_segments[0], 0.89),
+                    (sample_segments[1], 0.75),
+                ],
+            ),
+            patch.object(
+                director_agent,
+                "_build_file_url_map",
+                return_value={
+                    sample_segments[0].source_file_id: "https://example.com/video.mp4",
+                },
+            ),
         ):
             alternatives = await director_agent.get_clip_alternatives(
                 db=mock_db,

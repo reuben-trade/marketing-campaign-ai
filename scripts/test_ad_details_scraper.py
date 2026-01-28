@@ -57,13 +57,13 @@ async def test_scrape_ad_details(
     """
     scraper = AdLibraryScraper()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Testing Ad Details Scraper")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Ad Library ID: {ad_library_id}")
     print(f"Page ID: {page_id}")
     print(f"Country: {country}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Build the URL for reference
     url = scraper.build_ad_details_url(ad_library_id, page_id, country)
@@ -77,9 +77,9 @@ async def test_scrape_ad_details(
     )
 
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("RESULTS")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         # Timing info
         print("TIMING INFO:")
@@ -142,9 +142,9 @@ async def test_scrape_ad_details(
             print("  None found (not a lead gen ad)")
 
         # Raw JSON output
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("RAW JSON OUTPUT")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(json.dumps(details, indent=2, default=str))
 
     return details
@@ -154,9 +154,9 @@ async def test_multiple_ads(ad_ids: list[tuple[str, str]], country: str = "AU") 
     """Test scraping multiple ads."""
     scraper = AdLibraryScraper()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Testing {len(ad_ids)} ads")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     results = []
     for ad_library_id, page_id in ad_ids:
@@ -189,9 +189,9 @@ async def test_multiple_ads(ad_ids: list[tuple[str, str]], country: str = "AU") 
             print(f"  ✗ Failed: {e}")
 
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     successful = sum(1 for r in results if r["success"])
     print(f"Total: {len(results)}, Success: {successful}, Failed: {len(results) - successful}")
 

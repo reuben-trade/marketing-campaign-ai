@@ -29,53 +29,84 @@ logger = logging.getLogger(__name__)
 
 
 USER_CONTENT_ANALYSIS_PROMPT = """
-You are an expert video content analyzer. Your job is to segment this user-uploaded video into
-distinct, reusable clips for ad creation. Each segment should be a self-contained visual unit
-that could be used as a clip in a video advertisement.
+You are an expert video content analyzer specializing in ad creation. Your job is to segment this
+user-uploaded video into distinct, reusable clips with rich metadata for intelligent video editing.
 
-ANALYSIS GOALS:
-1. Identify distinct visual segments based on scene changes, camera movement, or content shifts
-2. Describe each segment in detail for semantic search and clip matching
-3. Extract actionable tags for each segment to enable content discovery
+================================================================================
+ANALYSIS GOALS
+================================================================================
+1. Segment the video at natural cut points (scene changes, camera moves, content shifts)
+2. Extract FULL TRANSCRIPT with word-level timestamps for caption generation
+3. Classify each segment by beat type for ad structure matching
+4. Provide quality scores for intelligent clip selection
 
-SEGMENT IDENTIFICATION RULES:
+================================================================================
+SEGMENT IDENTIFICATION RULES
+================================================================================
 - Minimum segment length: 1 second
 - Maximum segment length: 15 seconds (break longer scenes into smaller units)
-- Segment boundaries should be at natural cut points (scene changes, camera moves, etc.)
+- Segment boundaries should be at natural cut points
 - Each segment should be describable as a single, coherent visual idea
 
+================================================================================
 FOR EACH SEGMENT, PROVIDE:
-1. **Precise timestamps** (start and end in seconds, e.g., 0.0-3.5)
-2. **Visual description**: Detailed description of what's visible (who, what, where, how)
-   - Be specific enough that someone could search for this clip by description
-   - Include: subjects, actions, setting, colors, lighting, camera angle
-3. **Action tags**: 3-8 short tags describing the action/content (e.g., "product-demo", "hands", "close-up")
-4. **Scene type**: Categorize as one of:
-   - product_demo: Product being shown or demonstrated
-   - testimonial: Person speaking to camera
-   - b_roll: Supplementary footage (lifestyle, environment, abstract)
-   - unboxing: Product unboxing/reveal
-   - before_after: Comparison or transformation
-   - text_slide: Text-heavy frame
-   - logo_end_card: Logo or branding element
-   - transition: Transition effect or filler
-   - lifestyle: Product in real-world use context
-   - talking_head: Person speaking (not testimonial format)
-   - hands_demo: Close-up of hands demonstrating
-   - screen_recording: Screen capture content
-5. **Emotion**: Dominant emotion (excitement, calm, urgency, trust, curiosity, joy, neutral)
-6. **Camera shot**: close-up, medium, wide, extreme-close-up, POV, over-shoulder
-7. **Motion type**: static, handheld, tracking, pan, zoom, dolly
-8. **Content flags**: has_text_overlay, has_face, has_product (boolean)
+================================================================================
 
-ALSO PROVIDE VIDEO-LEVEL SUMMARY:
+**BASIC INFO:**
+1. Precise timestamps (start and end in seconds, e.g., 0.0-3.5)
+2. Visual description: Detailed storyboard-quality description
+3. Action tags: 3-8 lowercase, hyphenated tags (e.g., "product-demo", "hands")
+
+**SCENE CLASSIFICATION:**
+4. scene_type: product_demo | testimonial | b_roll | unboxing | before_after |
+   text_slide | logo_end_card | transition | lifestyle | talking_head | hands_demo | screen_recording
+5. beat_type: hook | problem | solution | showcase | cta | testimonial | benefit | transition
+   - hook: Attention-grabbing opening moment
+   - problem: Shows pain point or frustration
+   - solution: Product/service as the answer
+   - showcase: Product demo or feature highlight
+   - cta: Call-to-action moment
+   - testimonial: Social proof or endorsement
+   - benefit: Value proposition or result
+   - transition: Visual bridge between sections
+
+**TRANSCRIPT (CRITICAL FOR CAPTIONS):**
+6. transcript_text: Full verbatim transcript of ALL speech in this segment
+7. transcript_words: Array of word-level timestamps for caption sync:
+   [{{"word": "Hey", "start": 0.0, "end": 0.3}}, {{"word": "guys", "start": 0.35, "end": 0.6}}]
+8. speaker_label: "speaker_1", "speaker_2", etc. for multi-speaker videos
+9. has_speech: true/false - whether segment contains spoken words
+
+**QUALITY SCORES:**
+10. attention_score: 1-10 thumb-stop potential (how attention-grabbing is this?)
+11. emotion_intensity: 1-10 emotional impact level
+12. emotion: excitement | calm | urgency | trust | curiosity | joy | frustration | neutral
+
+**CINEMATICS:**
+13. camera_shot: close-up | medium | wide | extreme-close-up | POV | over-shoulder
+14. motion_type: static | handheld | tracking | pan | zoom | dolly
+15. color_grading: warm | cool | neutral | high-contrast | desaturated | vibrant
+16. lighting_style: natural | studio | ring-light | golden-hour | harsh | soft | dramatic
+
+**CONTENT FLAGS:**
+17. has_text_overlay: true/false
+18. has_face: true/false
+19. has_product: true/false
+20. power_words_detected: Array of persuasive words found in transcript
+    (e.g., ["free", "guaranteed", "exclusive", "instant", "proven", "secret"])
+
+================================================================================
+VIDEO-LEVEL SUMMARY
+================================================================================
 - Overall theme and content type
 - Production style (UGC, professional, hybrid)
 - Key subjects/products visible
 - Dominant mood/tone
 - Total duration
 
-Return analysis in this EXACT JSON structure:
+================================================================================
+RETURN THIS EXACT JSON STRUCTURE:
+================================================================================
 {{
   "video_level_summary": "2-3 sentence summary of what this video contains",
   "video_level_tags": ["tag1", "tag2", "tag3"],
@@ -87,37 +118,78 @@ Return analysis in this EXACT JSON structure:
     {{
       "timestamp_start": 0.0,
       "timestamp_end": 3.5,
-      "visual_description": "Close-up of hands holding a sleek silver smartphone, tilting it to show the camera module. Soft natural lighting, white background.",
-      "action_tags": ["hands", "smartphone", "product-reveal", "close-up", "tech"],
+      "visual_description": "Close-up of hands holding a sleek silver smartphone...",
+      "action_tags": ["hands", "smartphone", "product-reveal", "close-up"],
       "scene_type": "product_demo",
+      "beat_type": "hook",
       "emotion": "curiosity",
+      "emotion_intensity": 7,
+      "attention_score": 8,
       "camera_shot": "close-up",
       "motion_type": "handheld",
+      "color_grading": "warm",
+      "lighting_style": "natural",
       "has_text_overlay": false,
       "has_face": false,
-      "has_product": true
+      "has_product": true,
+      "has_speech": true,
+      "transcript_text": "Hey guys, check this out",
+      "transcript_words": [
+        {{"word": "Hey", "start": 0.1, "end": 0.3}},
+        {{"word": "guys", "start": 0.35, "end": 0.55}},
+        {{"word": "check", "start": 0.6, "end": 0.8}},
+        {{"word": "this", "start": 0.85, "end": 1.0}},
+        {{"word": "out", "start": 1.05, "end": 1.3}}
+      ],
+      "speaker_label": "speaker_1",
+      "power_words_detected": []
     }},
     {{
       "timestamp_start": 3.5,
       "timestamp_end": 8.0,
-      "visual_description": "Young woman in her 20s smiling at camera in a modern office. Speaking enthusiastically with hand gestures. Ring light visible in eye reflection.",
-      "action_tags": ["testimonial", "female", "office", "speaking", "enthusiastic"],
+      "visual_description": "Young woman smiling at camera in modern office...",
+      "action_tags": ["testimonial", "female", "office", "speaking"],
       "scene_type": "testimonial",
+      "beat_type": "testimonial",
       "emotion": "excitement",
+      "emotion_intensity": 8,
+      "attention_score": 7,
       "camera_shot": "medium",
       "motion_type": "static",
+      "color_grading": "neutral",
+      "lighting_style": "ring-light",
       "has_text_overlay": false,
       "has_face": true,
-      "has_product": false
+      "has_product": false,
+      "has_speech": true,
+      "transcript_text": "This product completely changed my life, I guarantee you'll love it",
+      "transcript_words": [
+        {{"word": "This", "start": 3.5, "end": 3.7}},
+        {{"word": "product", "start": 3.75, "end": 4.1}},
+        {{"word": "completely", "start": 4.15, "end": 4.6}},
+        {{"word": "changed", "start": 4.65, "end": 4.95}},
+        {{"word": "my", "start": 5.0, "end": 5.15}},
+        {{"word": "life", "start": 5.2, "end": 5.5}},
+        {{"word": "I", "start": 5.6, "end": 5.7}},
+        {{"word": "guarantee", "start": 5.75, "end": 6.3}},
+        {{"word": "you'll", "start": 6.35, "end": 6.55}},
+        {{"word": "love", "start": 6.6, "end": 6.85}},
+        {{"word": "it", "start": 6.9, "end": 7.1}}
+      ],
+      "speaker_label": "speaker_1",
+      "power_words_detected": ["guarantee"]
     }}
   ]
 }}
 
-CRITICAL INSTRUCTIONS:
+================================================================================
+CRITICAL INSTRUCTIONS
+================================================================================
 - Be EXHAUSTIVE - capture EVERY distinct visual moment
 - Timestamps must be precise and non-overlapping
-- Descriptions should be search-friendly (avoid vague language like "something" or "stuff")
-- Tags should be lowercase, hyphenated for multi-word (e.g., "product-demo")
+- Descriptions should be search-friendly (avoid vague language)
+- Tags should be lowercase, hyphenated for multi-word
+- TRANSCRIBE ALL SPEECH verbatim with word-level timestamps
 - Include ALL segments, even brief transitions or text cards
 - Return ONLY valid JSON, no markdown formatting
 """
@@ -233,6 +305,16 @@ class UserContentAnalyzer:
         """Parse raw Gemini response into VideoAnalysisResult schema."""
         segments = []
         for seg_data in raw.get("segments", []):
+            # Parse transcript_words if present
+            transcript_words = None
+            raw_words = seg_data.get("transcript_words")
+            if raw_words and isinstance(raw_words, list):
+                transcript_words = [
+                    {"word": w.get("word", ""), "start": w.get("start", 0), "end": w.get("end", 0)}
+                    for w in raw_words
+                    if isinstance(w, dict) and w.get("word")
+                ]
+
             segment = SegmentAnalysis(
                 timestamp_start=float(seg_data.get("timestamp_start", 0)),
                 timestamp_end=float(seg_data.get("timestamp_end", 0)),
@@ -245,6 +327,18 @@ class UserContentAnalyzer:
                 has_text_overlay=seg_data.get("has_text_overlay", False),
                 has_face=seg_data.get("has_face", False),
                 has_product=seg_data.get("has_product", False),
+                # Transcript fields (Sprint 5 s5-t5)
+                transcript_text=seg_data.get("transcript_text"),
+                transcript_words=transcript_words,
+                speaker_label=seg_data.get("speaker_label"),
+                # V2 analysis fields (Sprint 5 s5-t7)
+                beat_type=seg_data.get("beat_type"),
+                attention_score=self._clamp_score(seg_data.get("attention_score")),
+                emotion_intensity=self._clamp_score(seg_data.get("emotion_intensity")),
+                color_grading=seg_data.get("color_grading"),
+                lighting_style=seg_data.get("lighting_style"),
+                has_speech=seg_data.get("has_speech", False),
+                power_words_detected=seg_data.get("power_words_detected"),
             )
             # Calculate duration
             segment_duration = segment.timestamp_end - segment.timestamp_start
@@ -261,11 +355,21 @@ class UserContentAnalyzer:
             content_type=raw.get("content_type"),
         )
 
+    def _clamp_score(self, value: Any) -> int | None:
+        """Clamp a score value to 1-10 range, return None if invalid."""
+        if value is None:
+            return None
+        try:
+            score = int(value)
+            return max(1, min(10, score))
+        except (TypeError, ValueError):
+            return None
+
     def _build_segment_text(self, segment: SegmentAnalysis) -> str:
         """
         Build rich text representation for embedding.
 
-        Combines visual description and tags for optimal semantic search matching.
+        Combines visual description, transcript, and metadata for optimal semantic search.
 
         Args:
             segment: The segment to build text for
@@ -275,17 +379,27 @@ class UserContentAnalyzer:
         """
         parts = [segment.visual_description]
 
+        # Include transcript for speech-based matching
+        if segment.transcript_text:
+            parts.append(f"Speech: {segment.transcript_text}")
+
         if segment.action_tags:
             parts.append(f"Actions: {', '.join(segment.action_tags)}")
 
         if segment.scene_type:
             parts.append(f"Scene type: {segment.scene_type}")
 
+        if segment.beat_type:
+            parts.append(f"Beat: {segment.beat_type}")
+
         if segment.emotion:
             parts.append(f"Emotion: {segment.emotion}")
 
         if segment.camera_shot:
             parts.append(f"Camera: {segment.camera_shot}")
+
+        if segment.lighting_style:
+            parts.append(f"Lighting: {segment.lighting_style}")
 
         return " | ".join(parts)
 
@@ -348,13 +462,25 @@ class UserContentAnalyzer:
             # Analyze video
             analysis_result = await self.analyze_video(video_content, mime_type)
 
-            # Create segments
+            # Create segments with all enhanced fields
+            total_segments = len(analysis_result.segments)
             created_segments = []
-            for segment_data in analysis_result.segments:
+
+            for idx, segment_data in enumerate(analysis_result.segments):
                 # Generate embedding for segment
                 embedding = await self.generate_segment_embedding(segment_data)
 
-                # Create segment record
+                # Convert transcript_words to list of dicts for JSONB storage
+                transcript_words_json = None
+                if segment_data.transcript_words:
+                    transcript_words_json = [
+                        {"word": tw.word, "start": tw.start, "end": tw.end}
+                        if hasattr(tw, "word")
+                        else tw
+                        for tw in segment_data.transcript_words
+                    ]
+
+                # Create segment record with all enhanced fields
                 segment = UserVideoSegment(
                     project_id=project_file.project_id,
                     source_file_id=project_file.id,
@@ -366,9 +492,34 @@ class UserContentAnalyzer:
                     visual_description=segment_data.visual_description,
                     action_tags=segment_data.action_tags,
                     embedding=embedding,
+                    # Clip ordering fields (Sprint 5 s5-t6)
+                    segment_index=idx,
+                    total_segments_in_source=total_segments,
+                    # Transcript fields (Sprint 5 s5-t5)
+                    transcript_text=segment_data.transcript_text,
+                    transcript_words=transcript_words_json,
+                    speaker_label=segment_data.speaker_label,
+                    # V2 analysis fields (Sprint 5 s5-t7)
+                    beat_type=segment_data.beat_type,
+                    attention_score=segment_data.attention_score,
+                    emotion_intensity=segment_data.emotion_intensity,
+                    color_grading=segment_data.color_grading,
+                    lighting_style=segment_data.lighting_style,
+                    has_speech=segment_data.has_speech,
+                    power_words_detected=segment_data.power_words_detected,
                 )
                 db.add(segment)
                 created_segments.append(segment)
+
+            # Flush to get IDs assigned
+            await db.flush()
+
+            # Set up doubly-linked list for clip ordering (Sprint 5 s5-t6)
+            for idx, segment in enumerate(created_segments):
+                if idx > 0:
+                    segment.previous_segment_id = created_segments[idx - 1].id
+                if idx < len(created_segments) - 1:
+                    segment.next_segment_id = created_segments[idx + 1].id
 
             # Update file status to completed
             project_file.status = ProjectFile.STATUS_COMPLETED

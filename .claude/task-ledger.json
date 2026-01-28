@@ -353,14 +353,19 @@
       "sprint": 4,
       "title": "Frontend: B-Roll generation UI",
       "description": "Build B-Roll generator component with regenerate/edit prompt",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/broll-generator-ui",
       "prNumber": null,
       "files": [
-        "frontend/src/components/broll-generator.tsx"
+        "frontend/src/types/broll.ts",
+        "frontend/src/lib/api/broll.ts",
+        "frontend/src/hooks/useBroll.ts",
+        "frontend/src/components/broll-generator.tsx",
+        "frontend/src/components/ui/tooltip.tsx",
+        "frontend/tests/e2e/broll.spec.ts"
       ],
       "prdSection": "4.2 Veo 2 B-Roll Generation",
-      "notes": ""
+      "notes": "Implemented complete B-Roll generation UI: TypeScript types for Veo 2 API, API client with all endpoints, React Query hooks with polling support, BRollGenerator component with prompt input, AI enhancement, style/aspect ratio/duration selectors, generation progress, clip variant preview grid, selection. Integrated into ClipSwapModal for timeline editing. Added tooltip UI component. All 22 e2e tests pass, build passes, lint passes."
     },
     {
       "id": "s4-t3",

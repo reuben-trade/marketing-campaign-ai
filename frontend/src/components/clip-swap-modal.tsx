@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import type { TimelineSegment, VideoClipSource } from '@/types/render';
 import type { UserVideoSegment } from '@/types/project';
+import type { VeoGeneratedClip } from '@/types/broll';
+import { BRollGenerator } from './broll-generator';
 
 // Default FPS for the editor (used when segment doesn't specify)
 export const DEFAULT_FPS = 30;
@@ -58,6 +60,8 @@ export interface ClipSwapModalProps {
   alternativeClips?: AlternativeClip[];
   isLoadingAlternatives?: boolean;
   onSearchClips?: (query: string) => void;
+  projectId?: string;
+  onBRollClipSelected?: (segmentId: string, clip: VeoGeneratedClip, storageUrl: string) => void;
 }
 
 /**
@@ -81,6 +85,8 @@ export function ClipSwapModal({
   alternativeClips = [],
   isLoadingAlternatives = false,
   onSearchClips,
+  projectId,
+  onBRollClipSelected,
 }: ClipSwapModalProps) {
   const [activeTab, setActiveTab] = useState<'alternatives' | 'search' | 'broll' | 'edit'>('alternatives');
   const [searchQuery, setSearchQuery] = useState('');
@@ -330,49 +336,63 @@ export function ClipSwapModal({
           {/* B-Roll Tab */}
           {segment.type === 'generated_broll' && (
             <TabsContent value="broll" className="mt-4">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="broll-prompt">Generation Prompt</Label>
-                  <Textarea
-                    id="broll-prompt"
-                    placeholder="Describe the B-Roll you want to generate..."
-                    value={brollPrompt}
-                    onChange={(e) => setBrollPrompt(e.target.value)}
-                    rows={3}
-                    className="mt-2"
-                  />
-                </div>
-
-                {segment.generated_source?.generation_prompt && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">Original prompt:</span>{' '}
-                    {segment.generated_source.generation_prompt}
+              {projectId && onBRollClipSelected ? (
+                <BRollGenerator
+                  projectId={projectId}
+                  slotId={segment.slot_id || undefined}
+                  initialPrompt={segment.generated_source?.generation_prompt || ''}
+                  aspectRatio="9:16"
+                  onClipSelected={(clip, storageUrl) => {
+                    onBRollClipSelected(segment.id, clip, storageUrl);
+                    onOpenChange(false);
+                  }}
+                  compact
+                />
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="broll-prompt">Generation Prompt</Label>
+                    <Textarea
+                      id="broll-prompt"
+                      placeholder="Describe the B-Roll you want to generate..."
+                      value={brollPrompt}
+                      onChange={(e) => setBrollPrompt(e.target.value)}
+                      rows={3}
+                      className="mt-2"
+                    />
                   </div>
-                )}
 
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    AI-Generated
-                  </Badge>
-                  {segment.generated_source?.regenerate_available && (
-                    <Badge variant="outline">Regeneration available</Badge>
+                  {segment.generated_source?.generation_prompt && (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-medium">Original prompt:</span>{' '}
+                      {segment.generated_source.generation_prompt}
+                    </div>
                   )}
+
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      AI-Generated
+                    </Badge>
+                    {segment.generated_source?.regenerate_available && (
+                      <Badge variant="outline">Regeneration available</Badge>
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={handleRegenerateBRoll}
+                    disabled={!brollPrompt.trim() || !onRegenerateBRoll}
+                    className="w-full"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Regenerate B-Roll
+                  </Button>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    B-Roll generation uses Veo 2. This may take a moment.
+                  </p>
                 </div>
-
-                <Button
-                  onClick={handleRegenerateBRoll}
-                  disabled={!brollPrompt.trim() || !onRegenerateBRoll}
-                  className="w-full"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Regenerate B-Roll
-                </Button>
-
-                <p className="text-xs text-muted-foreground text-center">
-                  B-Roll generation uses Veo 2. This may take a moment.
-                </p>
-              </div>
+              )}
             </TabsContent>
           )}
 

@@ -455,6 +455,156 @@ The platform already has substantial infrastructure in place:
 
 ---
 
+### Phase 5: Video Generation Quality Overhaul (Sprint 5)
+
+#### 5.1 Async File Processing
+**Purpose:** Files auto-processed by Gemini on upload (no "Analyze" button needed)
+
+- Background Celery task triggers automatically on file upload
+- UI shows processing status with polling
+- Users see real-time progress without manual intervention
+
+#### 5.2 Enhanced Video Analysis
+**Purpose:** Richer clip metadata for intelligent director decisions
+
+**Clip Ordering (Doubly-Linked List):**
+```json
+{
+  "previous_segment_id": "uuid",
+  "next_segment_id": "uuid",
+  "segment_index": 2,
+  "total_segments_in_source": 8
+}
+```
+Director understands inherent ordering to maintain narrative flow.
+
+**Full Transcript Extraction:**
+```json
+{
+  "transcript_text": "Hey guys, today we're going to...",
+  "transcript_words": [
+    {"word": "Hey", "start": 0.0, "end": 0.3},
+    {"word": "guys", "start": 0.35, "end": 0.6}
+  ],
+  "speaker_label": "speaker_1"
+}
+```
+
+**V2 Analysis Fields (shared with competitor analysis):**
+- `beat_type`: hook, problem, solution, showcase, cta, testimonial
+- `attention_score`: 1-10 thumb-stop potential
+- `emotion_intensity`: 1-10
+- `color_grading`, `lighting_style`
+- `has_speech`: boolean
+- `power_words_detected`: ["free", "guaranteed", "exclusive"]
+
+#### 5.3 Director Agent Refactor
+**Purpose:** Clips-first approach where Director works with available material
+
+**Inputs to Director:**
+1. **Available Remotion Components** (with descriptions/capabilities)
+2. **Clip Inventory** (analyzed clips with all metadata)
+3. **Competitor Inspiration** (pacing, style breakdown from recipe)
+4. **User Instructions** (free-text creative direction)
+5. **Brand Profile** (colors, tone, keywords, forbidden terms)
+
+**Director JSON Output Schema:**
+```json
+{
+  "video_settings": {
+    "aspect_ratio": "9:16",
+    "background_music_mood": "upbeat | lo-fi | corporate",
+    "primary_color": "#FF5733",
+    "font_family": "modern_sans | bold_serif | handwriting"
+  },
+  "timeline": [
+    {
+      "type": "main_clip | b_roll_overlay | title_card | text_slide",
+      "start_time_in_video": "00:00",
+      "duration_seconds": 3.5,
+      "source_clip_id": "segment_uuid",
+      "segment_start": 12.5,
+      "segment_end": 16.0,
+      "actions": {
+        "audio_volume": 1.0,
+        "caption_text": "Stop Wasting Money!",
+        "visual_zoom": "none | slow_zoom_in | sudden_zoom",
+        "transition_out": "none | fade | slide_left | whip_pan"
+      }
+    }
+  ],
+  "captions": [
+    {
+      "text": "Stop wasting money",
+      "start_time": 0.5,
+      "end_time": 2.0,
+      "highlight_words": ["wasting", "money"]
+    }
+  ]
+}
+```
+
+#### 5.3.1 Director Agent Prompt
+
+```
+# Role: The Viral Director Agent
+You are an expert Video Ad Director & Editor. Your goal is to take raw video analysis,
+user constraints, and competitor inspiration to architect a high-converting, viral video ad.
+
+# Available Remotion Components
+1. **main_clip** - Primary video footage with preserved audio
+2. **b_roll_overlay** - Overlay video while main audio continues (J-Cut/L-Cut)
+3. **title_card** - Animated text screen with branding
+4. **text_slide** - Full-screen text with background
+
+# Inputs Provided
+1. **Clip Inventory:** Chronological clips with transcripts, beat types, emotions, sequence context
+2. **User Context:** Business name, core offer, target audience, "Must Haves"
+3. **User Instructions:** Specific direction (e.g., "Focus on the discount")
+4. **Competitor Inspiration:** Winning ad style breakdown (pacing, tone)
+5. **Style Preferences:** Brand colors, fonts, mood
+
+# Video Editing "Physics" (Constraints)
+1. **Total Duration:** 15-60s (Target 30s)
+2. **The Hook:** First 3 seconds MUST be visually engaging. Never start with silence.
+3. **Pacing:** No clip >4 seconds without visual change (cut, zoom, text, B-roll)
+4. **Audio Continuity:** Main speaker audio flows continuously. B-roll overlays video only.
+5. **CTA:** Every video ends with clear visual and audio call-to-action.
+6. **Captions:** Generate captions using transcript_words. Highlight power words.
+
+# Task: Extended Thinking & Script Generation
+
+## Step 1: Creative Reasoning
+* Identify the Hook: Which clip has strongest opening?
+* Select "Golden Thread": Which clips tell coherent story?
+* Inspiration Matching: Mimic competitor pacing with user's footage
+* Engagement Hacks: Where to place text overlays? Where to use B-roll?
+* User Intent: How does instruction influence direction?
+
+## Step 2: Generate JSON Script
+Output JSON matching the schema exactly.
+```
+
+#### 5.4 Standalone Editor Route
+**Purpose:** Easy access to video generation without navigating through projects
+
+- New `/editor` route prominent in navigation
+- Can upload files OR select from existing projects
+- Optional inspiration selection from analyzed ads
+- Optional instruction field for creative direction
+- Auto-creates project when "Generate" clicked
+
+#### 5.5 Navigation Updates
+- Add `/editor` to sidebar (prominent position, second item)
+- Add `/onboarding` to sidebar (visible after Dashboard)
+
+#### 5.6 Rendering Fixes
+- Add verbose logging to `remotion_renderer.py` (command, payload preview, errors)
+- Fix empty URL handling in `VideoClipSegment.tsx` (show placeholder)
+- Add error boundaries for missing video sources
+
+---
+
 ## 4. Data Schemas
 
 ### 4.1 Remotion Payload Schema
@@ -637,6 +787,32 @@ CREATE INDEX idx_user_segments_embedding ON user_video_segments
   USING hnsw (embedding vector_cosine_ops);
 ```
 
+#### user_video_segments enhancements (Sprint 5)
+```sql
+-- Clip ordering (doubly-linked list)
+ALTER TABLE user_video_segments ADD COLUMN previous_segment_id UUID REFERENCES user_video_segments(id);
+ALTER TABLE user_video_segments ADD COLUMN next_segment_id UUID REFERENCES user_video_segments(id);
+ALTER TABLE user_video_segments ADD COLUMN segment_index INTEGER DEFAULT 0;
+ALTER TABLE user_video_segments ADD COLUMN total_segments_in_source INTEGER DEFAULT 1;
+
+-- Transcript fields
+ALTER TABLE user_video_segments ADD COLUMN transcript_text TEXT;
+ALTER TABLE user_video_segments ADD COLUMN transcript_words JSONB;  -- [{word, start, end}, ...]
+ALTER TABLE user_video_segments ADD COLUMN speaker_label VARCHAR(20);
+
+-- V2 analysis fields
+ALTER TABLE user_video_segments ADD COLUMN beat_type VARCHAR(30);
+ALTER TABLE user_video_segments ADD COLUMN attention_score INTEGER;  -- 1-10
+ALTER TABLE user_video_segments ADD COLUMN emotion_intensity INTEGER;  -- 1-10
+ALTER TABLE user_video_segments ADD COLUMN color_grading VARCHAR(30);
+ALTER TABLE user_video_segments ADD COLUMN lighting_style VARCHAR(30);
+ALTER TABLE user_video_segments ADD COLUMN has_speech BOOLEAN DEFAULT false;
+ALTER TABLE user_video_segments ADD COLUMN power_words_detected JSONB;
+
+-- Index for ordering queries
+CREATE INDEX idx_segments_ordering ON user_video_segments(source_file_id, segment_index);
+```
+
 #### visual_scripts table
 ```sql
 CREATE TABLE visual_scripts (
@@ -768,6 +944,48 @@ Following the "Full Pipeline First" priority:
 17. Implement user onboarding questionnaire
 18. Add "Upload reference ad" and "Fetch from URL" options
 19. End-to-end testing + bug fixes
+
+### Sprint 5: Video Generation Quality Overhaul
+
+**Architecture: "The Lego Method"**
+Pre-build reliable Remotion components (Lego bricks), then have the Director Agent output a strict JSON Script that tells the rendering engine which bricks to place and where. This is model-agnostic (swap DeepSeek/Gemini/Claude) and prevents LLM syntax errors from breaking builds.
+
+**Parallel Group A - Remotion Components (Frontend):**
+20. Create BRollOverlay component (video-over-video with J-Cut/L-Cut audio continuity)
+21. Create TitleCard component (animated title cards with branding)
+22. Create CaptionOverlay component (timestamped captions synced to transcripts)
+23. Create SplitScreen component (side-by-side comparisons)
+
+**Parallel Group B - Enhanced Video Analysis (Backend):**
+24. Add transcript extraction (full text + word-level timestamps for captions)
+25. Add clip ordering (doubly-linked list: previous_segment_id, next_segment_id, segment_index)
+26. Add V2 analysis fields (beat_type, attention_score, emotion_intensity, power_words)
+
+**Parallel Group C - Director Schema (Backend):**
+27. Create Director JSON output schema (strict Pydantic schema matching Remotion components)
+28. Create Director prompt with viral constraints (3-second rule, Hook-Value-CTA, audio continuity)
+
+**Parallel Group D - UI Updates (Frontend):**
+29. Update navigation (add /editor prominent, add /onboarding)
+30. Create quick-create project API for standalone editor
+
+**Parallel Group E - Rendering Fixes:**
+31. Add verbose logging to Remotion renderer
+32. Fix empty URL handling in VideoClipSegment
+
+**Phase 2 (After Groups A, B, C):**
+33. Update BaseAdComposition for new segment types
+34. Create JSON validation & repair pipeline
+35. Create standalone /editor page (upload OR select projects, optional inspiration, instruction field)
+
+**Phase 3 (After Phase 2):**
+36. Refactor DirectorAgent to clips-first approach (receives components, clips, inspiration, instructions)
+37. Add terminal debug output to Director
+
+**Phase 4 - Async Processing (After Group B):**
+38. Create Celery task for auto-analysis on upload
+39. Trigger analysis automatically on file upload
+40. Remove "Analyze" button, add status polling UI
 
 ---
 

@@ -9,7 +9,8 @@ export type SegmentType =
   | 'video_clip'
   | 'generated_broll'
   | 'text_slide'
-  | 'b_roll_overlay';
+  | 'b_roll_overlay'
+  | 'title_card';
 
 export type TransitionType =
   | 'cut'
@@ -74,6 +75,47 @@ export interface TextSlideContent {
 }
 
 /**
+ * Animation style for title card text elements.
+ */
+export type TitleAnimation =
+  | 'fade_up'
+  | 'fade_down'
+  | 'scale_in'
+  | 'slide_left'
+  | 'slide_right'
+  | 'typewriter'
+  | 'none';
+
+/**
+ * Layout style for the title card.
+ */
+export type TitleCardLayout = 'centered' | 'left_aligned' | 'right_aligned' | 'stacked';
+
+/**
+ * Content for a title card segment.
+ * Title cards are animated text screens with branding support.
+ */
+export interface TitleCardContent {
+  headline: string;
+  subheadline?: string | null;
+  tagline?: string | null;
+  background_color?: string;
+  text_color?: string;
+  accent_color?: string;
+  animation?: TitleAnimation;
+  layout?: TitleCardLayout;
+  show_logo?: boolean;
+  logo_position?: 'top' | 'bottom' | 'behind';
+  background_gradient?: {
+    start_color: string;
+    end_color: string;
+    angle?: number;
+  } | null;
+  background_image_url?: string | null;
+  background_image_opacity?: number;
+}
+
+/**
  * B-Roll overlay source for J-Cut/L-Cut video editing.
  * Overlays video on top while maintaining the main audio track.
  */
@@ -107,6 +149,7 @@ export interface TimelineSegment {
   generated_source?: GeneratedBRollSource | null;
   text_content?: TextSlideContent | null;
   broll_overlay_source?: BRollOverlaySource | null;
+  title_card_content?: TitleCardContent | null;
 
   // Visual overlays
   overlay?: TextOverlay | null;

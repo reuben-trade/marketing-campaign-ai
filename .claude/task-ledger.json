@@ -449,15 +449,18 @@
       "sprint": 5,
       "title": "TitleCard Remotion component",
       "description": "Create animated title card component with branding support",
-      "status": "pending",
-      "branch": null,
+      "status": "in_progress",
+      "branch": "feature/titlecard-component",
       "prNumber": null,
       "parallelGroup": "A",
       "files": [
-        "remotion/src/components/TitleCard.tsx"
+        "remotion/src/components/TitleCard.tsx",
+        "remotion/src/types.ts",
+        "remotion/src/components/index.ts",
+        "app/schemas/remotion_payload.py"
       ],
       "prdSection": "5.3 Director Agent Refactor",
-      "notes": "Animated headline + subheadline with brand colors/fonts"
+      "notes": "Implemented TitleCard component with: animated headline/subheadline/tagline, 6 animation styles (fade_up, fade_down, scale_in, slide_left, slide_right, typewriter), 4 layout options (centered, left_aligned, right_aligned, stacked), brand profile integration (colors, fonts, logo), gradient and image backgrounds, decorative accent elements. Backend schema updated with TitleCardContent, TitleAnimation, TitleCardLayout, TitleCardLogoPosition, BackgroundGradient. TypeScript types synced."
     },
     {
       "id": "s5-t3",

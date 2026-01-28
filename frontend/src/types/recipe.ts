@@ -45,3 +45,16 @@ export interface RecipeExtractResponse {
   recipe: Recipe;
   extraction_notes: string[];
 }
+
+export interface ReferenceAdFetchRequest {
+  url: string;
+  name?: string;
+}
+
+export interface ReferenceAdResponse {
+  ad_id: string;
+  recipe: Recipe | null;
+  status: 'success' | 'partial' | 'error';
+  message: string;
+  processing_notes: string[];
+}

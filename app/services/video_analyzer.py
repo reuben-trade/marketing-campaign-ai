@@ -303,8 +303,7 @@ class VideoAnalyzer:
 
         if "CTA" not in beat_types:
             logger.warning(
-                "No 'CTA' component found in timeline. "
-                "Most ads should have a clear call-to-action."
+                "No 'CTA' component found in timeline. Most ads should have a clear call-to-action."
             )
 
         # Log which key components were found for debugging

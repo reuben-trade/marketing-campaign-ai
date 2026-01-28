@@ -124,10 +124,10 @@ class CompetitorDiscovery:
         I have performed a web search for competitors of "{original_business}".
 
         SEARCH SUMMARY:
-        {context_data['summary']}
+        {context_data["summary"]}
 
         SEARCH RESULTS:
-        {json.dumps(context_data['sources'], indent=2)}
+        {json.dumps(context_data["sources"], indent=2)}
 
         TASK:
         Identify up to {max_count} distinct competitors mentioned in these results.
@@ -196,7 +196,7 @@ class CompetitorDiscovery:
             Return JSON:
             {{
                 "company_name": "{company_name}",
-                "industry": "{industry or 'Unknown'}",
+                "industry": "{industry or "Unknown"}",
                 "market_position": "Analyze from context (e.g. Leader, Budget option)",
                 "key_products": ["List products found"],
                 "headquarters": "City, Country (if found)",

@@ -389,9 +389,9 @@
       "sprint": 4,
       "title": "Upload reference ad / fetch from URL",
       "description": "Add ability to upload or fetch reference ads for recipe extraction",
-      "status": "in_progress",
+      "status": "completed",
       "branch": "feature/upload-reference-ad-url-fetch",
-      "prNumber": null,
+      "prNumber": 35,
       "files": [
         "app/schemas/recipe.py",
         "app/services/reference_ad_service.py",
@@ -403,7 +403,7 @@
         "tests/test_api/test_reference_ads.py"
       ],
       "prdSection": "1.3 Inspiration Selection UI",
-      "notes": "Implemented: ReferenceAdService for upload/fetch processing, API endpoints POST /api/recipes/upload-reference and POST /api/recipes/fetch-url, frontend hooks useUploadReferenceAd and useFetchReferenceAd, inspire page wired up with callbacks. Processing time warning shown in UI (2-3 minutes)."
+      "notes": "Implemented: ReferenceAdService for upload/fetch processing, API endpoints POST /api/recipes/upload-reference and POST /api/recipes/fetch-url, frontend hooks useUploadReferenceAd and useFetchReferenceAd, inspire page wired up with callbacks. Processing time warning shown in UI (2-3 minutes). Build passes, lint passes."
     },
     {
       "id": "s4-t5",

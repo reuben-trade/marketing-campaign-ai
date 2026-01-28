@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
 import { parseSrt } from '@remotion/captions';
-import type { Caption } from '@remotion/captions';
-import type { CaptionOverlayConfig, CaptionStyle, CaptionPosition, BrandProfile } from '../types';
+import type { CaptionOverlayConfig, BrandProfile } from '../types';
 
 interface Props {
   config: CaptionOverlayConfig;

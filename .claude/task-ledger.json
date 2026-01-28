@@ -449,9 +449,9 @@
       "sprint": 5,
       "title": "TitleCard Remotion component",
       "description": "Create animated title card component with branding support",
-      "status": "in_progress",
+      "status": "completed",
       "branch": "feature/titlecard-component",
-      "prNumber": null,
+      "prNumber": 41,
       "parallelGroup": "A",
       "files": [
         "remotion/src/components/TitleCard.tsx",

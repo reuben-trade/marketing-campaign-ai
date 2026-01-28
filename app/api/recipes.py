@@ -158,7 +158,8 @@ async def upload_reference_ad(
             detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_VIDEO_TYPES)}",
         )
 
-    # Read file content
+    # TODO: Consider streaming upload for large files to avoid memory issues
+    # See: https://github.com/reuben-trade/marketing-campaign-ai/issues/36
     content = await file.read()
 
     # Validate file size
@@ -191,11 +192,7 @@ async def fetch_reference_ad_from_url(
     """
     Fetch a reference ad from a URL for analysis and recipe extraction.
 
-    Supported platforms:
-    - Direct video URLs (MP4, WebM, MOV)
-    - Meta Ad Library
-    - TikTok Creative Center
-    - YouTube (requires yt-dlp)
+    Currently supports direct video URLs (MP4, WebM, MOV).
 
     Processing takes 2-3 minutes depending on video length and download speed.
     """

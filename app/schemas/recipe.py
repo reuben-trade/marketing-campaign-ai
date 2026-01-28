@@ -116,7 +116,12 @@ class RecipeExtractResponse(BaseModel):
 class ReferenceAdFetchRequest(BaseModel):
     """Schema for fetching a reference ad from URL."""
 
-    url: str = Field(..., description="URL to fetch the video from")
+    url: str = Field(
+        ...,
+        description="URL to fetch the video from",
+        pattern=r"^https?://",
+        json_schema_extra={"examples": ["https://example.com/video.mp4"]},
+    )
     name: str | None = Field(
         default=None,
         description="Optional custom name for the recipe",

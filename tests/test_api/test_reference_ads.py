@@ -2,49 +2,20 @@
 
 import uuid
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.competitor import Competitor
-from app.schemas.recipe import BeatDefinition, RecipeResponse, ReferenceAdResponse
+from app.schemas.recipe import ReferenceAdResponse
 
 
 @pytest.fixture
 def mock_video_content() -> bytes:
     """Create mock video content."""
     return b"mock video content" * 1000
-
-
-@pytest.fixture
-def mock_recipe_response() -> RecipeResponse:
-    """Create a mock recipe response."""
-    return RecipeResponse(
-        id=uuid.uuid4(),
-        source_ad_id=uuid.uuid4(),
-        name="Test Recipe",
-        total_duration_seconds=30,
-        structure=[
-            BeatDefinition(
-                beat_type="Hook",
-                target_duration=3.0,
-                characteristics=["fast_cuts", "bold_text"],
-                purpose="Stop the scroll",
-            ),
-            BeatDefinition(
-                beat_type="CTA",
-                target_duration=5.0,
-                characteristics=["clear_action"],
-                purpose="Drive conversion",
-            ),
-        ],
-        pacing="fast",
-        style="ugc",
-        composite_score=0.85,
-        created_at="2026-01-28T00:00:00Z",
-    )
 
 
 class TestUploadReferenceAd:
@@ -130,9 +101,7 @@ class TestFetchReferenceAdFromUrl:
             assert "ad_id" in data
 
     @pytest.mark.asyncio
-    async def test_fetch_reference_ad_with_custom_name(
-        self, client, db_session: AsyncSession
-    ):
+    async def test_fetch_reference_ad_with_custom_name(self, client, db_session: AsyncSession):
         """Test fetch with custom recipe name."""
         with patch(
             "app.services.reference_ad_service.ReferenceAdService.fetch_from_url"
@@ -160,9 +129,7 @@ class TestReferenceAdService:
     """Tests for ReferenceAdService."""
 
     @pytest.mark.asyncio
-    async def test_ensure_reference_competitor_creates_new(
-        self, db_session: AsyncSession
-    ):
+    async def test_ensure_reference_competitor_creates_new(self, db_session: AsyncSession):
         """Test that reference competitor is created if it doesn't exist."""
         from app.services.reference_ad_service import (
             REFERENCE_ADS_PAGE_ID,
@@ -177,9 +144,7 @@ class TestReferenceAdService:
         assert competitor.company_name == "Reference Ads"
 
     @pytest.mark.asyncio
-    async def test_ensure_reference_competitor_reuses_existing(
-        self, db_session: AsyncSession
-    ):
+    async def test_ensure_reference_competitor_reuses_existing(self, db_session: AsyncSession):
         """Test that existing reference competitor is reused."""
         from app.services.reference_ad_service import (
             REFERENCE_ADS_COMPETITOR_ID,

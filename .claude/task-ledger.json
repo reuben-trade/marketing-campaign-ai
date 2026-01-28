@@ -601,9 +601,9 @@
       "sprint": 5,
       "title": "Create quick-create project API",
       "description": "POST /api/projects/quick-create for standalone editor",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/quick-create-project-api",
+      "prNumber": 48,
       "parallelGroup": "D",
       "files": [
         "app/api/projects.py",

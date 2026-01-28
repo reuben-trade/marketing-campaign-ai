@@ -320,3 +320,107 @@ async def test_search_segments_validation(client: AsyncClient, sample_project):
         json={"query": "test", "min_similarity": 1.5},
     )
     assert response.status_code == 422
+
+
+# =============================================================================
+# QUICK CREATE ENDPOINT TESTS
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_quick_create_project_minimal(client: AsyncClient):
+    """Test quick-creating a project with no parameters."""
+    response = await client.post("/api/projects/quick-create", json={})
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"].startswith("Quick Project")
+    assert data["status"] == "draft"
+    assert data["max_videos"] == 20  # Higher limit for quick projects
+    assert data["max_total_size_mb"] == 1000  # Higher limit
+
+
+@pytest.mark.asyncio
+async def test_quick_create_project_with_prompt(client: AsyncClient):
+    """Test quick-creating a project with user prompt."""
+    response = await client.post(
+        "/api/projects/quick-create",
+        json={"user_prompt": "Make it energetic and fun"},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["user_prompt"] == "Make it energetic and fun"
+
+
+@pytest.mark.asyncio
+async def test_quick_create_project_with_inspiration_ads(client: AsyncClient):
+    """Test quick-creating a project with inspiration ad IDs."""
+    inspiration_ids = [
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+    ]
+    response = await client.post(
+        "/api/projects/quick-create",
+        json={"inspiration_ad_ids": inspiration_ids},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["inspiration_ads"] is not None
+    assert len(data["inspiration_ads"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_quick_create_project_source_not_found(client: AsyncClient):
+    """Test quick-creating a project with non-existent source project."""
+    response = await client.post(
+        "/api/projects/quick-create",
+        json={
+            "source_project_ids": ["00000000-0000-0000-0000-000000000000"],
+        },
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_quick_create_project_with_source_projects(client: AsyncClient, sample_project):
+    """Test quick-creating a project from existing source projects."""
+    # First create a source project
+    source_response = await client.post("/api/projects", json=sample_project)
+    source_id = source_response.json()["id"]
+
+    # Quick-create from source (segments will be empty but should still work)
+    response = await client.post(
+        "/api/projects/quick-create",
+        json={
+            "source_project_ids": [source_id],
+            "user_prompt": "Combine clips from source",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"].startswith("Quick Project")
+    assert data["user_prompt"] == "Combine clips from source"
+
+
+@pytest.mark.asyncio
+async def test_quick_create_project_name_unique(client: AsyncClient):
+    """Test that quick-created projects have unique auto-generated names."""
+    import asyncio
+
+    # Create two projects in quick succession
+    response1 = await client.post("/api/projects/quick-create", json={})
+    await asyncio.sleep(1)  # Wait 1 second to ensure different timestamp
+    response2 = await client.post("/api/projects/quick-create", json={})
+
+    assert response1.status_code == 201
+    assert response2.status_code == 201
+
+    # Names should be different (contain different timestamps)
+    name1 = response1.json()["name"]
+    name2 = response2.json()["name"]
+    assert name1 != name2

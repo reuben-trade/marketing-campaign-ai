@@ -22,6 +22,23 @@ class ProjectCreate(ProjectBase):
     max_total_size_mb: int = Field(default=500, ge=100, le=2000)
 
 
+class QuickCreateRequest(BaseModel):
+    """Schema for quick-creating a project from the standalone editor.
+
+    This endpoint auto-generates the project name and allows specifying
+    source projects to copy segments from.
+    """
+
+    inspiration_ad_ids: list[UUID] | None = Field(
+        None, description="Ad IDs to use as inspiration for recipe extraction"
+    )
+    source_project_ids: list[UUID] | None = Field(
+        None, description="Existing project IDs to copy analyzed segments from"
+    )
+    user_prompt: str | None = Field(None, description="Creative direction for ad generation")
+    brand_profile_id: UUID | None = Field(None, description="Brand profile to use for generation")
+
+
 class ProjectUpdate(BaseModel):
     """Schema for updating a project."""
 

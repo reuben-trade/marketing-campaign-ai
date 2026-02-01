@@ -11,6 +11,7 @@ import type {
   AnalysisProgress,
   SegmentSearchRequest,
   SegmentSearchResponse,
+  QuickCreateRequest,
 } from '@/types/project';
 
 export const projectsApi = {
@@ -100,5 +101,9 @@ export const projectsApi = {
     request: SegmentSearchRequest
   ): Promise<SegmentSearchResponse> => {
     return post<SegmentSearchResponse>(`/api/projects/${projectId}/segments/search`, request);
+  },
+
+  quickCreate: async (request: QuickCreateRequest): Promise<Project> => {
+    return post<Project>('/api/projects/quick-create', request);
   },
 };

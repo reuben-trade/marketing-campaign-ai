@@ -133,3 +133,11 @@ export interface SegmentSearchResponse {
   total_results: number;
   results: UserVideoSegmentWithSimilarity[];
 }
+
+// Quick-create project types (for standalone editor)
+export interface QuickCreateRequest {
+  inspiration_ad_ids?: string[];
+  source_project_ids?: string[];
+  user_prompt?: string;
+  brand_profile_id?: string;
+}

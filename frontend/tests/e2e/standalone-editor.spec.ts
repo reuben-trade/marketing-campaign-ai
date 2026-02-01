@@ -51,7 +51,7 @@ test.describe('Standalone Editor Page', () => {
         page.locator('text=Drop videos here or click to browse')
       ).toBeVisible();
       await expect(
-        page.locator('text=MP4, MOV, WebM, AVI (max 100MB each, up to 10 files)')
+        page.locator('text=MP4, MOV, WebM, AVI, MKV (max 100MB each, up to 10 files)')
       ).toBeVisible();
     });
 
@@ -230,9 +230,15 @@ test.describe('Standalone Editor Page', () => {
     });
 
     test('buttons should be focusable', async ({ page }) => {
-      const generateButton = page.locator('button:has-text("Generate Ad")');
-      await generateButton.focus();
-      await expect(generateButton).toBeFocused();
+      // Test focus on enabled buttons (Show/Hide button in inspiration section)
+      const showButton = page.locator('button:has-text("Show")');
+      await showButton.focus();
+      await expect(showButton).toBeFocused();
+
+      // Test that tabs are focusable
+      const uploadTab = page.locator('[role="tab"]:has-text("Upload Videos")');
+      await uploadTab.focus();
+      await expect(uploadTab).toBeFocused();
     });
   });
 });

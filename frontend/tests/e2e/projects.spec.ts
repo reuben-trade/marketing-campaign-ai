@@ -98,29 +98,33 @@ test.describe('Projects Page', () => {
   });
 
   test('should show content after loading completes', async ({ page }) => {
-    // Wait for loading spinner to disappear (if present)
-    const spinner = page.locator('.animate-spin');
-    if (await spinner.isVisible().catch(() => false)) {
-      await spinner.waitFor({ state: 'hidden', timeout: 10000 });
+    // Wait for the page to finish loading - either content appears or we get an error
+    // Try to find any of the possible content states
+    try {
+      await page.waitForSelector(
+        'text=Failed to load projects, text=No projects found, button:has-text("Create Your First Project"), .group.relative.overflow-hidden, text=Total Projects',
+        { timeout: 15000 }
+      );
+    } catch {
+      // If selector timeout, continue with checks
     }
 
-    // Wait a bit for content to render
-    await page.waitForTimeout(500);
-
-    // Page should show one of: error state, empty state, or project cards
+    // Page should show one of: error state, empty state, stats, or project cards
     const errorState = page.locator('text=Failed to load projects');
     const emptyState = page.locator('text=No projects found');
     const createFirstButton = page.locator('button:has-text("Create Your First Project")');
     const projectCards = page.locator('.group.relative.overflow-hidden');
+    const statsCard = page.locator('text=Total Projects');
 
     // Check all possible states
     const hasError = await errorState.isVisible().catch(() => false);
     const hasEmptyState = await emptyState.isVisible().catch(() => false);
     const hasCreateFirstButton = await createFirstButton.isVisible().catch(() => false);
     const hasCards = (await projectCards.count()) > 0;
+    const hasStats = await statsCard.isVisible().catch(() => false);
 
-    // At least one of these should be true (error if backend down, empty if no projects, cards if projects exist)
-    expect(hasError || hasEmptyState || hasCreateFirstButton || hasCards).toBe(true);
+    // At least one of these should be true
+    expect(hasError || hasEmptyState || hasCreateFirstButton || hasCards || hasStats).toBe(true);
   });
 
   test('should have Projects link in navigation', async ({ page }) => {

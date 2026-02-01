@@ -406,9 +406,10 @@ class UserContentAnalyzer:
         if segment.section_label:
             parts.append(f"Section: {segment.section_label}")
 
-        # Include transcript for speech-based matching
-        if segment.transcript_text:
-            parts.append(f"Speech: {segment.transcript_text}")
+        # Include transcript for speech-based matching (may not exist on SegmentAnalysis)
+        transcript_text = getattr(segment, "transcript_text", None)
+        if transcript_text:
+            parts.append(f"Speech: {transcript_text}")
 
         # Include keywords for topic matching
         if segment.keywords:

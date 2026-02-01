@@ -4,8 +4,8 @@ import { test, expect } from '@playwright/test';
 // Skip if the API is not available or user already completed onboarding
 test.describe('Onboarding Flow', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to onboarding page before each test
-    await page.goto('/onboarding');
+    // Navigate to onboarding page and wait for network to settle
+    await page.goto('/onboarding', { waitUntil: 'networkidle' });
 
     // Wait for either the onboarding form, projects page, or loading to complete
     const welcomeHeading = page.locator('h1:has-text("Welcome to Ad Engine")');
@@ -29,6 +29,9 @@ test.describe('Onboarding Flow', () => {
       test.skip();
       return;
     }
+
+    // Wait for the form to stabilize (React re-renders)
+    await page.waitForTimeout(500);
 
     // Skip if the form didn't load (API not responding)
     const formReady = await industryDropdown.isVisible({ timeout: 5000 }).catch(() => false);

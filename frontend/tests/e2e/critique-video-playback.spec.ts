@@ -1,6 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+
+// Helper function to upload file via dropzone
+async function uploadVideoFile(page: Page, videoPath: string) {
+  // For react-dropzone, we need to trigger filechooser event
+  const fileChooserPromise = page.waitForEvent('filechooser');
+  await page.click('text=Drag & drop your ad creative here');
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles(videoPath);
+  // Wait for the file to be accepted (button should become enabled)
+  await page.waitForSelector('button:has-text("Analyze Creative"):not([disabled])', { timeout: 5000 });
+}
 
 // These are integration tests that require:
 // 1. test-video.mp4 fixture file
@@ -9,7 +20,7 @@ import fs from 'fs';
 // Skip by default unless INTEGRATION_TESTS env var is set
 test.describe('Critique Video Playback', () => {
   // Use longer timeout for AI analysis
-  test.setTimeout(120000);
+  test.setTimeout(180000);
 
   test.beforeEach(async ({ page }) => {
     // Skip integration tests unless explicitly enabled
@@ -24,11 +35,11 @@ test.describe('Critique Video Playback', () => {
       test.skip();
     }
 
-    await page.goto('/critique');
+    await page.goto('/critique', { waitUntil: 'networkidle' });
 
-    // Check if the page loaded correctly (critique page has file input)
-    const fileInput = page.locator('input[type="file"]');
-    const pageLoaded = await fileInput.isAttached().catch(() => false);
+    // Check if the page loaded correctly (critique page has dropzone)
+    const dropzone = page.locator('text=Drag & drop your ad creative here');
+    const pageLoaded = await dropzone.isVisible().catch(() => false);
     if (!pageLoaded) {
       test.skip();
     }
@@ -38,12 +49,15 @@ test.describe('Critique Video Playback', () => {
     // Create a test video file path
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
-    // Check if file upload dropzone exists
-    const dropzone = page.locator('input[type="file"]');
-    await expect(dropzone).toBeAttached();
+    // For react-dropzone, we need to click the dropzone first to trigger the file dialog
+    // Then use setInputFiles on the hidden input that dropzone creates
+    const fileChooserPromise = page.waitForEvent('filechooser');
+    await page.click('text=Drag & drop your ad creative here');
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(videoPath);
 
-    // Upload a video file
-    await dropzone.setInputFiles(videoPath);
+    // Wait for the file to be accepted (button should become enabled)
+    await page.waitForSelector('button:has-text("Analyze Creative"):not([disabled])', { timeout: 5000 });
 
     // Fill in optional context (optional but good practice)
     await page.fill('#brand_name', 'Test Brand');
@@ -52,8 +66,8 @@ test.describe('Critique Video Playback', () => {
     // Click analyze button
     await page.click('button:has-text("Analyze Creative")');
 
-    // Wait for analysis to complete (may take time)
-    await page.waitForSelector('text=Overall Grade', { timeout: 60000 });
+    // Wait for analysis to complete (may take time with AI)
+    await page.waitForSelector('text=Overall Grade', { timeout: 90000 });
 
     // Check that video player is visible
     const videoPlayer = page.locator('video');
@@ -80,7 +94,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('video', { timeout: 60000 });
 
@@ -118,7 +132,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('video', { timeout: 60000 });
 
@@ -146,7 +160,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('video', { timeout: 60000 });
 
@@ -178,7 +192,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('video', { timeout: 60000 });
 
@@ -214,7 +228,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('text=Overall Grade', { timeout: 60000 });
 
@@ -241,7 +255,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('text=Beat-by-Beat Analysis', { timeout: 60000 });
 
@@ -268,7 +282,7 @@ test.describe('Critique Video Playback', () => {
     const videoPath = path.join(__dirname, '../fixtures/test-video.mp4');
 
     // Upload and analyze
-    await page.locator('input[type="file"]').setInputFiles(videoPath);
+    await uploadVideoFile(page, videoPath);
     await page.click('button:has-text("Analyze Creative")');
     await page.waitForSelector('video', { timeout: 60000 });
 

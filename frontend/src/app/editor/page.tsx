@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,7 +92,7 @@ export default function StandaloneEditorPage() {
 
     const fileArray = Array.from(files);
     const validFiles = fileArray.filter((file) => {
-      const validTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-m4v'];
+      const validTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-m4v', 'video/x-matroska'];
       const maxSize = 100 * 1024 * 1024; // 100MB
 
       if (!validTypes.includes(file.type)) {
@@ -239,13 +239,6 @@ export default function StandaloneEditorPage() {
     }
   };
 
-  // Cleanup temp project if user navigates away during creation
-  useEffect(() => {
-    return () => {
-      // Could add cleanup logic here if needed
-    };
-  }, []);
-
   const getTotalSelectedSegments = () => {
     return selectedProjectIds.reduce((total, id) => {
       const project = projectsWithSegments.find((p) => p.id === id);
@@ -335,7 +328,7 @@ export default function StandaloneEditorPage() {
                     : 'Drop videos here or click to browse'}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  MP4, MOV, WebM, AVI (max 100MB each, up to 10 files)
+                  MP4, MOV, WebM, AVI, MKV (max 100MB each, up to 10 files)
                 </p>
               </div>
 

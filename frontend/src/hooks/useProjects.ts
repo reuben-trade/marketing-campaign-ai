@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/lib/api/projects';
-import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest } from '@/types/project';
+import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest, QuickCreateRequest } from '@/types/project';
 import type { UploadProgressCallback } from '@/lib/api/client';
 
 export function useProjects(filters?: ProjectFilters) {
@@ -153,5 +153,20 @@ export function useSearchSegments() {
       projectId: string;
       request: SegmentSearchRequest;
     }) => projectsApi.searchSegments(projectId, request),
+  });
+}
+
+/**
+ * Hook to quick-create a project for the standalone editor.
+ * Auto-generates project name and optionally copies segments from source projects.
+ */
+export function useQuickCreateProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: QuickCreateRequest) => projectsApi.quickCreate(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
   });
 }

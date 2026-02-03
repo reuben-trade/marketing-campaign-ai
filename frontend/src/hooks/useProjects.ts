@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/lib/api/projects';
-import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest, QuickCreateRequest, DirectGenerateRequest, DirectGenerateResponse } from '@/types/project';
+import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest, QuickCreateRequest, DirectGenerateRequest, DirectGenerateResponse, ProjectFilesStatusResponse } from '@/types/project';
 import type { UploadProgressCallback } from '@/lib/api/client';
 
 export function useProjects(filters?: ProjectFilters) {
@@ -190,5 +190,30 @@ export function useGenerateDirect() {
       queryClient.invalidateQueries({ queryKey: ['project', data.project_id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
+  });
+}
+
+/**
+ * Hook to poll file analysis status for a project.
+ * Automatically polls every 3 seconds when there are files being processed.
+ *
+ * @param projectId - The project to poll status for
+ * @param enabled - Whether to enable polling (default: true)
+ */
+export function useFilesStatus(projectId: string, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['files-status', projectId],
+    queryFn: () => projectsApi.getFilesStatus(projectId),
+    enabled: !!projectId && enabled,
+    refetchInterval: (query) => {
+      // Poll every 3 seconds if there are pending or processing files
+      const data = query.state.data as ProjectFilesStatusResponse | undefined;
+      if (data && (data.pending_count > 0 || data.processing_count > 0)) {
+        return 3000;
+      }
+      return false; // Stop polling when all files are done
+    },
+    staleTime: 2000, // Consider data stale after 2 seconds
+    refetchOnWindowFocus: true,
   });
 }

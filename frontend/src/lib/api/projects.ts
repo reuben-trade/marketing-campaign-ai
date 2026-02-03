@@ -14,6 +14,8 @@ import type {
   QuickCreateRequest,
   DirectGenerateRequest,
   DirectGenerateResponse,
+  FileStatusResponse,
+  ProjectFilesStatusResponse,
 } from '@/types/project';
 
 export const projectsApi = {
@@ -118,5 +120,24 @@ export const projectsApi = {
     request: DirectGenerateRequest = {}
   ): Promise<DirectGenerateResponse> => {
     return post<DirectGenerateResponse>(`/api/projects/${projectId}/generate-direct`, request);
+  },
+
+  /**
+   * Get the analysis status of a single file.
+   * Used for polling during auto-analysis.
+   */
+  getFileStatus: async (
+    projectId: string,
+    fileId: string
+  ): Promise<FileStatusResponse> => {
+    return get<FileStatusResponse>(`/api/projects/${projectId}/files/${fileId}/status`);
+  },
+
+  /**
+   * Get the analysis status of all files in a project.
+   * Used for polling during auto-analysis to check overall progress.
+   */
+  getFilesStatus: async (projectId: string): Promise<ProjectFilesStatusResponse> => {
+    return get<ProjectFilesStatusResponse>(`/api/projects/${projectId}/files/status`);
   },
 };

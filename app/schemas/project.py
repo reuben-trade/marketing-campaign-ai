@@ -106,6 +106,34 @@ class ProjectFileResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FileStatusResponse(BaseModel):
+    """Schema for file analysis status response (used for polling)."""
+
+    file_id: UUID
+    project_id: UUID
+    filename: str
+    original_filename: str
+    status: str = Field(
+        ..., description="File analysis status: pending, processing, completed, failed"
+    )
+    segments_count: int = Field(0, description="Number of segments extracted from this file")
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectFilesStatusResponse(BaseModel):
+    """Schema for all project files' analysis status (used for polling)."""
+
+    project_id: UUID
+    files: list[FileStatusResponse]
+    total_files: int
+    pending_count: int = Field(0, description="Files waiting to be analyzed")
+    processing_count: int = Field(0, description="Files currently being analyzed")
+    completed_count: int = Field(0, description="Files that have completed analysis")
+    failed_count: int = Field(0, description="Files that failed analysis")
+    total_segments: int = Field(0, description="Total segments extracted across all files")
+
+
 class UploadFailure(BaseModel):
     """Schema for a failed upload."""
 

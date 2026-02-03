@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useProjectSegments, useAnalyzeProject } from '@/hooks/useProjects';
+import { useProjectSegments, useFilesStatus } from '@/hooks/useProjects';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -22,13 +23,13 @@ import {
   Layers,
   Clock,
   Video,
-  Sparkles,
-  RefreshCw,
   AlertCircle,
   CheckCircle2,
   FileVideo,
+  XCircle,
+  Hourglass,
 } from 'lucide-react';
-import type { UserVideoSegment, AnalysisProgress } from '@/types/project';
+import type { UserVideoSegment, FileStatusResponse } from '@/types/project';
 
 interface VideoSegmentListProps {
   projectId: string;
@@ -37,14 +38,28 @@ interface VideoSegmentListProps {
 
 export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
+  const queryClient = useQueryClient();
+  const previousCompletedRef = useRef(0);
 
-  const { data: segmentsData, isLoading, refetch } = useProjectSegments(projectId);
-  const analyzeMutation = useAnalyzeProject();
+  const { data: segmentsData, isLoading: segmentsLoading } = useProjectSegments(projectId);
+  const { data: statusData, isLoading: statusLoading } = useFilesStatus(projectId, hasFiles);
 
   const segments = segmentsData?.segments || [];
   const totalSegments = segmentsData?.total_segments || 0;
+
+  // Track when files complete and refresh segments
+  useEffect(() => {
+    if (statusData) {
+      const currentCompleted = statusData.completed_count;
+      if (currentCompleted > previousCompletedRef.current && previousCompletedRef.current > 0) {
+        // A file just completed - refresh segments
+        queryClient.invalidateQueries({ queryKey: ['project-segments', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['project-files', projectId] });
+        toast.success('File analysis complete!');
+      }
+      previousCompletedRef.current = currentCompleted;
+    }
+  }, [statusData, projectId, queryClient]);
 
   // Group segments by source file
   const segmentsByFile = segments.reduce(
@@ -87,57 +102,13 @@ export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps)
     0
   );
 
-  // Polling effect with proper cleanup to avoid memory leaks
-  useEffect(() => {
-    if (!isPolling) return;
+  const isLoading = segmentsLoading || statusLoading;
+  const hasProcessingFiles = statusData && (statusData.pending_count > 0 || statusData.processing_count > 0);
+  const hasFailedFiles = statusData && statusData.failed_count > 0;
+  const allFilesCompleted = statusData && statusData.total_files > 0 &&
+    statusData.completed_count === statusData.total_files;
 
-    // Poll for segment updates every 5 seconds
-    const interval = setInterval(async () => {
-      const result = await refetch();
-      if (result.data && result.data.total_segments > 0) {
-        setIsPolling(false);
-        setAnalysisProgress(null);
-        toast.success('Analysis complete!');
-      }
-    }, 5000);
-
-    // Stop polling after 5 minutes
-    const timeout = setTimeout(() => {
-      setIsPolling(false);
-      toast.error('Analysis is taking longer than expected. Please check back later.');
-    }, 300000);
-
-    // Cleanup on unmount or when isPolling changes
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [isPolling, refetch]);
-
-  const handleAnalyze = useCallback(async (forceReanalyze: boolean = false) => {
-    try {
-      const progress = await analyzeMutation.mutateAsync({
-        projectId,
-        forceReanalyze,
-      });
-      setAnalysisProgress(progress);
-
-      if (progress.status === 'completed') {
-        toast.success(`Analysis complete! ${progress.segments_extracted} segments extracted.`);
-        refetch();
-      } else if (progress.status === 'failed') {
-        toast.error(progress.error_message || 'Analysis failed');
-      } else {
-        toast.success('Analysis started. This may take a few minutes.');
-        // Start polling via state (will be handled by useEffect)
-        setIsPolling(true);
-      }
-    } catch {
-      toast.error('Failed to start analysis');
-    }
-  }, [analyzeMutation, projectId, refetch]);
-
-  if (isLoading) {
+  if (isLoading && !statusData && !segmentsData) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
@@ -155,65 +126,45 @@ export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps)
             <CardTitle className="text-base">Video Segments</CardTitle>
             <Badge variant="secondary">{totalSegments}</Badge>
           </div>
+          {/* Status indicators */}
           <div className="flex items-center gap-2">
-            {hasFiles && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleAnalyze(totalSegments > 0)}
-                disabled={analyzeMutation.isPending}
-              >
-                {analyzeMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : totalSegments > 0 ? (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                {totalSegments > 0 ? 'Re-analyze' : 'Analyze Videos'}
-              </Button>
+            {hasProcessingFiles && (
+              <Badge variant="outline" className="gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Analyzing...
+              </Badge>
+            )}
+            {hasFailedFiles && (
+              <Badge variant="destructive" className="gap-1">
+                <XCircle className="h-3 w-3" />
+                {statusData.failed_count} failed
+              </Badge>
+            )}
+            {allFilesCompleted && totalSegments > 0 && (
+              <Badge variant="default" className="gap-1 bg-green-600">
+                <CheckCircle2 className="h-3 w-3" />
+                Complete
+              </Badge>
             )}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Analysis Progress */}
-        {analysisProgress && analysisProgress.status === 'processing' && (
-          <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="text-sm font-medium">Analyzing videos...</span>
-            </div>
-            <Progress
-              value={(analysisProgress.completed_files / analysisProgress.total_files) * 100}
-            />
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {analysisProgress.completed_files} of {analysisProgress.total_files} files
-              </span>
-              {analysisProgress.current_file && (
-                <span>Processing: {analysisProgress.current_file}</span>
-              )}
-            </div>
-          </div>
+        {/* Processing Progress */}
+        {hasFiles && statusData && hasProcessingFiles && (
+          <ProcessingProgress statusData={statusData} />
         )}
 
         {/* Empty State */}
-        {totalSegments === 0 && !analyzeMutation.isPending && (
+        {totalSegments === 0 && !hasProcessingFiles && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Layers className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Segments Yet</h3>
             <p className="text-muted-foreground mb-4 max-w-sm">
               {hasFiles
-                ? 'Click "Analyze Videos" to extract segments from your uploaded videos. This process uses AI to identify and describe each scene.'
-                : 'Upload some videos first, then analyze them to extract segments.'}
+                ? 'Videos are automatically analyzed after upload. New segments will appear here once analysis completes.'
+                : 'Upload some videos to get started. They will be automatically analyzed to extract segments.'}
             </p>
-            {hasFiles && (
-              <Button onClick={() => handleAnalyze(false)}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Analyze Videos
-              </Button>
-            )}
           </div>
         )}
 
@@ -228,6 +179,11 @@ export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps)
               className="pl-9"
             />
           </div>
+        )}
+
+        {/* File Status List (when processing) */}
+        {hasFiles && statusData && statusData.total_files > 0 && (
+          <FileStatusList files={statusData.files} />
         )}
 
         {/* Segments by File */}
@@ -273,6 +229,115 @@ export function VideoSegmentList({ projectId, hasFiles }: VideoSegmentListProps)
       </CardContent>
     </Card>
   );
+}
+
+interface ProcessingProgressProps {
+  statusData: {
+    total_files: number;
+    pending_count: number;
+    processing_count: number;
+    completed_count: number;
+    failed_count: number;
+    total_segments: number;
+  };
+}
+
+function ProcessingProgress({ statusData }: ProcessingProgressProps) {
+  const completedOrFailed = statusData.completed_count + statusData.failed_count;
+  const progressPercent = (completedOrFailed / statusData.total_files) * 100;
+
+  return (
+    <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        <span className="text-sm font-medium">Analyzing videos...</span>
+      </div>
+      <Progress value={progressPercent} />
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {statusData.completed_count} of {statusData.total_files} files completed
+        </span>
+        {statusData.processing_count > 0 && (
+          <span>{statusData.processing_count} processing</span>
+        )}
+      </div>
+      {statusData.total_segments > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {statusData.total_segments} segments extracted so far
+        </p>
+      )}
+    </div>
+  );
+}
+
+interface FileStatusListProps {
+  files: FileStatusResponse[];
+}
+
+function FileStatusList({ files }: FileStatusListProps) {
+  // Only show if there are files that aren't completed
+  const activeFiles = files.filter(f => f.status !== 'completed');
+
+  if (activeFiles.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-muted-foreground">File Status</p>
+      <div className="space-y-1">
+        {files.map((file) => (
+          <div
+            key={file.file_id}
+            className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/30 text-sm"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <FileStatusIcon status={file.status} />
+              <span className="truncate">{file.original_filename}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {file.segments_count > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {file.segments_count} segments
+                </Badge>
+              )}
+              <FileStatusBadge status={file.status} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FileStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case 'pending':
+      return <Hourglass className="h-4 w-4 text-muted-foreground" />;
+    case 'processing':
+      return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+    case 'completed':
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case 'failed':
+      return <XCircle className="h-4 w-4 text-destructive" />;
+    default:
+      return <FileVideo className="h-4 w-4 text-muted-foreground" />;
+  }
+}
+
+function FileStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'pending':
+      return <Badge variant="outline" className="text-xs">Pending</Badge>;
+    case 'processing':
+      return <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">Processing</Badge>;
+    case 'completed':
+      return <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Complete</Badge>;
+    case 'failed':
+      return <Badge variant="destructive" className="text-xs">Failed</Badge>;
+    default:
+      return <Badge variant="outline" className="text-xs">{status}</Badge>;
+  }
 }
 
 interface SegmentCardProps {

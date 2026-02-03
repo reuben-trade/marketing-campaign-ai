@@ -56,7 +56,28 @@ export interface ProjectFile {
   original_filename: string;
   file_size_bytes: number;
   file_url: string;
-  status: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
+// File status types for polling during auto-analysis
+export interface FileStatusResponse {
+  file_id: string;
+  project_id: string;
+  filename: string;
+  original_filename: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  segments_count: number;
+}
+
+export interface ProjectFilesStatusResponse {
+  project_id: string;
+  files: FileStatusResponse[];
+  total_files: number;
+  pending_count: number;
+  processing_count: number;
+  completed_count: number;
+  failed_count: number;
+  total_segments: number;
 }
 
 export interface ProjectUploadResponse {

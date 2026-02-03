@@ -418,3 +418,109 @@ async def test_upload_continues_if_task_queue_fails(
         assert response.status_code == 201
         assert response.json()["total_files"] == 1
         assert response.json()["uploaded_files"][0]["status"] == "pending"
+
+
+# =============================================================================
+# FILE STATUS ENDPOINT TESTS (for polling during auto-analysis)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_single_file_status(
+    client: AsyncClient, sample_project, video_file, mock_supabase_storage
+):
+    """Test getting status of a single file."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    # Upload file
+    filename, content, content_type = video_file
+    files = [("files", (filename, content, content_type))]
+    upload_response = await client.post(f"/api/projects/{project_id}/upload", files=files)
+    file_id = upload_response.json()["uploaded_files"][0]["file_id"]
+
+    # Get file status
+    response = await client.get(f"/api/projects/{project_id}/files/{file_id}/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["file_id"] == file_id
+    assert data["project_id"] == project_id
+    assert data["status"] == "pending"
+    assert data["segments_count"] == 0
+    assert data["original_filename"] == "test_video.mp4"
+
+
+@pytest.mark.asyncio
+async def test_get_file_status_nonexistent_file(
+    client: AsyncClient, sample_project, mock_supabase_storage
+):
+    """Test getting status of a non-existent file returns 404."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    fake_file_id = str(uuid4())
+    response = await client.get(f"/api/projects/{project_id}/files/{fake_file_id}/status")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_all_files_status(client: AsyncClient, sample_project, mock_supabase_storage):
+    """Test getting status of all files in a project."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    # Upload multiple files
+    files = []
+    for i in range(3):
+        content = b"video content " * 1000
+        files.append(("files", (f"video_{i}.mp4", io.BytesIO(content), "video/mp4")))
+
+    await client.post(f"/api/projects/{project_id}/upload", files=files)
+
+    # Get all files status
+    response = await client.get(f"/api/projects/{project_id}/files/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project_id"] == project_id
+    assert data["total_files"] == 3
+    assert len(data["files"]) == 3
+    assert data["pending_count"] == 3
+    assert data["processing_count"] == 0
+    assert data["completed_count"] == 0
+    assert data["failed_count"] == 0
+    assert data["total_segments"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_files_status_empty_project(
+    client: AsyncClient, sample_project, mock_supabase_storage
+):
+    """Test getting file status for a project with no files."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    # Get files status
+    response = await client.get(f"/api/projects/{project_id}/files/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_files"] == 0
+    assert len(data["files"]) == 0
+    assert data["pending_count"] == 0
+    assert data["completed_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_files_status_nonexistent_project(client: AsyncClient):
+    """Test getting file status for a non-existent project returns 404."""
+    fake_project_id = str(uuid4())
+    response = await client.get(f"/api/projects/{fake_project_id}/files/status")
+
+    assert response.status_code == 404

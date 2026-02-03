@@ -175,8 +175,16 @@ def mock_anthropic():
 
 
 @pytest.fixture
-def mock_supabase_storage():
-    """Mock Supabase storage."""
+def mock_celery_task():
+    """Mock Celery content analysis task."""
+    with patch("app.services.upload_service.analyze_project_file_task") as mock:
+        mock.delay = MagicMock(return_value=MagicMock(id="test-task-id"))
+        yield mock
+
+
+@pytest.fixture
+def mock_supabase_storage(mock_celery_task):
+    """Mock Supabase storage (also mocks Celery task for uploads)."""
     with patch("app.utils.supabase_storage.create_client") as mock:
         mock_client = MagicMock()
         mock_client.storage.from_.return_value.upload.return_value = None

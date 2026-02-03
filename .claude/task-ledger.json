@@ -758,8 +758,8 @@
       "sprint": 5,
       "title": "Fix empty URL handling in VideoClipSegment",
       "description": "Show placeholder for missing video sources, add error boundary",
-      "status": "pending",
-      "branch": null,
+      "status": "completed",
+      "branch": "feature/videoclip-empty-url-handling",
       "prNumber": null,
       "parallelGroup": "E",
       "files": [

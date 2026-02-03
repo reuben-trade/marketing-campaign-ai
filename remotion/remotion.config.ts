@@ -8,7 +8,7 @@ Config.setChromiumOpenGlRenderer('angle');
 
 // Output settings
 Config.setCodec('h264');
-Config.setImageFormat('jpeg');
+Config.setVideoImageFormat('jpeg');
 
 // Performance
 Config.setConcurrency(4);

@@ -124,8 +124,9 @@ class DirectorAgent:
             )
             logger.info(f"[DIRECTOR] Total duration: {llm_output.get_total_duration():.1f}s")
 
-            # Print timeline summary
+            # Print timeline summary and thinking trace
             self._print_timeline_summary(llm_output)
+            self._log_thinking_trace(llm_output)
 
             # Step 4: Convert to Remotion payload
             logger.info("[DIRECTOR] Step 4: Converting to Remotion payload...")
@@ -313,6 +314,9 @@ class DirectorAgent:
                 raise DirectorAgentError("Empty response from LLM")
 
             logger.info(f"[DIRECTOR] LLM response length: {len(result_text)} chars")
+
+            # Log raw response for debugging
+            self._log_raw_response(result_text)
 
             # Clean markdown if present
             result_text = result_text.strip()
@@ -574,6 +578,68 @@ class DirectorAgent:
             return enum_class(value)
         except (ValueError, KeyError):
             return default
+
+    def _log_raw_response(self, result_text: str) -> None:
+        """Log the raw LLM JSON response for debugging."""
+        logger.info("[DIRECTOR] " + "=" * 50)
+        logger.info("[DIRECTOR] RAW LLM RESPONSE:")
+        logger.info("[DIRECTOR] " + "=" * 50)
+
+        # Pretty print JSON if possible, otherwise log raw
+        try:
+            parsed = json.loads(result_text)
+            pretty = json.dumps(parsed, indent=2)
+            # Log in chunks to avoid truncation
+            lines = pretty.split("\n")
+            for line in lines[:100]:  # First 100 lines
+                logger.info(f"[DIRECTOR] {line}")
+            if len(lines) > 100:
+                logger.info(f"[DIRECTOR] ... ({len(lines) - 100} more lines)")
+        except json.JSONDecodeError:
+            # Log raw if not valid JSON
+            for i in range(0, min(len(result_text), 3000), 200):
+                logger.info(f"[DIRECTOR] {result_text[i:i+200]}")
+            if len(result_text) > 3000:
+                logger.info(f"[DIRECTOR] ... ({len(result_text) - 3000} more chars)")
+
+        logger.info("[DIRECTOR] " + "=" * 50)
+
+    def _log_thinking_trace(self, llm_output: DirectorLLMOutput) -> None:
+        """Log the Director's thinking trace for debugging."""
+        if not llm_output.thinking_trace:
+            logger.info("[DIRECTOR] No thinking trace in response")
+            return
+
+        trace = llm_output.thinking_trace
+        logger.info("[DIRECTOR] " + "-" * 40)
+        logger.info("[DIRECTOR] THINKING TRACE:")
+        logger.info("[DIRECTOR] " + "-" * 40)
+
+        if trace.hook_analysis:
+            logger.info(f"[DIRECTOR] Hook Analysis: {trace.hook_analysis}")
+
+        if trace.story_arc:
+            logger.info(f"[DIRECTOR] Story Arc: {trace.story_arc}")
+
+        if trace.pacing_decisions:
+            logger.info(f"[DIRECTOR] Pacing: {trace.pacing_decisions}")
+
+        if trace.clip_selection_rationale:
+            logger.info("[DIRECTOR] Clip Selection Rationale:")
+            for i, rationale in enumerate(trace.clip_selection_rationale[:10]):
+                logger.info(f"[DIRECTOR]   {i+1}. {rationale}")
+            if len(trace.clip_selection_rationale) > 10:
+                logger.info(f"[DIRECTOR]   ... ({len(trace.clip_selection_rationale) - 10} more)")
+
+        if trace.cta_strategy:
+            logger.info(f"[DIRECTOR] CTA Strategy: {trace.cta_strategy}")
+
+        if trace.gaps_identified:
+            logger.info("[DIRECTOR] Gaps Identified:")
+            for gap in trace.gaps_identified:
+                logger.info(f"[DIRECTOR]   - {gap}")
+
+        logger.info("[DIRECTOR] " + "-" * 40)
 
     def _print_timeline_summary(self, llm_output: DirectorLLMOutput) -> None:
         """Print timeline summary for debugging."""

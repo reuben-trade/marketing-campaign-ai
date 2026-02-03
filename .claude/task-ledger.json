@@ -760,9 +760,9 @@
       "sprint": 5,
       "title": "Fix empty URL handling in VideoClipSegment",
       "description": "Show placeholder for missing video sources, add error boundary",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/videoclip-empty-url-handling",
+      "prNumber": 59,
       "parallelGroup": "E",
       "files": [
         "remotion/src/components/VideoClipSegment.tsx"

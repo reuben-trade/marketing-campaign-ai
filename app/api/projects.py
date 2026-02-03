@@ -639,13 +639,16 @@ async def get_all_files_status(
     )
     files = files_result.scalars().all()
 
-    # Get segment counts per file
-    segment_counts = {}
-    for f in files:
-        count = (
-            await db.execute(select(func.count()).where(UserVideoSegment.source_file_id == f.id))
-        ).scalar() or 0
-        segment_counts[f.id] = count
+    # Get segment counts per file in a single query (avoids N+1)
+    segment_counts: dict = {}
+    if files:
+        file_ids = [f.id for f in files]
+        segment_counts_result = await db.execute(
+            select(UserVideoSegment.source_file_id, func.count())
+            .where(UserVideoSegment.source_file_id.in_(file_ids))
+            .group_by(UserVideoSegment.source_file_id)
+        )
+        segment_counts = {row[0]: row[1] for row in segment_counts_result.all()}
 
     # Build response
     file_statuses = []

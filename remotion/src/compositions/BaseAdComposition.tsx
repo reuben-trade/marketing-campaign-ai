@@ -49,17 +49,14 @@ export const BaseAdComposition: React.FC<Props> = ({
 
     switch (segment.type) {
       case 'video_clip':
-        if (!segment.source) {
-          console.warn(`[BaseAdComposition] video_clip ${segment.id} missing source`);
-        } else {
-          segmentElement = (
-            <VideoClipSegment
-              key={`${segment.id}-video`}
-              {...commonProps}
-              source={segment.source}
-            />
-          );
-        }
+        // VideoClipSegment handles missing/invalid sources gracefully with a placeholder
+        segmentElement = (
+          <VideoClipSegment
+            key={`${segment.id}-video`}
+            {...commonProps}
+            source={segment.source || { url: '', start_time: 0, end_time: 0 }}
+          />
+        );
         break;
 
       case 'text_slide':

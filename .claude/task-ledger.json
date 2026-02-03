@@ -695,16 +695,17 @@
       "sprint": 5,
       "title": "Create Celery task for auto-analysis",
       "description": "Background task triggered on file upload",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/celery-auto-analysis",
+      "prNumber": 58,
       "dependsOn": ["s5-t5", "s5-t6", "s5-t7"],
       "files": [
         "app/tasks/content_analysis_tasks.py",
-        "app/tasks/celery_app.py"
+        "app/tasks/celery_app.py",
+        "tests/test_tasks/test_content_analysis_tasks.py"
       ],
       "prdSection": "5.1 Async File Processing",
-      "notes": "Celery task with retry logic for Gemini analysis"
+      "notes": "Implemented Celery tasks: analyze_project_file_task (with max 3 retries, exponential backoff), analyze_project_task (for batch analysis), analyze_pending_files_task (batch queue pending files), retry_failed_analysis_task (retry failed analyses). Celery app configured with content_analysis queue and routing. All 8 tests pass."
     },
     {
       "id": "s5-t18",

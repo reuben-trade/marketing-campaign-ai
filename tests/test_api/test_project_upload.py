@@ -1,6 +1,7 @@
 """Tests for project file upload API endpoints."""
 
 import io
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -331,3 +332,89 @@ async def test_delete_project_cascades_files(
     # Verify project and files are gone
     get_response = await client.get(f"/api/projects/{project_id}")
     assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_upload_triggers_auto_analysis(
+    client: AsyncClient, sample_project, mock_supabase_storage
+):
+    """Test that uploading files automatically triggers content analysis task."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    # We need to explicitly patch the task to capture the calls
+    with patch("app.services.upload_service.analyze_project_file_task") as mock_task:
+        mock_task.delay.return_value = None
+
+        # Upload file
+        content = b"video content " * 1000
+        files = [("files", ("test_auto_analysis.mp4", io.BytesIO(content), "video/mp4"))]
+        response = await client.post(f"/api/projects/{project_id}/upload", files=files)
+
+        assert response.status_code == 201
+
+        # Verify the Celery task was triggered
+        assert mock_task.delay.called
+        assert mock_task.delay.call_count == 1
+
+        # Verify the task was called with the correct file_id
+        call_args = mock_task.delay.call_args[0]
+        file_id = response.json()["uploaded_files"][0]["file_id"]
+        assert call_args[0] == file_id
+
+
+@pytest.mark.asyncio
+async def test_upload_multiple_files_triggers_analysis_for_each(
+    client: AsyncClient, sample_project, mock_supabase_storage
+):
+    """Test that uploading multiple files triggers analysis for each one."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    with patch("app.services.upload_service.analyze_project_file_task") as mock_task:
+        mock_task.delay.return_value = None
+
+        # Upload multiple files
+        files = []
+        for i in range(3):
+            content = b"video content " * 1000
+            files.append(("files", (f"video_{i}.mp4", io.BytesIO(content), "video/mp4")))
+
+        response = await client.post(f"/api/projects/{project_id}/upload", files=files)
+
+        assert response.status_code == 201
+        assert response.json()["total_files"] == 3
+
+        # Verify analysis task was triggered for each file
+        assert mock_task.delay.call_count == 3
+
+        # Verify each file_id was passed to a task
+        uploaded_file_ids = {f["file_id"] for f in response.json()["uploaded_files"]}
+        called_file_ids = {call[0][0] for call in mock_task.delay.call_args_list}
+        assert uploaded_file_ids == called_file_ids
+
+
+@pytest.mark.asyncio
+async def test_upload_continues_if_task_queue_fails(
+    client: AsyncClient, sample_project, mock_supabase_storage
+):
+    """Test that upload succeeds even if Celery task queueing fails."""
+    # Create project
+    create_response = await client.post("/api/projects", json=sample_project)
+    project_id = create_response.json()["id"]
+
+    with patch("app.services.upload_service.analyze_project_file_task") as mock_task:
+        # Simulate Celery broker being unavailable
+        mock_task.delay.side_effect = Exception("Celery broker unavailable")
+
+        # Upload should still succeed
+        content = b"video content " * 1000
+        files = [("files", ("test.mp4", io.BytesIO(content), "video/mp4"))]
+        response = await client.post(f"/api/projects/{project_id}/upload", files=files)
+
+        # Upload should succeed despite task queueing failure
+        assert response.status_code == 201
+        assert response.json()["total_files"] == 1
+        assert response.json()["uploaded_files"][0]["status"] == "pending"

@@ -265,6 +265,46 @@ files = [
 ]
 
 [[package]]
+name = "boto3"
+version = "1.42.36"
+description = "The AWS SDK for Python"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "boto3-1.42.36-py3-none-any.whl", hash = "sha256:e0ff6f2747bfdec63405b35ea185a7aea35239c3f4fe99e4d29368a6de9c4a84"},
+    {file = "boto3-1.42.36.tar.gz", hash = "sha256:a4eb51105c8c5d7b2bc2a9e2316e69baf69a55611275b9f189c0cf59f1aae171"},
+]
+
+[package.dependencies]
+botocore = ">=1.42.36,<1.43.0"
+jmespath = ">=0.7.1,<2.0.0"
+s3transfer = ">=0.16.0,<0.17.0"
+
+[package.extras]
+crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
+
+[[package]]
+name = "botocore"
+version = "1.42.36"
+description = "Low-level, data-driven core of boto 3."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "botocore-1.42.36-py3-none-any.whl", hash = "sha256:2cfae4c482e5e87bd835ab4289b711490c161ba57e852c06b65a03e7c25e08eb"},
+    {file = "botocore-1.42.36.tar.gz", hash = "sha256:2ebd89cc75927944e2cee51b7adce749f38e0cb269a758a6464a27f8bcca65fb"},
+]
+
+[package.dependencies]
+jmespath = ">=0.7.1,<2.0.0"
+python-dateutil = ">=2.1,<3.0.0"
+urllib3 = {version = ">=1.25.4,<2.2.0 || >2.2.0,<3", markers = "python_version >= \"3.10\""}
+
+[package.extras]
+crt = ["awscrt (==0.29.2)"]
+
+[[package]]
 name = "cachetools"
 version = "6.2.4"
 description = "Extensible memoizing collections and decorators"
@@ -1311,6 +1351,18 @@ files = [
 ]
 
 [[package]]
+name = "jmespath"
+version = "1.1.0"
+description = "JSON Matching Expressions"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64"},
+    {file = "jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d"},
+]
+
+[[package]]
 name = "kombu"
 version = "5.6.2"
 description = "Messaging library for Python."
@@ -1795,6 +1847,18 @@ files = [
     {file = "multidict-6.7.0-cp39-cp39-win_arm64.whl", hash = "sha256:6bdce131e14b04fd34a809b6380dbfd826065c3e2fe8a50dbae659fa0c390546"},
     {file = "multidict-6.7.0-py3-none-any.whl", hash = "sha256:394fc5c42a333c9ffc3e421a4c85e08580d990e08b99f6bf35b4132114c5dcb3"},
     {file = "multidict-6.7.0.tar.gz", hash = "sha256:c6e99d9a65ca282e578dfea819cfa9c0a62b2499d8677392e09feaf305e9e6f5"},
+]
+
+[[package]]
+name = "nest-asyncio"
+version = "1.6.0"
+description = "Patch asyncio to allow nested event loops"
+optional = false
+python-versions = ">=3.5"
+groups = ["dev"]
+files = [
+    {file = "nest_asyncio-1.6.0-py3-none-any.whl", hash = "sha256:87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c"},
+    {file = "nest_asyncio-1.6.0.tar.gz", hash = "sha256:6f172d5449aca15afd6c646851f4e31e02c598d553a667e38cafa997cfec55fe"},
 ]
 
 [[package]]
@@ -3367,6 +3431,24 @@ files = [
 ]
 
 [[package]]
+name = "s3transfer"
+version = "0.16.0"
+description = "An Amazon S3 Transfer Manager"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "s3transfer-0.16.0-py3-none-any.whl", hash = "sha256:18e25d66fed509e3868dc1572b3f427ff947dd2c56f844a5bf09481ad3f3b2fe"},
+    {file = "s3transfer-0.16.0.tar.gz", hash = "sha256:8e990f13268025792229cd52fa10cb7163744bf56e719e0b9cb925ab79abf920"},
+]
+
+[package.dependencies]
+botocore = ">=1.37.4,<2.0a0"
+
+[package.extras]
+crt = ["botocore[crt] (>=1.37.4,<2.0a0)"]
+
+[[package]]
 name = "scipy"
 version = "1.17.0"
 description = "Fundamental algorithms for scientific computing in Python"
@@ -4364,4 +4446,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "943092561a0a4db3bf66ef0fcf1074d86989904ff508c58b31930899e84eb9e1"
+content-hash = "9ae833f2728acd9edb30358d378fb540f2b70ffba2f55a0d8c63563f0b7cd3ef"

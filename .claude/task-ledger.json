@@ -712,15 +712,17 @@
       "sprint": 5,
       "title": "Trigger analysis on upload",
       "description": "Auto-queue Celery task when file uploaded",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/trigger-analysis-on-upload",
+      "prNumber": 60,
       "dependsOn": ["s5-t17"],
       "files": [
-        "app/services/upload_service.py"
+        "app/services/upload_service.py",
+        "tests/conftest.py",
+        "tests/test_api/test_project_upload.py"
       ],
       "prdSection": "5.1 Async File Processing",
-      "notes": "Remove need for manual 'Analyze' button click"
+      "notes": "Modified upload_service.py to auto-trigger analyze_project_file_task.delay() after each file is uploaded. Task queueing failures are logged but don't block the upload. Added mock_celery_task fixture to conftest.py. Added 3 new tests: test_upload_triggers_auto_analysis, test_upload_multiple_files_triggers_analysis_for_each, test_upload_continues_if_task_queue_fails. All 26 tests pass."
     },
     {
       "id": "s5-t19",

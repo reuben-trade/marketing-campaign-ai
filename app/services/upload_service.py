@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
 from app.models.project_file import ProjectFile
+from app.tasks.content_analysis_tasks import analyze_project_file_task
 from app.utils.media_types import (
     MAX_VIDEO_SIZE_BYTES,
     VIDEO_EXTENSIONS,
@@ -270,6 +271,15 @@ class UploadService:
         )
         self.db.add(project_file)
         await self.db.flush()
+
+        # Trigger automatic content analysis via Celery task
+        try:
+            analyze_project_file_task.delay(str(file_id))
+            logger.info(f"Queued content analysis task for file {file_id}")
+        except Exception as e:
+            # Don't fail the upload if Celery task queueing fails
+            # The file can still be analyzed manually or via batch job
+            logger.warning(f"Failed to queue analysis task for file {file_id}: {e}")
 
         return UploadResult(
             file_id=file_id,

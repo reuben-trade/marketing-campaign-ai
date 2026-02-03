@@ -608,7 +608,21 @@ class RemotionPayload(BaseModel):
 
 
 class DirectorAgentInput(BaseModel):
-    """Input to the Director Agent."""
+    """Input to the Director Agent (clips-first approach)."""
+
+    project_id: uuid.UUID = Field(..., description="Project ID")
+    composition_type: CompositionType = Field(
+        default=CompositionType.VERTICAL,
+        description="Target aspect ratio",
+    )
+    audio_url: str | None = Field(
+        default=None,
+        description="Optional audio track URL",
+    )
+
+
+class RecipeDirectorAgentInput(BaseModel):
+    """Input to the Recipe Director Agent (visual script + semantic search approach)."""
 
     project_id: uuid.UUID = Field(..., description="Project ID")
     visual_script_id: uuid.UUID = Field(..., description="Visual script to assemble")

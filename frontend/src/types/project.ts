@@ -141,3 +141,28 @@ export interface QuickCreateRequest {
   user_prompt?: string;
   brand_profile_id?: string;
 }
+
+// Direct generation types (clips-first Director - no recipe needed)
+export interface DirectGenerateRequest {
+  composition_type?: 'vertical_ad_v1' | 'horizontal_ad_v1' | 'square_ad_v1';
+  user_prompt?: string;
+  audio_url?: string;
+}
+
+export interface GenerationStats {
+  total_slots: number;
+  clips_selected: number;
+  gaps_detected: number;
+  coverage_percentage: number;
+  average_similarity: number;
+  total_duration_seconds: number;
+}
+
+export interface DirectGenerateResponse {
+  project_id: string;
+  payload: import('@/types/render').RemotionPayload;
+  stats: GenerationStats;
+  gaps: Array<Record<string, unknown>> | null;
+  warnings: string[] | null;
+  success: boolean;
+}

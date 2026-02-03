@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.api.deps import DbSession
@@ -25,7 +26,11 @@ from app.schemas.project import (
     QuickCreateRequest,
     UploadFailure,
 )
-from app.schemas.remotion_payload import CompositionType, DirectorAgentInput
+from app.schemas.remotion_payload import (
+    CompositionType,
+    DirectorAgentInput,
+    RecipeDirectorAgentInput,
+)
 from app.schemas.user_video_segment import (
     AnalysisProgress,
     ProjectSegmentsResponse,
@@ -37,6 +42,7 @@ from app.schemas.user_video_segment import (
 from app.schemas.visual_script import VisualScriptGenerateRequest
 from app.services.content_planner import ContentPlanningAgent, ContentPlanningError
 from app.services.director_agent import DirectorAgent, DirectorAgentError
+from app.services.recipe_director_agent import RecipeDirectorAgent, RecipeDirectorAgentError
 from app.services.semantic_search_service import SemanticSearchService
 from app.services.upload_service import (
     UploadError,
@@ -259,16 +265,19 @@ async def quick_create_project(
                     embedding=segment.embedding,
                     # Enhanced analysis fields (V2)
                     transcript_text=segment.transcript_text,
-                    transcript_words=segment.transcript_words,
                     speaker_label=segment.speaker_label,
                     previous_segment_id=None,  # Reset ordering for new project
                     next_segment_id=None,
                     segment_index=segment.segment_index,
+                    total_segments_in_source=segment.total_segments_in_source,
                     section_type=segment.section_type,
                     section_label=segment.section_label,
                     attention_score=segment.attention_score,
                     emotion_intensity=segment.emotion_intensity,
-                    power_words=segment.power_words,
+                    color_grading=segment.color_grading,
+                    lighting_style=segment.lighting_style,
+                    has_speech=segment.has_speech,
+                    keywords=segment.keywords,
                     detailed_breakdown=segment.detailed_breakdown,
                 )
                 db.add(new_segment)
@@ -826,7 +835,8 @@ async def generate_ad(
         )
 
     # Step 3: Generate visual script using Content Planning Agent (Writer)
-    logger.info(f"Starting ad generation for project {project_id}")
+    logger.info(f"[GENERATE] ========== Starting ad generation for project {project_id} ==========")
+    logger.info("[GENERATE] Step 1: Calling Writer Agent (ContentPlanningAgent)...")
 
     try:
         content_planner = ContentPlanningAgent()
@@ -837,7 +847,7 @@ async def generate_ad(
         )
         visual_script_response = await content_planner.generate(db, script_request)
         logger.info(
-            f"Generated visual script {visual_script_response.id} "
+            f"[GENERATE] Step 1 COMPLETE: Visual script {visual_script_response.id} "
             f"with {len(visual_script_response.slots)} slots"
         )
     except ContentPlanningError as e:
@@ -847,10 +857,11 @@ async def generate_ad(
             detail=f"Failed to generate visual script: {e}",
         )
 
-    # Step 4: Assemble clips using Director Agent
+    # Step 4: Assemble clips using Recipe Director Agent (semantic search per slot)
+    logger.info("[GENERATE] Step 2: Calling Recipe Director Agent...")
     try:
-        director = DirectorAgent()
-        director_input = DirectorAgentInput(
+        director = RecipeDirectorAgent()
+        director_input = RecipeDirectorAgentInput(
             project_id=project_id,
             visual_script_id=visual_script_response.id,
             composition_type=composition_type,
@@ -860,11 +871,11 @@ async def generate_ad(
         )
         director_output = await director.assemble(db, director_input)
         logger.info(
-            f"Director assembled payload: {director_output.stats['clips_selected']}/"
-            f"{director_output.stats['total_slots']} clips selected"
+            f"[GENERATE] Step 2 COMPLETE: Recipe Director assembled payload - "
+            f"{director_output.stats['clips_selected']}/{director_output.stats['total_slots']} clips selected"
         )
-    except DirectorAgentError as e:
-        logger.error(f"Director agent failed: {e}")
+    except RecipeDirectorAgentError as e:
+        logger.error(f"Recipe Director agent failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to assemble ad: {e}",
@@ -907,6 +918,156 @@ async def generate_ad(
         project_id=project_id,
         visual_script_id=visual_script_response.id,
         payload_preview=payload_preview,
+        stats=GenerationStats(
+            total_slots=director_output.stats["total_slots"],
+            clips_selected=director_output.stats["clips_selected"],
+            gaps_detected=director_output.stats["gaps_detected"],
+            coverage_percentage=director_output.stats["coverage_percentage"],
+            average_similarity=director_output.stats["average_similarity"],
+            total_duration_seconds=director_output.stats["total_duration_seconds"],
+        ),
+        gaps=payload.gaps,
+        warnings=payload.warnings,
+        success=director_output.success,
+    )
+
+
+# =============================================================================
+# DIRECT AD GENERATION (CLIPS-FIRST DIRECTOR)
+# =============================================================================
+
+
+class DirectGenerateRequest(BaseModel):
+    """Request schema for direct ad generation (clips-first, no recipe needed)."""
+
+    composition_type: str = Field(
+        default="vertical_ad_v1",
+        description="Composition type: vertical_ad_v1, horizontal_ad_v1, square_ad_v1",
+    )
+    user_prompt: str | None = Field(
+        None,
+        description="Optional creative direction for the Director",
+    )
+    audio_url: str | None = Field(
+        None,
+        description="Optional background audio track URL",
+    )
+
+
+class DirectGenerateResponse(BaseModel):
+    """Response schema for direct ad generation."""
+
+    project_id: UUID
+    payload: dict = Field(..., description="Complete Remotion payload ready for rendering")
+    stats: GenerationStats
+    gaps: list[dict] | None = None
+    warnings: list[str] | None = None
+    success: bool = True
+
+
+@router.post(
+    "/{project_id}/generate-direct",
+    response_model=DirectGenerateResponse,
+    responses={
+        404: {"description": "Project not found"},
+        422: {"description": "Project has no analyzed segments"},
+        500: {"description": "Generation failed"},
+    },
+)
+async def generate_ad_direct(
+    db: DbSession,
+    project_id: UUID,
+    request: DirectGenerateRequest,
+) -> DirectGenerateResponse:
+    """
+    Generate an ad using the clips-first Director (no recipe required).
+
+    This endpoint uses the Viral Director LLM to:
+    1. Load all analyzed clips with V2 metadata
+    2. Reason about story arc, pacing, and hooks
+    3. Generate a complete Remotion payload
+
+    **No recipe or visual script required** - the Director works directly with your clips.
+
+    **Returns:**
+    - Complete Remotion payload ready for rendering
+    - Generation statistics
+    """
+    logger.info("=" * 60)
+    logger.info(f"[GENERATE-DIRECT] Starting clips-first generation for project {project_id}")
+    logger.info("=" * 60)
+
+    # Step 1: Verify project exists
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Step 2: Check project has analyzed segments
+    segment_count = (
+        await db.execute(select(func.count()).where(UserVideoSegment.project_id == project_id))
+    ).scalar() or 0
+
+    if segment_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Project has no analyzed video segments. Please upload and analyze videos first.",
+        )
+
+    logger.info(f"[GENERATE-DIRECT] Project has {segment_count} segments")
+
+    # Step 3: Validate composition type
+    try:
+        composition_type = CompositionType(request.composition_type)
+    except ValueError:
+        valid_types = [t.value for t in CompositionType]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid composition_type. Must be one of: {valid_types}",
+        )
+
+    # Step 4: Call the clips-first Director
+    logger.info("[GENERATE-DIRECT] Calling clips-first Director Agent...")
+    try:
+        director = DirectorAgent()
+        director_input = DirectorAgentInput(
+            project_id=project_id,
+            composition_type=composition_type,
+            audio_url=request.audio_url,
+        )
+
+        # Update project user_prompt if provided
+        if request.user_prompt:
+            project.user_prompt = request.user_prompt
+            await db.commit()
+
+        director_output = await director.assemble(db, director_input)
+
+        logger.info(
+            f"[GENERATE-DIRECT] Director complete: "
+            f"{director_output.stats['clips_selected']}/{director_output.stats['total_slots']} segments"
+        )
+
+    except DirectorAgentError as e:
+        logger.error(f"[GENERATE-DIRECT] Director failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate ad: {e}",
+        )
+
+    # Step 5: Update project status
+    project.status = Project.STATUS_READY
+    await db.commit()
+
+    payload = director_output.payload
+
+    return DirectGenerateResponse(
+        project_id=project_id,
+        payload=payload.model_dump(mode="json"),
         stats=GenerationStats(
             total_slots=director_output.stats["total_slots"],
             clips_selected=director_output.stats["clips_selected"],

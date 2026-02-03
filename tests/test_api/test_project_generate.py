@@ -61,8 +61,8 @@ def mock_content_planner():
 
 @pytest.fixture
 def mock_director_agent():
-    """Mock DirectorAgent for testing."""
-    with patch("app.api.projects.DirectorAgent") as mock:
+    """Mock RecipeDirectorAgent for testing."""
+    with patch("app.api.projects.RecipeDirectorAgent") as mock:
         mock_instance = MagicMock()
         mock_instance.assemble = AsyncMock(
             return_value=MagicMock(
@@ -597,7 +597,7 @@ async def test_generate_ad_with_gaps(
     """Test generation response includes gaps when clips not found."""
     project_id = await _create_project_with_segments(client, db_session, sample_project)
 
-    with patch("app.api.projects.DirectorAgent") as mock:
+    with patch("app.api.projects.RecipeDirectorAgent") as mock:
         mock_instance = MagicMock()
         mock_instance.assemble = AsyncMock(
             return_value=MagicMock(

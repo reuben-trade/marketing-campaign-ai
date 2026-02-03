@@ -729,16 +729,22 @@
       "sprint": 5,
       "title": "Remove Analyze button, add status polling",
       "description": "UI shows auto-processing status, removes manual trigger",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/file-status-polling",
+      "prNumber": 61,
       "dependsOn": ["s5-t18"],
       "files": [
         "frontend/src/components/video-segment-list.tsx",
-        "app/api/projects.py"
+        "frontend/src/app/projects/[id]/page.tsx",
+        "app/api/projects.py",
+        "app/schemas/project.py",
+        "frontend/src/types/project.ts",
+        "frontend/src/lib/api/projects.ts",
+        "frontend/src/hooks/useProjects.ts",
+        "tests/test_api/test_project_upload.py"
       ],
       "prdSection": "5.1 Async File Processing",
-      "notes": "Add GET /files/{id}/status endpoint, poll in frontend"
+      "notes": "Implemented: GET /api/projects/{id}/files/{file_id}/status and GET /api/projects/{id}/files/status endpoints for polling. VideoSegmentList refactored to remove manual Analyze button, shows auto-processing status with file-level progress, polls every 3 seconds during processing. useFilesStatus hook with automatic polling that stops when all files are done. 5 new tests added. All 23 upload tests pass, build passes."
     },
     {
       "id": "s5-t20",

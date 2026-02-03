@@ -12,12 +12,14 @@ from app.models.project import Project
 from app.models.project_file import ProjectFile
 from app.models.user_video_segment import UserVideoSegment
 from app.schemas.project import (
+    FileStatusResponse,
     GenerateAdRequest,
     GenerateAdResponse,
     GenerationStats,
     ProjectCreate,
     ProjectFileResponse,
     ProjectFilesListResponse,
+    ProjectFilesStatusResponse,
     ProjectListResponse,
     ProjectResponse,
     ProjectStats,
@@ -545,6 +547,151 @@ async def delete_project_file(
     # Delete from database
     await db.delete(project_file)
     await db.commit()
+
+
+# =============================================================================
+# FILE STATUS ENDPOINTS (for polling during auto-analysis)
+# =============================================================================
+
+
+@router.get(
+    "/{project_id}/files/{file_id}/status",
+    response_model=FileStatusResponse,
+)
+async def get_file_status(
+    db: DbSession,
+    project_id: UUID,
+    file_id: UUID,
+) -> FileStatusResponse:
+    """
+    Get the analysis status of a single file.
+
+    This endpoint is used for polling during auto-analysis to check
+    when a file's analysis is complete.
+
+    **Status values:**
+    - `pending`: File uploaded, waiting for analysis to start
+    - `processing`: Analysis in progress
+    - `completed`: Analysis finished successfully
+    - `failed`: Analysis failed (check logs for details)
+    """
+    # Get file
+    result = await db.execute(
+        select(ProjectFile).where(
+            ProjectFile.id == file_id,
+            ProjectFile.project_id == project_id,
+        )
+    )
+    project_file = result.scalar_one_or_none()
+
+    if not project_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    # Count segments for this file
+    segments_count = (
+        await db.execute(select(func.count()).where(UserVideoSegment.source_file_id == file_id))
+    ).scalar() or 0
+
+    return FileStatusResponse(
+        file_id=project_file.id,
+        project_id=project_file.project_id,
+        filename=project_file.filename,
+        original_filename=project_file.original_filename,
+        status=project_file.status,
+        segments_count=segments_count,
+    )
+
+
+@router.get(
+    "/{project_id}/files/status",
+    response_model=ProjectFilesStatusResponse,
+)
+async def get_all_files_status(
+    db: DbSession,
+    project_id: UUID,
+) -> ProjectFilesStatusResponse:
+    """
+    Get the analysis status of all files in a project.
+
+    This endpoint is used for polling during auto-analysis to check
+    the overall progress of file analysis in a project.
+
+    Returns counts by status and individual file statuses.
+    """
+    # Verify project exists
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Get all files
+    files_result = await db.execute(
+        select(ProjectFile)
+        .where(ProjectFile.project_id == project_id)
+        .order_by(ProjectFile.created_at.desc())
+    )
+    files = files_result.scalars().all()
+
+    # Get segment counts per file in a single query (avoids N+1)
+    segment_counts: dict = {}
+    if files:
+        file_ids = [f.id for f in files]
+        segment_counts_result = await db.execute(
+            select(UserVideoSegment.source_file_id, func.count())
+            .where(UserVideoSegment.source_file_id.in_(file_ids))
+            .group_by(UserVideoSegment.source_file_id)
+        )
+        segment_counts = {row[0]: row[1] for row in segment_counts_result.all()}
+
+    # Build response
+    file_statuses = []
+    pending_count = 0
+    processing_count = 0
+    completed_count = 0
+    failed_count = 0
+    total_segments = 0
+
+    for f in files:
+        segments = segment_counts.get(f.id, 0)
+        total_segments += segments
+
+        if f.status == ProjectFile.STATUS_PENDING:
+            pending_count += 1
+        elif f.status == ProjectFile.STATUS_PROCESSING:
+            processing_count += 1
+        elif f.status == ProjectFile.STATUS_COMPLETED:
+            completed_count += 1
+        elif f.status == ProjectFile.STATUS_FAILED:
+            failed_count += 1
+
+        file_statuses.append(
+            FileStatusResponse(
+                file_id=f.id,
+                project_id=f.project_id,
+                filename=f.filename,
+                original_filename=f.original_filename,
+                status=f.status,
+                segments_count=segments,
+            )
+        )
+
+    return ProjectFilesStatusResponse(
+        project_id=project_id,
+        files=file_statuses,
+        total_files=len(files),
+        pending_count=pending_count,
+        processing_count=processing_count,
+        completed_count=completed_count,
+        failed_count=failed_count,
+        total_segments=total_segments,
+    )
 
 
 # =============================================================================

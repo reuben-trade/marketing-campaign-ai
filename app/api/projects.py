@@ -26,7 +26,11 @@ from app.schemas.project import (
     QuickCreateRequest,
     UploadFailure,
 )
-from app.schemas.remotion_payload import CompositionType, DirectorAgentInput
+from app.schemas.remotion_payload import (
+    CompositionType,
+    DirectorAgentInput,
+    RecipeDirectorAgentInput,
+)
 from app.schemas.user_video_segment import (
     AnalysisProgress,
     ProjectSegmentsResponse,
@@ -38,6 +42,7 @@ from app.schemas.user_video_segment import (
 from app.schemas.visual_script import VisualScriptGenerateRequest
 from app.services.content_planner import ContentPlanningAgent, ContentPlanningError
 from app.services.director_agent import DirectorAgent, DirectorAgentError
+from app.services.recipe_director_agent import RecipeDirectorAgent, RecipeDirectorAgentError
 from app.services.semantic_search_service import SemanticSearchService
 from app.services.upload_service import (
     UploadError,
@@ -852,11 +857,11 @@ async def generate_ad(
             detail=f"Failed to generate visual script: {e}",
         )
 
-    # Step 4: Assemble clips using Director Agent
-    logger.info("[GENERATE] Step 2: Calling Director Agent...")
+    # Step 4: Assemble clips using Recipe Director Agent (semantic search per slot)
+    logger.info("[GENERATE] Step 2: Calling Recipe Director Agent...")
     try:
-        director = DirectorAgent()
-        director_input = DirectorAgentInput(
+        director = RecipeDirectorAgent()
+        director_input = RecipeDirectorAgentInput(
             project_id=project_id,
             visual_script_id=visual_script_response.id,
             composition_type=composition_type,
@@ -866,11 +871,11 @@ async def generate_ad(
         )
         director_output = await director.assemble(db, director_input)
         logger.info(
-            f"[GENERATE] Step 2 COMPLETE: Director assembled payload - "
+            f"[GENERATE] Step 2 COMPLETE: Recipe Director assembled payload - "
             f"{director_output.stats['clips_selected']}/{director_output.stats['total_slots']} clips selected"
         )
-    except DirectorAgentError as e:
-        logger.error(f"Director agent failed: {e}")
+    except RecipeDirectorAgentError as e:
+        logger.error(f"Recipe Director agent failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to assemble ad: {e}",

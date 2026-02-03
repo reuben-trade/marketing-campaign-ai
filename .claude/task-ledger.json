@@ -760,7 +760,7 @@
       "description": "Show placeholder for missing video sources, add error boundary",
       "status": "completed",
       "branch": "feature/videoclip-empty-url-handling",
-      "prNumber": null,
+      "prNumber": 59,
       "parallelGroup": "E",
       "files": [
         "remotion/src/components/VideoClipSegment.tsx"

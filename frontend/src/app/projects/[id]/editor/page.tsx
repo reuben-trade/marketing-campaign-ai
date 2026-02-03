@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useProject, useSearchSegments } from '@/hooks/useProjects';
+import { useProject, useSearchSegments, useGenerateDirect } from '@/hooks/useProjects';
 import {
   useProjectRenders,
   useCreateRender,
@@ -42,6 +42,7 @@ import {
   Layers,
   ChevronRight,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type {
@@ -152,6 +153,7 @@ export default function EditorPage({ params }: PageProps) {
   const createRenderMutation = useCreateRender();
   const cancelRenderMutation = useCancelRender();
   const searchSegmentsMutation = useSearchSegments();
+  const generateDirectMutation = useGenerateDirect();
 
   const [activeRenderId, setActiveRenderId] = useState<string | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<TimelineSegment | null>(null);
@@ -412,6 +414,35 @@ export default function EditorPage({ params }: PageProps) {
     }
   }, [id, searchSegmentsMutation]);
 
+  // Handle AI generation (clips-first Director)
+  const handleGenerateWithAI = async () => {
+    try {
+      toast.info('Generating ad with AI Director...');
+      const result = await generateDirectMutation.mutateAsync({
+        projectId: id,
+        request: {
+          composition_type: compositionType,
+          user_prompt: project?.user_prompt || undefined,
+        },
+      });
+
+      if (result.success && result.payload) {
+        setLocalPayload(result.payload);
+        toast.success(
+          `Generated! ${result.stats.clips_selected} clips assembled (${result.stats.coverage_percentage.toFixed(0)}% coverage)`
+        );
+      } else {
+        toast.warning('Generation completed with issues. Check the timeline.');
+        if (result.payload) {
+          setLocalPayload(result.payload);
+        }
+      }
+    } catch (error) {
+      console.error('Generation failed:', error);
+      toast.error('Failed to generate ad. Check that videos are analyzed.');
+    }
+  };
+
   const handleStartRender = async () => {
     if (!currentPayload) return;
 
@@ -497,8 +528,29 @@ export default function EditorPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Render actions */}
+        {/* Actions */}
         <div className="flex items-center gap-2">
+          {/* Generate with AI button - prominent */}
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleGenerateWithAI}
+            disabled={generateDirectMutation.isPending}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            {generateDirectMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-5 w-5" />
+                Generate with AI
+              </>
+            )}
+          </Button>
+
           {isCompleted && activeRenderStatus?.video_url && (
             <Button variant="outline" onClick={handleDownload}>
               <Download className="mr-2 h-4 w-4" />

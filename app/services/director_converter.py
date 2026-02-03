@@ -72,7 +72,6 @@ class DirectorConverter:
         self,
         llm_output: DirectorLLMOutput,
         project_id: uuid.UUID,
-        visual_script_id: uuid.UUID | None = None,
         segment_lookup: dict[str, UserVideoSegment] | None = None,
         file_url_lookup: dict[str, str] | None = None,
     ) -> RemotionPayload:
@@ -81,7 +80,6 @@ class DirectorConverter:
         Args:
             llm_output: The LLM's output with seconds-based times
             project_id: Project ID for the payload
-            visual_script_id: Optional visual script ID
             segment_lookup: Dict mapping segment IDs to UserVideoSegment objects
             file_url_lookup: Dict mapping segment IDs to source file URLs
 
@@ -162,7 +160,6 @@ class DirectorConverter:
             fps=self.fps,
             duration_in_frames=total_frames,
             project_id=project_id,
-            visual_script_id=visual_script_id,
             brand_profile=brand_profile,
             timeline=timeline_segments,
             created_at=datetime.now(timezone.utc),

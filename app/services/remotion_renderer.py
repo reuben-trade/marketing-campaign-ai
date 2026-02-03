@@ -129,7 +129,7 @@ class RemotionRendererService:
             settings = get_settings()
             mode = RenderMode.LAMBDA if settings.remotion_lambda_enabled else RenderMode.LOCAL
 
-        logger.info(f"Starting render {render_id} in {mode.value} mode")
+        logger.info(f"[RENDER {render_id}] Starting render in {mode.value} mode")
 
         # Update status to rendering
         render.status = RenderStatus.RENDERING.value
@@ -137,8 +137,10 @@ class RemotionRendererService:
 
         try:
             if mode == RenderMode.LOCAL:
+                logger.info(f"[RENDER {render_id}] Using LOCAL renderer")
                 result = await self._render_local(render)
             else:
+                logger.info(f"[RENDER {render_id}] Using LAMBDA renderer")
                 result = await self._render_lambda(render)
 
             # Update with success
@@ -166,10 +168,12 @@ class RemotionRendererService:
     async def _render_local(self, render: RenderedVideo) -> dict:
         """Render video using local Remotion CLI."""
         start_time = time.time()
+        logger.info(f"[RENDER {render.id}] ========== Starting local render ==========")
 
         # Create temp directory for output
         with tempfile.TemporaryDirectory() as temp_dir:
             # Write payload to temp file
+            logger.info(f"[RENDER {render.id}] Writing payload to temp file...")
             payload_path = Path(temp_dir) / "payload.json"
             with open(payload_path, "w") as f:
                 json.dump(render.remotion_payload, f)
@@ -194,7 +198,8 @@ class RemotionRendererService:
                 "h264",
             ]
 
-            logger.info(f"Starting local render: {' '.join(cmd)}")
+            logger.info(f"[RENDER {render.id}] Composition: {composition_id}")
+            logger.info(f"[RENDER {render.id}] Executing Remotion CLI...")
 
             # Run render command
             process = await asyncio.create_subprocess_exec(
@@ -205,9 +210,12 @@ class RemotionRendererService:
             )
 
             stdout, stderr = await process.communicate()
+            elapsed = time.time() - start_time
+            logger.info(f"[RENDER {render.id}] Remotion CLI finished (elapsed: {elapsed:.1f}s)")
 
             if process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
+                logger.error(f"[RENDER {render.id}] FAILED: {error_msg[:200]}")
                 raise RuntimeError(f"Remotion render failed: {error_msg}")
 
             # Check output exists
@@ -216,15 +224,24 @@ class RemotionRendererService:
 
             # Get file size
             file_size = output_path.stat().st_size
+            logger.info(f"[RENDER {render.id}] Output file size: {file_size / (1024*1024):.2f} MB")
 
             # Upload to Supabase storage
+            logger.info(f"[RENDER {render.id}] Uploading to Supabase storage...")
             video_url = await self._upload_to_storage(
                 output_path,
                 f"renders/{render.project_id}/{output_filename}",
             )
+            upload_elapsed = time.time() - start_time
+            logger.info(
+                f"[RENDER {render.id}] Upload complete (total elapsed: {upload_elapsed:.1f}s)"
+            )
 
             # Calculate render time
             render_time = time.time() - start_time
+            logger.info(
+                f"[RENDER {render.id}] ========== RENDER COMPLETE ({render_time:.1f}s) =========="
+            )
 
             # Get duration from payload
             payload = RemotionPayload.model_validate(render.remotion_payload)

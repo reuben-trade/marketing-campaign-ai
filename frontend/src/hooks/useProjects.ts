@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/lib/api/projects';
-import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest, QuickCreateRequest } from '@/types/project';
+import type { ProjectFilters, ProjectCreate, ProjectUpdate, AnalysisProgress, SegmentSearchRequest, QuickCreateRequest, DirectGenerateRequest, DirectGenerateResponse } from '@/types/project';
 import type { UploadProgressCallback } from '@/lib/api/client';
 
 export function useProjects(filters?: ProjectFilters) {
@@ -166,6 +166,28 @@ export function useQuickCreateProject() {
   return useMutation({
     mutationFn: (request: QuickCreateRequest) => projectsApi.quickCreate(request),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+}
+
+/**
+ * Hook to generate an ad using the clips-first Director (no recipe required).
+ * Uses the Viral Director LLM to reason about clips and build a timeline.
+ */
+export function useGenerateDirect() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      request = {},
+    }: {
+      projectId: string;
+      request?: DirectGenerateRequest;
+    }): Promise<DirectGenerateResponse> => projectsApi.generateDirect(projectId, request),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['project', data.project_id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });

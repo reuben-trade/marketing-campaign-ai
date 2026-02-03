@@ -12,6 +12,8 @@ import type {
   SegmentSearchRequest,
   SegmentSearchResponse,
   QuickCreateRequest,
+  DirectGenerateRequest,
+  DirectGenerateResponse,
 } from '@/types/project';
 
 export const projectsApi = {
@@ -105,5 +107,16 @@ export const projectsApi = {
 
   quickCreate: async (request: QuickCreateRequest): Promise<Project> => {
     return post<Project>('/api/projects/quick-create', request);
+  },
+
+  /**
+   * Generate an ad using the clips-first Director (no recipe required).
+   * Uses the Viral Director LLM to reason about clips and build a timeline.
+   */
+  generateDirect: async (
+    projectId: string,
+    request: DirectGenerateRequest = {}
+  ): Promise<DirectGenerateResponse> => {
+    return post<DirectGenerateResponse>(`/api/projects/${projectId}/generate-direct`, request);
   },
 };

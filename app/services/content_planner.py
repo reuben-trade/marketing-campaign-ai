@@ -65,15 +65,20 @@ class ContentPlanningAgent:
             ContentPlanningError: If generation fails
         """
         # Fetch project with brand profile
+        logger.info(f"[WRITER] Fetching project {request.project_id}...")
         project = await self._get_project(db, request.project_id)
 
         # Fetch recipe
+        logger.info(f"[WRITER] Fetching recipe {request.recipe_id}...")
         recipe = await self._get_recipe(db, request.recipe_id)
 
         # Fetch user content segments
+        logger.info("[WRITER] Fetching project segments...")
         segments = await self._get_project_segments(db, request.project_id)
+        logger.info(f"[WRITER] Found {len(segments)} segments")
 
         # Build planning input
+        logger.info("[WRITER] Building planning input...")
         planning_input = self._build_planning_input(
             recipe=recipe,
             segments=segments,
@@ -82,7 +87,9 @@ class ContentPlanningAgent:
         )
 
         # Generate visual script using LLM
+        logger.info("[WRITER] Calling LLM to generate visual script...")
         planning_output = await self._generate_script(planning_input)
+        logger.info(f"[WRITER] LLM returned {len(planning_output.slots)} slots")
 
         # Create and store visual script
         visual_script = VisualScript(

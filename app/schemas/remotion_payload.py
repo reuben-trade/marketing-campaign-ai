@@ -608,23 +608,12 @@ class RemotionPayload(BaseModel):
 
 
 class DirectorAgentInput(BaseModel):
-    """Input to the Director Agent."""
+    """Input to the Director Agent (clips-first approach)."""
 
     project_id: uuid.UUID = Field(..., description="Project ID")
-    visual_script_id: uuid.UUID = Field(..., description="Visual script to assemble")
     composition_type: CompositionType = Field(
         default=CompositionType.VERTICAL,
         description="Target aspect ratio",
-    )
-    min_similarity_threshold: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="Minimum similarity for clip selection",
-    )
-    gap_handling: str = Field(
-        default="broll",
-        description="How to handle gaps: 'broll' (generate), 'text_slide', or 'skip'",
     )
     audio_url: str | None = Field(
         default=None,

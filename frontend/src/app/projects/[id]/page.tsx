@@ -283,7 +283,7 @@ export default function ProjectDetailPage({ params }: PageProps) {
                           <p className="text-xs text-muted-foreground">
                             {formatFileSize(file.file_size_bytes)} •{' '}
                             <Badge
-                              variant={file.status === 'uploaded' ? 'secondary' : 'outline'}
+                              variant={file.status === 'completed' ? 'secondary' : file.status === 'failed' ? 'destructive' : 'outline'}
                               className="text-xs"
                             >
                               {file.status}

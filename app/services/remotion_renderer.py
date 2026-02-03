@@ -22,6 +22,130 @@ from app.utils.supabase_storage import SupabaseStorage
 logger = logging.getLogger(__name__)
 
 
+def _log_payload_preview(render_id: uuid.UUID, payload: dict) -> None:
+    """Log a preview of the Remotion payload for debugging."""
+    logger.info(f"[RENDER {render_id}] " + "=" * 50)
+    logger.info(f"[RENDER {render_id}] PAYLOAD PREVIEW:")
+    logger.info(f"[RENDER {render_id}] " + "=" * 50)
+
+    # Basic info
+    logger.info(f"[RENDER {render_id}]   Composition: {payload.get('composition_id', 'N/A')}")
+    logger.info(f"[RENDER {render_id}]   FPS: {payload.get('fps', 30)}")
+    logger.info(
+        f"[RENDER {render_id}]   Duration (frames): {payload.get('duration_in_frames', 'N/A')}"
+    )
+
+    # Calculate duration in seconds
+    fps = payload.get("fps", 30)
+    duration_frames = payload.get("duration_in_frames", 0)
+    duration_secs = duration_frames / fps if fps else 0
+    logger.info(f"[RENDER {render_id}]   Duration (seconds): {duration_secs:.2f}s")
+
+    # Dimensions
+    width = payload.get("width", "N/A")
+    height = payload.get("height", "N/A")
+    logger.info(f"[RENDER {render_id}]   Dimensions: {width}x{height}")
+
+    # Timeline segments
+    timeline = payload.get("timeline", [])
+    logger.info(f"[RENDER {render_id}]   Timeline segments: {len(timeline)}")
+
+    # Count segment types
+    segment_types: dict[str, int] = {}
+    for segment in timeline:
+        seg_type = segment.get("type", "unknown")
+        segment_types[seg_type] = segment_types.get(seg_type, 0) + 1
+
+    if segment_types:
+        logger.info(f"[RENDER {render_id}]   Segment breakdown:")
+        for seg_type, count in sorted(segment_types.items()):
+            logger.info(f"[RENDER {render_id}]     - {seg_type}: {count}")
+
+    # Log first few segments with details
+    logger.info(f"[RENDER {render_id}]   First 5 segments:")
+    for i, segment in enumerate(timeline[:5]):
+        seg_type = segment.get("type", "unknown")
+        start_frame = segment.get("start_frame", "?")
+        duration = segment.get("duration_frames", "?")
+
+        # Get source info if available
+        source_info = ""
+        if "source" in segment:
+            source = segment["source"]
+            if isinstance(source, dict):
+                url = source.get("url", "")
+                if url:
+                    # Truncate long URLs
+                    source_info = f" | src: ...{url[-40:]}" if len(url) > 40 else f" | src: {url}"
+
+        logger.info(
+            f"[RENDER {render_id}]     [{i}] {seg_type} @ frame {start_frame} "
+            f"(dur: {duration}){source_info}"
+        )
+
+    if len(timeline) > 5:
+        logger.info(f"[RENDER {render_id}]     ... and {len(timeline) - 5} more segments")
+
+    # Audio track
+    audio = payload.get("audio_track")
+    if audio:
+        logger.info(f"[RENDER {render_id}]   Audio track: {audio.get('url', 'N/A')[:50]}...")
+
+    # Brand profile
+    brand = payload.get("brand_profile")
+    if brand:
+        logger.info(f"[RENDER {render_id}]   Brand profile: included")
+
+    logger.info(f"[RENDER {render_id}] " + "=" * 50)
+
+
+def _log_command(render_id: uuid.UUID, cmd: list[str], cwd: str) -> None:
+    """Log the command being executed."""
+    logger.info(f"[RENDER {render_id}] " + "-" * 40)
+    logger.info(f"[RENDER {render_id}] COMMAND:")
+    logger.info(f"[RENDER {render_id}]   Working dir: {cwd}")
+    logger.info(f"[RENDER {render_id}]   Command: {' '.join(cmd)}")
+    logger.info(f"[RENDER {render_id}] " + "-" * 40)
+
+
+def _log_process_output(
+    render_id: uuid.UUID,
+    stdout: bytes,
+    stderr: bytes,
+    return_code: int,
+) -> None:
+    """Log stdout and stderr from the render process."""
+    logger.info(f"[RENDER {render_id}] " + "-" * 40)
+    logger.info(f"[RENDER {render_id}] PROCESS OUTPUT (exit code: {return_code}):")
+    logger.info(f"[RENDER {render_id}] " + "-" * 40)
+
+    # Log stdout
+    if stdout:
+        stdout_text = stdout.decode(errors="replace")
+        lines = stdout_text.strip().split("\n")
+        logger.info(f"[RENDER {render_id}] STDOUT ({len(lines)} lines):")
+        for line in lines[-30:]:  # Last 30 lines
+            logger.info(f"[RENDER {render_id}]   {line}")
+        if len(lines) > 30:
+            logger.info(f"[RENDER {render_id}]   ... ({len(lines) - 30} earlier lines omitted)")
+    else:
+        logger.info(f"[RENDER {render_id}] STDOUT: (empty)")
+
+    # Log stderr
+    if stderr:
+        stderr_text = stderr.decode(errors="replace")
+        lines = stderr_text.strip().split("\n")
+        logger.info(f"[RENDER {render_id}] STDERR ({len(lines)} lines):")
+        for line in lines[-20:]:  # Last 20 lines
+            logger.info(f"[RENDER {render_id}]   {line}")
+        if len(lines) > 20:
+            logger.info(f"[RENDER {render_id}]   ... ({len(lines) - 20} earlier lines omitted)")
+    else:
+        logger.info(f"[RENDER {render_id}] STDERR: (empty)")
+
+    logger.info(f"[RENDER {render_id}] " + "-" * 40)
+
+
 class RemotionRendererService:
     """Service for rendering videos using Remotion CLI or Lambda."""
 
@@ -170,13 +294,18 @@ class RemotionRendererService:
         start_time = time.time()
         logger.info(f"[RENDER {render.id}] ========== Starting local render ==========")
 
+        # Log payload preview
+        _log_payload_preview(render.id, render.remotion_payload)
+
         # Create temp directory for output
         with tempfile.TemporaryDirectory() as temp_dir:
             # Write payload to temp file
             logger.info(f"[RENDER {render.id}] Writing payload to temp file...")
             payload_path = Path(temp_dir) / "payload.json"
             with open(payload_path, "w") as f:
-                json.dump(render.remotion_payload, f)
+                json.dump(render.remotion_payload, f, indent=2)
+
+            logger.info(f"[RENDER {render.id}] Payload written to: {payload_path}")
 
             # Output path
             output_filename = f"{render.id}.mp4"
@@ -198,7 +327,9 @@ class RemotionRendererService:
                 "h264",
             ]
 
-            logger.info(f"[RENDER {render.id}] Composition: {composition_id}")
+            # Log the command
+            _log_command(render.id, cmd, str(remotion_dir))
+
             logger.info(f"[RENDER {render.id}] Executing Remotion CLI...")
 
             # Run render command
@@ -213,9 +344,12 @@ class RemotionRendererService:
             elapsed = time.time() - start_time
             logger.info(f"[RENDER {render.id}] Remotion CLI finished (elapsed: {elapsed:.1f}s)")
 
+            # Always log process output for debugging
+            _log_process_output(render.id, stdout, stderr, process.returncode)
+
             if process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
-                logger.error(f"[RENDER {render.id}] FAILED: {error_msg[:200]}")
+                logger.error(f"[RENDER {render.id}] FAILED with exit code {process.returncode}")
                 raise RuntimeError(f"Remotion render failed: {error_msg}")
 
             # Check output exists
@@ -270,6 +404,10 @@ class RemotionRendererService:
             )
 
         start_time = time.time()
+        logger.info(f"[RENDER {render.id}] ========== Starting Lambda render ==========")
+
+        # Log payload preview
+        _log_payload_preview(render.id, render.remotion_payload)
 
         # Get the Remotion payload
         payload = RemotionPayload.model_validate(render.remotion_payload)
@@ -277,8 +415,23 @@ class RemotionRendererService:
         # Build the Lambda render request
         lambda_input = self._build_lambda_input(render, payload, settings)
 
+        # Log Lambda configuration
+        logger.info(f"[RENDER {render.id}] " + "-" * 40)
+        logger.info(f"[RENDER {render.id}] LAMBDA CONFIG:")
+        logger.info(f"[RENDER {render.id}]   Region: {settings.remotion_aws_region}")
+        logger.info(f"[RENDER {render.id}]   Function: {settings.remotion_function_name}")
+        logger.info(
+            f"[RENDER {render.id}]   Serve URL: {lambda_input.get('serveUrl', 'N/A')[:60]}..."
+        )
+        logger.info(f"[RENDER {render.id}]   Composition: {lambda_input.get('composition')}")
+        logger.info(f"[RENDER {render.id}]   Codec: {lambda_input.get('codec')}")
+        logger.info(
+            f"[RENDER {render.id}]   Frames per Lambda: {lambda_input.get('framesPerLambda')}"
+        )
+        logger.info(f"[RENDER {render.id}] " + "-" * 40)
+
         # Invoke Lambda and wait for completion
-        result = await self._invoke_lambda_render(lambda_input, settings)
+        result = await self._invoke_lambda_render(lambda_input, settings, render.id)
 
         # Calculate render time
         render_time = time.time() - start_time
@@ -335,7 +488,12 @@ class RemotionRendererService:
             "logLevel": "warn",
         }
 
-    async def _invoke_lambda_render(self, lambda_input: dict, settings: Any) -> dict:
+    async def _invoke_lambda_render(
+        self,
+        lambda_input: dict,
+        settings: Any,
+        db_render_id: uuid.UUID,
+    ) -> dict:
         """Invoke Remotion Lambda and poll for completion."""
         import boto3
         from botocore.config import Config
@@ -354,13 +512,15 @@ class RemotionRendererService:
                 aws_secret_access_key=settings.aws_secret_access_key,
                 config=boto_config,
             )
+            logger.info(f"[RENDER {db_render_id}] Using explicit AWS credentials")
         else:
             lambda_client = boto3.client("lambda", config=boto_config)
+            logger.info(f"[RENDER {db_render_id}] Using default AWS credential chain")
 
         function_name = settings.remotion_function_name
 
         # Start the render
-        logger.info(f"Invoking Remotion Lambda: {function_name}")
+        logger.info(f"[RENDER {db_render_id}] Invoking Lambda function: {function_name}")
 
         start_response = await asyncio.to_thread(
             lambda_client.invoke,
@@ -373,24 +533,34 @@ class RemotionRendererService:
         response_payload = json.loads(start_response["Payload"].read().decode())
 
         if "errorMessage" in response_payload:
+            logger.error(f"[RENDER {db_render_id}] Lambda invocation failed!")
+            logger.error(f"[RENDER {db_render_id}] Error: {response_payload['errorMessage']}")
+            if "stackTrace" in response_payload:
+                logger.error(f"[RENDER {db_render_id}] Stack trace:")
+                for line in response_payload["stackTrace"][:10]:
+                    logger.error(f"[RENDER {db_render_id}]   {line}")
             raise RuntimeError(f"Lambda invocation failed: {response_payload['errorMessage']}")
 
-        render_id = response_payload.get("renderId")
+        remotion_render_id = response_payload.get("renderId")
         bucket_name = response_payload.get("bucketName")
 
-        if not render_id or not bucket_name:
+        if not remotion_render_id or not bucket_name:
+            logger.error(f"[RENDER {db_render_id}] Invalid Lambda response: {response_payload}")
             raise RuntimeError(f"Invalid Lambda response: {response_payload}")
 
-        logger.info(f"Remotion render started: {render_id}")
+        logger.info(f"[RENDER {db_render_id}] Remotion render started")
+        logger.info(f"[RENDER {db_render_id}]   Remotion render ID: {remotion_render_id}")
+        logger.info(f"[RENDER {db_render_id}]   Bucket: {bucket_name}")
 
         # Poll for completion
         progress_input = {
             "type": "status",
             "bucketName": bucket_name,
-            "renderId": render_id,
+            "renderId": remotion_render_id,
         }
 
         max_attempts = 180  # 15 minutes with 5-second intervals
+        last_progress = -1
         for attempt in range(max_attempts):
             await asyncio.sleep(5)  # Poll every 5 seconds
 
@@ -404,30 +574,53 @@ class RemotionRendererService:
             progress = json.loads(progress_response["Payload"].read().decode())
 
             if "errorMessage" in progress:
+                logger.error(f"[RENDER {db_render_id}] Progress check failed!")
+                logger.error(f"[RENDER {db_render_id}] Error: {progress['errorMessage']}")
                 raise RuntimeError(f"Progress check failed: {progress['errorMessage']}")
 
             overall_progress = progress.get("overallProgress", 0)
-            logger.debug(f"Render progress: {overall_progress * 100:.1f}%")
+            progress_pct = int(overall_progress * 100)
+
+            # Log progress every 10% or on completion
+            if progress_pct >= last_progress + 10 or progress.get("done"):
+                chunks_done = progress.get("chunks", {}).get("done", 0)
+                chunks_total = progress.get("chunks", {}).get("total", 0)
+                logger.info(
+                    f"[RENDER {db_render_id}] Progress: {progress_pct}% "
+                    f"(chunks: {chunks_done}/{chunks_total})"
+                )
+                last_progress = progress_pct
 
             if progress.get("done"):
-                logger.info(f"Render completed: {render_id}")
+                logger.info(f"[RENDER {db_render_id}] ========== Lambda render complete ==========")
 
                 # Get the output URL
                 output_url = progress.get("outputFile")
+                output_size = progress.get("outputSizeInBytes", 0)
+
+                logger.info(f"[RENDER {db_render_id}] Output URL: {output_url[:80]}...")
+                logger.info(
+                    f"[RENDER {db_render_id}] Output size: {output_size / (1024*1024):.2f} MB"
+                )
+
                 if not output_url:
                     raise RuntimeError("Render completed but no output URL")
 
                 return {
                     "outputUrl": output_url,
-                    "fileSizeBytes": progress.get("outputSizeInBytes"),
+                    "fileSizeBytes": output_size,
                     "renderMetadata": progress.get("renderMetadata"),
                 }
 
             if progress.get("fatalErrorEncountered"):
                 errors = progress.get("errors", [])
+                logger.error(f"[RENDER {db_render_id}] FATAL ERROR in Lambda render!")
+                for i, err in enumerate(errors[:5]):
+                    logger.error(f"[RENDER {db_render_id}]   Error {i+1}: {err}")
                 error_msg = "; ".join(str(e) for e in errors) if errors else "Unknown error"
                 raise RuntimeError(f"Render failed: {error_msg}")
 
+        logger.error(f"[RENDER {db_render_id}] Render timed out after {max_attempts * 5} seconds")
         raise RuntimeError(f"Render timed out after {max_attempts * 5} seconds")
 
     async def _transfer_lambda_output(
@@ -437,14 +630,22 @@ class RemotionRendererService:
         render_id: uuid.UUID,
     ) -> str:
         """Download Lambda output and upload to Supabase storage."""
+        logger.info(f"[RENDER {render_id}] Transferring Lambda output to Supabase...")
+        logger.info(f"[RENDER {render_id}]   Source: {lambda_output_url[:80]}...")
+
         # Download from S3
+        logger.info(f"[RENDER {render_id}]   Downloading from S3...")
         async with httpx.AsyncClient() as client:
             response = await client.get(lambda_output_url, follow_redirects=True)
             response.raise_for_status()
             video_data = response.content
 
+        logger.info(f"[RENDER {render_id}]   Downloaded {len(video_data) / (1024*1024):.2f} MB")
+
         # Upload to Supabase
         storage_path = f"renders/{project_id}/{render_id}.mp4"
+        logger.info(f"[RENDER {render_id}]   Uploading to Supabase: {storage_path}")
+
         url = await asyncio.to_thread(
             self.storage.upload_file,
             self.RENDER_OUTPUT_BUCKET,
@@ -453,6 +654,7 @@ class RemotionRendererService:
             content_type="video/mp4",
         )
 
+        logger.info(f"[RENDER {render_id}]   Upload complete: {url[:60]}...")
         return url
 
     async def _upload_to_storage(self, file_path: Path, storage_path: str) -> str:

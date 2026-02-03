@@ -1,6 +1,6 @@
 {
   "currentSprint": 5,
-  "lastUpdated": "2026-01-28",
+  "lastUpdated": "2026-02-03",
   "tasks": [
     {
       "id": "s1-t1",
@@ -619,15 +619,15 @@
       "sprint": 5,
       "title": "Update BaseAdComposition for new segment types",
       "description": "Add rendering logic for b_roll_overlay, title_card, caption overlay",
-      "status": "pending",
-      "branch": null,
-      "prNumber": null,
+      "status": "completed",
+      "branch": "feature/base-composition-caption-overlay",
+      "prNumber": 56,
       "dependsOn": ["s5-t1", "s5-t2", "s5-t3", "s5-t4"],
       "files": [
         "remotion/src/compositions/BaseAdComposition.tsx"
       ],
       "prdSection": "5.3 Director Agent Refactor",
-      "notes": "Add new segment types to renderSegment switch"
+      "notes": "Added CaptionOverlay rendering when segments have caption_overlay config. Refactored renderSegment to return React.Fragment when captions are present. b_roll_overlay, title_card, split_screen were already implemented in previous PRs."
     },
     {
       "id": "s5-t13",

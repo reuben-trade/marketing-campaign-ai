@@ -475,8 +475,11 @@ class UserContentAnalyzer:
         await db.commit()
 
         try:
-            # Download video from storage
-            video_content = await self.storage.download_file(project_file.storage_path)
+            # Download video from storage (must specify user_uploads_bucket)
+            video_content = await self.storage.download_file(
+                project_file.storage_path,
+                bucket=self.storage.user_uploads_bucket,
+            )
 
             # Determine MIME type
             extension = project_file.filename.split(".")[-1].lower()
